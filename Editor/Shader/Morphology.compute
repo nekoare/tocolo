@@ -1,0 +1,133 @@
+// 流用元: com.nekoare.mask-creation-tool/Editor/Shaders/NekoareMaskToolSelectArea.compute（CSExpand / CSErode の正方形窓）
+// マスク（R8）に対する形態学演算。読み込み（In）と書き込み（Out）は必ず別の RT を渡すこと
+#pragma kernel CSDilate
+#pragma kernel CSErode
+#pragma kernel CSDilateMasked
+#pragma kernel CSBlur3
+#pragma kernel CSMul
+#pragma kernel CSMax
+
+Texture2D<float> In;
+Texture2D<float> Other;   // CSMul / CSMax の 2 枚目（In と同じサイズ）
+Texture2D<float> Allowed; // CSDilateMasked / CSBlur3: 0.5 未満の画素へは広げない（In と別サイズでもよい）
+RWTexture2D<float> Out;
+int Width;
+int Height;
+int Radius;
+int AllowedWidth;
+int AllowedHeight;
+int AllowedInvert;        // 1 なら Allowed を反転して使う（被覆マスクをそのまま渡して「被覆の外だけ」にする）
+
+// 正方形窓（端は画像内に切り詰める）の最大値
+float WindowMax(int2 p)
+{
+    int2 lo = max(int2(0, 0), p - Radius);
+    int2 hi = min(int2(Width - 1, Height - 1), p + Radius);
+    float v = 0.0;
+    for (int y = lo.y; y <= hi.y; y++)
+    {
+        for (int x = lo.x; x <= hi.x; x++)
+        {
+            v = max(v, In[int2(x, y)]);
+        }
+    }
+    return v;
+}
+
+// 正方形窓（端は画像内に切り詰める）の最小値
+float WindowMin(int2 p)
+{
+    int2 lo = max(int2(0, 0), p - Radius);
+    int2 hi = min(int2(Width - 1, Height - 1), p + Radius);
+    float v = 1.0;
+    for (int y = lo.y; y <= hi.y; y++)
+    {
+        for (int x = lo.x; x <= hi.x; x++)
+        {
+            v = min(v, In[int2(x, y)]);
+        }
+    }
+    return v;
+}
+
+[numthreads(16, 16, 1)]
+void CSDilate(uint3 id : SV_DispatchThreadID)
+{
+    if ((int)id.x >= Width || (int)id.y >= Height) return;
+    Out[id.xy] = WindowMax(int2(id.xy));
+}
+
+[numthreads(16, 16, 1)]
+void CSErode(uint3 id : SV_DispatchThreadID)
+{
+    if ((int)id.x >= Width || (int)id.y >= Height) return;
+    Out[id.xy] = WindowMin(int2(id.xy));
+}
+
+// 画素 p が許可されているか（AllowedInvert 適用後の Allowed ≥ 0.5）
+bool IsAllowed(int2 p)
+{
+    // 画素中心の正規化座標で Allowed の画素を引く（解像度が違っても同じ場所を見る）
+    int2 q = int2((float2(p) + 0.5) * float2(AllowedWidth, AllowedHeight) / float2(Width, Height));
+    q = clamp(q, int2(0, 0), int2(AllowedWidth - 1, AllowedHeight - 1));
+    float allowed = Allowed[q];
+    if (AllowedInvert != 0) allowed = 1.0 - allowed;
+    return allowed >= 0.5;
+}
+
+// 許可された画素（Allowed ≥ 0.5）にだけ膨張する。許可されない画素は元の値のまま。
+// C# 側（Morphology.DilateInto）は Radius = 1 で padding 回繰り返す（許可された画素をたどって届く所までしか広げない）
+[numthreads(16, 16, 1)]
+void CSDilateMasked(uint3 id : SV_DispatchThreadID)
+{
+    if ((int)id.x >= Width || (int)id.y >= Height) return;
+
+    int2 p = int2(id.xy);
+    float v = In[p];
+    if (IsAllowed(p)) v = max(v, WindowMax(p));
+    Out[id.xy] = v;
+}
+
+// 3×3 の平均（端は画像内の画素だけで平均する）。
+// マスク内（In > 0）か許可された画素（Allowed ≥ 0.5）にだけ書き、それ以外は 0 にする
+// （被覆を反転して渡すと、隣のチャートの縁へにじまない）。制約なしで使うときは Allowed に白を渡す
+[numthreads(16, 16, 1)]
+void CSBlur3(uint3 id : SV_DispatchThreadID)
+{
+    if ((int)id.x >= Width || (int)id.y >= Height) return;
+
+    int2 p = int2(id.xy);
+    if (In[p] <= 0.0 && !IsAllowed(p))
+    {
+        Out[id.xy] = 0.0;
+        return;
+    }
+    int2 lo = max(int2(0, 0), p - 1);
+    int2 hi = min(int2(Width - 1, Height - 1), p + 1);
+    float sum = 0.0;
+    float count = 0.0;
+    for (int y = lo.y; y <= hi.y; y++)
+    {
+        for (int x = lo.x; x <= hi.x; x++)
+        {
+            sum += In[int2(x, y)];
+            count += 1.0;
+        }
+    }
+    Out[id.xy] = sum / count;
+}
+
+[numthreads(16, 16, 1)]
+void CSMul(uint3 id : SV_DispatchThreadID)
+{
+    if ((int)id.x >= Width || (int)id.y >= Height) return;
+    Out[id.xy] = In[id.xy] * Other[id.xy];
+}
+
+// 2 枚のマスクの最大値（書き出しで全編集のマスクを 1 枚に合成する）
+[numthreads(16, 16, 1)]
+void CSMax(uint3 id : SV_DispatchThreadID)
+{
+    if ((int)id.x >= Width || (int)id.y >= Height) return;
+    Out[id.xy] = max(In[id.xy], Other[id.xy]);
+}

@@ -1,0 +1,178 @@
+// 流用元: com.nekoare.chimera-hair-master/Editor/Shader/ColorTransform.compute（TransformHueShiftOklab）
+// 選択マスクの内側を目標色へ寄せる（設計 §7.2）。元の陰影は L の分布として、模様は L・C の相対差として残る。
+//
+// === 色空間 ===
+// Src / Dst は線形の値（ARGBHalf・sRGB フラグ無しの RT）。RWTexture2D の読み書きには sRGB 変換が掛からない。
+// OklchToSRGBGamutMapped は sRGB を返すので、SRGBToLinear で線形に戻してから混ぜる。
+// Src と Dst は必ず別の RT を渡すこと（ping-pong）。
+//
+// ※ Editor/Colors/ColorShiftCpu.cs に同じ 1 画素の式がある。片方だけ変えると GPU/CPU 一致テストが落ちる
+#pragma kernel CSShift
+#pragma kernel CSWeight
+
+#include "OklabConverter.hlsl"
+
+Texture2D<float4> Src;    // 線形 RGB + α
+Texture2D<float> Mask;    // 選択マスク M（0..1）。Src と別サイズでもよい（正規化座標で対応させる）
+RWTexture2D<float4> Dst;  // 線形 RGB + α
+int Width;                // Src / Dst の大きさ
+int Height;
+int MaskWidth;
+int MaskHeight;
+
+// 1 画素の式のパラメータ（C# の ShiftParams と 1:1）
+float4 _TargetOklch;      // (L_t, C_t, h_t ラジアン, 未使用)
+float _DarkEndRatio;      // 暗部の明るさ（選択内の最暗部 = L_t × ratio）
+float _LToTarget;         // L を目標へ寄せる強さ
+float _ChromaToTarget;    // C を目標へ寄せる強さ
+float _HueRetain;         // 代表色相からの差を残す割合
+float _Strength;          // 適用の強さ（マスクに掛ける）
+float _LP05;              // 選択内 L の 5 パーセンタイル（元テクスチャ基準）
+float _LP95;              // 選択内 L の 95 パーセンタイル
+float _HDominant;         // 選択内の代表色相（ラジアン）
+float _ShadingStretch;    // 陰影の強調（0 = 従来、1 = 分布の幅に関係なくリマップ）。色 1・色 2 で共通
+
+// グラデーション（C# の ShiftParams.useGradient / rootToBox / boxSize / targetOklab2）
+Texture2D<float4> PosMap; // 位置マップ（xyz = 対象ルートのローカル位置、a > 0 なら描かれた画素）。Src と別サイズでもよい
+int PosWidth;
+int PosHeight;
+int UseGradient;          // 0 なら位置を見ない（PosMap はダミーでよい）
+float4x4 WorldToBox;      // 対象ルートのローカル → 箱のローカル（箱の位置と回転の逆。名前はワールドだが入力はルートのローカル）
+float3 BoxSize;           // 箱の大きさ（Y で混ぜる。GradientInsideOnly の内外判定も Y だけ）
+int GradientInsideOnly;   // 0 以外ならグラデーション方向（Y）で箱の外の画素は色変えしない（元の色のまま）。横方向は切らない
+float3 TargetOklab2;      // 色 2（箱の上端 t = 1）の Oklab
+float _DarkEndRatio2;     // 色 2（箱の上端 t = 1）の暗部の明るさ。t で _DarkEndRatio と混ぜる
+float _Strength2;         // 色 2（箱の上端 t = 1）の強さ。t で _Strength と混ぜる
+
+static const float MinBoxHeight = 1e-5;      // 箱の高さの下限（0 で割らない）
+static const float MinGradientChroma = 1e-6; // 混ぜた目標色の彩度がこれ未満なら色相を 0 とみなす（atan2(0, 0) の NaN 除け）
+
+// グラデーションの混ぜ具合 t（0 = 新しい色、1 = 終了色）。箱のローカル y / 高さ + 0.5 を 0..1 に切り詰める。
+// 位置マップで描かれていない画素（a ≤ 0）は 0
+float GradientT(float4 position)
+{
+    if (position.a <= 0.0) return 0.0;
+    float3 local = mul(WorldToBox, float4(position.xyz, 1.0)).xyz;
+    float height = max(abs(BoxSize.y), MinBoxHeight);
+    return saturate(local.y / height + 0.5);
+}
+
+// 「箱の中だけ」: グラデーション方向（y）で箱の外（上端より上・下端より下）なら、その画素は色変えしない（元の色のまま）。
+// 横方向（x, z）は箱で切らない（ユーザー要望 2026-09-25）。位置マップで描かれていない画素は箱の中扱い
+bool GradientOutsideBox(float4 position)
+{
+    if (GradientInsideOnly == 0 || position.a <= 0.0) return false;
+    float3 local = mul(WorldToBox, float4(position.xyz, 1.0)).xyz;
+    return abs(local.y) > abs(BoxSize.y) * 0.5;
+}
+
+// 線形 RGB を目標色 targetLch（OKLCh）へ寄せた線形 RGB を返す（マスクを掛ける前の値）。darkEndRatio は暗部の明るさ
+float3 ShiftToTargetLinear(float3 lin, float3 targetLch, float darkEndRatio)
+{
+    float3 lch = OklabToOklch(LinearRGBToOklab(lin));
+
+    float targetL = targetLch.x;
+    float targetC = targetLch.y;
+    float targetH = targetLch.z;
+
+    // L: 選択内の [p05, p95] を [L_t × darkEndRatio, L_t] へ線形リマップ。
+    //    分布が狭い（range < 0.20）ときは傾き 1 の加算オフセットへ滑らかに切り替える（微小な陰影を増幅しない）。
+    //    陰影の強調（_ShadingStretch）はリマップ側の重みの下限（1 なら幅に関係なく目標範囲いっぱいへ広げる）
+    const float RangeThreshold = 0.20;
+    float range = _LP95 - _LP05;
+    float mid = (_LP05 + _LP95) * 0.5;
+    // range ≈ 0 ならリマップ側の重みもほぼ 0 なので、割り算だけ避けて中央に置く
+    float n = range > 1e-5 ? (lch.x - _LP05) / range : 0.5;
+    float remap = lerp(targetL * darkEndRatio, targetL, n);
+    float offset = lch.x - mid + targetL;
+    float mapped = lerp(offset, remap, max(saturate(range / RangeThreshold), _ShadingStretch));
+    float newL = SoftClip01(lerp(lch.x, mapped, _LToTarget), 0.05);
+
+    // C: 目標の彩度へ寄せる（chromaToTarget = 0 なら元のまま）
+    float newC = max(0.0, lerp(lch.y, targetC, _ChromaToTarget));
+
+    // h: 目標色相に統一。hueRetain > 0 なら代表色相からの差を一部残す。
+    //    無彩色の画素に h_t を与えても C' が小さければ色として見えないので分岐は設けない
+    float newH = WrapHueRadians(targetH + WrapHueRadians(lch.z - _HDominant) * _HueRetain);
+
+    // ガマット外は L と h を保って C だけ縮める。戻り値は sRGB なので線形に戻す
+    return SRGBToLinear(OklchToSRGBGamutMapped(float3(newL, newC, newH)));
+}
+
+[numthreads(16, 16, 1)]
+void CSShift(uint3 id : SV_DispatchThreadID)
+{
+    if ((int)id.x >= Width || (int)id.y >= Height) return;
+
+    float4 src = Src[id.xy];
+
+    // グラデーションの混ぜ具合 t。OFF なら 0（色 1 の値だけを使う）。
+    // 強さも t で混ぜるので、マスクの重み w より先に求める
+    float t = 0.0;
+    if (UseGradient != 0)
+    {
+        // 位置マップも正規化座標で引く
+        int2 pq = int2((float2(id.xy) + 0.5) * float2(PosWidth, PosHeight) / float2(Width, Height));
+        pq = clamp(pq, int2(0, 0), int2(PosWidth - 1, PosHeight - 1));
+        float4 position = PosMap[pq];
+        if (GradientOutsideBox(position))
+        {
+            Dst[id.xy] = src; // 箱の外は元の色のまま
+            return;
+        }
+        t = GradientT(position);
+    }
+    float strength = UseGradient != 0 ? lerp(_Strength, _Strength2, t) : _Strength;
+    float darkEndRatio = UseGradient != 0 ? lerp(_DarkEndRatio, _DarkEndRatio2, t) : _DarkEndRatio;
+
+    // 画素中心の正規化座標でマスクの画素を引く（解像度が違っても同じ場所を見る）
+    int2 q = int2((float2(id.xy) + 0.5) * float2(MaskWidth, MaskHeight) / float2(Width, Height));
+    q = clamp(q, int2(0, 0), int2(MaskWidth - 1, MaskHeight - 1));
+    float w = saturate(Mask[q] * strength);
+
+    // マスク外は元の値をそのまま書く（式の途中の誤差や NaN を持ち込まない）
+    if (w <= 0.0)
+    {
+        Dst[id.xy] = src;
+        return;
+    }
+
+    float3 targetLch = _TargetOklch.xyz;
+    if (UseGradient != 0)
+    {
+        // 目標色は Oklab で混ぜ、Oklch へ戻して従来の式へ
+        float3 lab1 = OklchToOklab(targetLch);
+        targetLch = OklabToOklch(lerp(lab1, TargetOklab2, t));
+        if (targetLch.y < MinGradientChroma) targetLch.z = 0.0;
+    }
+
+    float3 shifted = ShiftToTargetLinear(src.rgb, targetLch, darkEndRatio);
+    // α は触らない（透過マスク温存）
+    Dst[id.xy] = float4(lerp(src.rgb, shifted, w), src.a);
+}
+
+// マスクだけ書き出し用: 色は変えず、この編集が実際に効く重み（マスク × 不透明度。グラデーションなら位置で色 1・色 2 の不透明度を補間、
+// 「箱の中だけ」の外は 0）を WeightOut に max で積む。Width/Height は WeightOut の大きさ（CSShift と同じくマスク・位置マップは正規化座標で引く）
+RWTexture2D<float> WeightOut;
+
+[numthreads(16, 16, 1)]
+void CSWeight(uint3 id : SV_DispatchThreadID)
+{
+    if ((int)id.x >= Width || (int)id.y >= Height) return;
+
+    float t = 0.0;
+    if (UseGradient != 0)
+    {
+        int2 pq = int2((float2(id.xy) + 0.5) * float2(PosWidth, PosHeight) / float2(Width, Height));
+        pq = clamp(pq, int2(0, 0), int2(PosWidth - 1, PosHeight - 1));
+        float4 position = PosMap[pq];
+        if (GradientOutsideBox(position)) return; // 箱の外は色変えしない＝重み 0（積まない）
+        t = GradientT(position);
+    }
+    float strength = UseGradient != 0 ? lerp(_Strength, _Strength2, t) : _Strength;
+
+    int2 q = int2((float2(id.xy) + 0.5) * float2(MaskWidth, MaskHeight) / float2(Width, Height));
+    q = clamp(q, int2(0, 0), int2(MaskWidth - 1, MaskHeight - 1));
+    float w = saturate(Mask[q] * strength);
+    WeightOut[id.xy] = max(WeightOut[id.xy], w);
+}

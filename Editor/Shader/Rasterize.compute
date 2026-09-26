@@ -1,0 +1,90 @@
+// 流用元: com.nekoare.mask-creation-tool/Editor/Shaders/NekoareMaskToolSelectArea.compute（isPointInTriangle / isOnTriangleEdge）
+// UV 三角形をマスクへ塗る。書き込みは「当たった画素に 1」だけなので、
+// 同じ RT に何度 Dispatch しても max 合成（和集合）になる。消すときは CSClear を先に呼ぶ。
+// 画素ごとに全三角形を見る総当たりはやめ、CPU で三角形ごとの外接矩形を 8×8 のタイルに分け、
+// 1 グループ = 1 タイル（その三角形だけを判定）で塗る
+#pragma kernel CSRasterizeTri
+#pragma kernel CSClear
+
+StructuredBuffer<float2> Verts;   // テクセル座標（uv × テクスチャサイズ）。3 頂点/三角形
+StructuredBuffer<int4> TriTiles;  // (三角形番号, タイル x, タイル y, 0)。タイルは 8×8 画素
+int TileStart;                    // この Dispatch の先頭タイル（グループ数の上限 65535 を超えるときは分割して呼ぶ）
+int Width;
+int Height;
+RWTexture2D<float> Out;
+
+// 重心座標による内外判定。隣接三角形の共有エッジ上の画素が浮動小数点誤差で
+// どちらにも属さない（穴になる）のを防ぐため、わずかに負の値まで許容する
+bool IsPointInTriangle(float2 p, float2 a, float2 b, float2 c)
+{
+    float2 v0 = c - a;
+    float2 v1 = b - a;
+    float2 v2 = p - a;
+
+    float dot00 = dot(v0, v0);
+    float dot01 = dot(v0, v1);
+    float dot02 = dot(v0, v2);
+    float dot11 = dot(v1, v1);
+    float dot12 = dot(v1, v2);
+
+    // 退化三角形（3 点共線・頂点同一）は分母も分子もちょうど 0 になり u = v = 0 で「内側」になってしまう。
+    // 分母 = (2×面積)^2 なので 1e-4 未満（面積 0.005px^2 未満）は不一致にする。極小・極細の三角形は辺の 1px 許容で拾われる
+    float denom = dot00 * dot11 - dot01 * dot01;
+    if (denom < 1e-4) return false;
+    float invDenom = 1.0 / denom;
+    float u = (dot11 * dot02 - dot01 * dot12) * invDenom;
+    float v = (dot00 * dot12 - dot01 * dot02) * invDenom;
+
+    return (u >= -1e-4 && v >= -1e-4 && (u + v) <= 1.0 + 1e-4);
+}
+
+// 点 p と線分 ab の最短距離
+float DistanceToSegment(float2 p, float2 a, float2 b)
+{
+    float2 ab = b - a;
+    float len2 = dot(ab, ab);
+    if (len2 < 1e-8)
+        return distance(p, a);
+    float t = saturate(dot(p - a, ab) / len2);
+    return distance(p, a + t * ab);
+}
+
+// 画素中心が三角形の辺から 1px 以内か（細い三角形・縮退した三角形の取りこぼし防止）
+bool IsOnTriangleEdge(float2 p, float2 a, float2 b, float2 c)
+{
+    return DistanceToSegment(p, a, b) <= 1.0
+        || DistanceToSegment(p, b, c) <= 1.0
+        || DistanceToSegment(p, c, a) <= 1.0;
+}
+
+[numthreads(8, 8, 1)]
+void CSRasterizeTri(uint3 groupId : SV_GroupID, uint3 threadId : SV_GroupThreadID)
+{
+    int4 tile = TriTiles[TileStart + (int)groupId.x];
+    int2 px = int2(tile.y * 8 + (int)threadId.x, tile.z * 8 + (int)threadId.y);
+    if (px.x < 0 || px.y < 0 || px.x >= Width || px.y >= Height) return;
+
+    float2 p = float2(px) + 0.5;
+    int i = tile.x;
+    float2 a = Verts[i * 3 + 0];
+    float2 b = Verts[i * 3 + 1];
+    float2 c = Verts[i * 3 + 2];
+
+    // 外接矩形（辺の 1px 許容ぶん広げる）の外は塗らない。タイルは矩形より広いことがある
+    float2 lo = min(a, min(b, c)) - 1.0;
+    float2 hi = max(a, max(b, c)) + 1.0;
+    if (any(p < lo) || any(p > hi)) return;
+
+    if (IsPointInTriangle(p, a, b, c) || IsOnTriangleEdge(p, a, b, c))
+    {
+        Out[px] = 1.0;
+    }
+    // 当たらなければ書かない（先に描いた内容を残す＝max 合成）。書くのは 1 だけなので他のタイルと競合しない
+}
+
+[numthreads(16, 16, 1)]
+void CSClear(uint3 id : SV_DispatchThreadID)
+{
+    if ((int)id.x >= Width || (int)id.y >= Height) return;
+    Out[id.xy] = 0.0;
+}

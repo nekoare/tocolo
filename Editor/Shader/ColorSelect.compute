@@ -1,0 +1,68 @@
+// 色モードの選択（設計 §6.3）: 種色との Oklab 距離からソフトな重み w を作る。
+// あわせて、マスクを「0.5 を超える画素があれば 1」で二値化しつつ縮める補助カーネルを持つ
+// （つながった範囲の到達判定と、ゴマ塩除去の二値化に使う。同じ大きさなら単なる二値化）。
+//
+// === 色空間 ===
+// Src は線形の値（ARGBHalf・sRGB フラグ無しの作業 RT）。RWTexture2D / Texture2D の添字読みには sRGB 変換が掛からない。
+// SeedOklab も線形 RGB から求めた Oklab を渡すこと（C# の SeedColorSampler）。
+#pragma kernel CSColorSelect
+#pragma kernel CSBinarizeMax
+
+#include "OklabConverter.hlsl"
+
+Texture2D<float4> Src;    // CSColorSelect: 線形 RGB + α（Out と同じ大きさ）
+Texture2D<float> MaskIn;  // CSBinarizeMax: 二値化する元のマスク（Out 以上の大きさ）
+RWTexture2D<float> Out;
+int Width;                // Out の大きさ
+int Height;
+int InWidth;              // MaskIn の大きさ
+int InHeight;
+float3 SeedOklab;         // 種色（Oklab）
+float T;                  // ΔE のしきい値（0.35 × threshold²）
+float F;                  // ぼかし幅（0.20 × feather）
+
+// w = 1 − smoothstep(T, T + F, ΔE)。α < 0.01 の画素は 0
+[numthreads(16, 16, 1)]
+void CSColorSelect(uint3 id : SV_DispatchThreadID)
+{
+    if ((int)id.x >= Width || (int)id.y >= Height) return;
+
+    float4 src = Src[id.xy];
+    if (src.a < 0.01)
+    {
+        Out[id.xy] = 0.0;
+        return;
+    }
+    float d = distance(LinearRGBToOklab(src.rgb), SeedOklab);
+    // F = 0 のとき smoothstep は 0 除算になるので、しきい値で切るだけにする
+    float w = F > 1e-6 ? 1.0 - smoothstep(T, T + F, d) : (d <= T ? 1.0 : 0.0);
+    Out[id.xy] = w;
+}
+
+// Out の各画素が受け持つ MaskIn の区画に 0.5 を超える画素が 1 つでもあれば 1、無ければ 0。
+// 区画は整数で割り当てるので、縮小率が 2 を超えても取りこぼさない（バイリニアの縮小は 2×2 しか見ない）
+[numthreads(16, 16, 1)]
+void CSBinarizeMax(uint3 id : SV_DispatchThreadID)
+{
+    if ((int)id.x >= Width || (int)id.y >= Height) return;
+
+    // 値はすべて非負なので uint で割る（int の除算は遅いという d3d11 の警告を避ける）
+    uint2 p = id.xy;
+    uint2 size = uint2((uint)Width, (uint)Height);
+    uint2 inSize = uint2((uint)InWidth, (uint)InHeight);
+    // [lo, hi) = [floor(p × in / out), ceil((p + 1) × in / out))
+    int2 lo = int2((p * inSize) / size);
+    int2 hi = int2(((p + 1) * inSize + size - 1) / size);
+    lo = clamp(lo, int2(0, 0), int2(inSize) - 1);
+    hi = clamp(hi, lo + 1, int2(inSize));
+
+    float v = 0.0;
+    for (int y = lo.y; y < hi.y; y++)
+    {
+        for (int x = lo.x; x < hi.x; x++)
+        {
+            if (MaskIn[int2(x, y)] > 0.5) v = 1.0;
+        }
+    }
+    Out[id.xy] = v;
+}

@@ -1,0 +1,373 @@
+msgid ""
+msgstr ""
+"Language: en-US\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+
+msgid "Inspector:Title"
+msgstr "Tocolo"
+
+msgid "Inspector:Description"
+msgstr "Click a spot in the Scene to recolor that part of the main texture while keeping its shading. Non-destructive."
+
+msgid "Inspector:StartTool"
+msgstr "Recolor in Scene"
+
+msgid "Inspector:StopTool"
+msgstr "Stop editing in Scene"
+
+msgid "Inspector:EditCount"
+msgstr "Edits: {0}"
+
+msgid "Inspector:UnreadableMesh"
+msgstr "Some meshes have Read/Write disabled ({0}). Enable Read/Write in the mesh import settings."
+
+msgid "Inspector:PersistentNotice"
+msgstr "Use this on an avatar placed in the Scene. It does not work on Prefab assets in the Project."
+
+msgid "Inspector:PlayModeNotice"
+msgstr "Not available in Play mode. Exit Play mode to start."
+
+msgid "Inspector:ApplyOnBuildHint"
+msgstr "Baked into the main texture on upload. Original assets are left unchanged."
+
+msgid "Inspector:ApplyOnBuildHint:Free"
+msgstr "With the paid edition installed, edits are baked into the main texture on upload. Original assets are left unchanged."
+
+msgid "Inspector:Edits"
+msgstr "Edits"
+
+msgid "Inspector:Edit:SelectInScene"
+msgstr "Select in Scene"
+
+msgid "Inspector:Edit:DeleteAll"
+msgstr "Delete all"
+
+msgid "Inspector:Edit:DeleteAllConfirm"
+msgstr "Delete all edits?"
+
+msgid "Inspector:Edit:Cancel"
+msgstr "Cancel"
+
+msgid "Inspector:Edit:NoTarget"
+msgstr "No color set"
+
+msgid "Inspector:Edit:Mode:Island"
+msgstr "Isl."
+
+msgid "Inspector:Edit:Mode:Color"
+msgstr "Col."
+
+msgid "Inspector:Edit:GroupCount"
+msgstr "({0} textures)"
+
+msgid "Inspector:Export"
+msgstr "Export"
+
+msgid "Inspector:Export:Main"
+msgstr "Bake into main texture"
+
+msgid "Inspector:Export:ReplaceMaterial"
+msgstr "Duplicate and replace materials"
+
+msgid "Inspector:Export:Overwrite"
+msgstr "{0} already exists. Overwrite?"
+
+msgid "Inspector:Export:OverwriteOk"
+msgstr "Overwrite"
+
+msgid "Inspector:Export:Done"
+msgstr "Exported {0}"
+
+msgid "Inspector:Export:NoEdits"
+msgstr "Nothing to export"
+
+msgid "Inspector:Export:Second"
+msgstr "Bake into 2nd texture"
+
+msgid "Inspector:Export:NotLilToon"
+msgstr "Not a lilToon material"
+
+msgid "Inspector:Export:SecondBusy"
+msgstr "Can't export because both the 2nd and 3rd layers are already in use"
+
+msgid "Inspector:Export:UseThird"
+msgstr "The 2nd layer is in use. Export to the 3rd layer instead?"
+
+msgid "Inspector:Export:Mask"
+msgstr "Export mask only"
+
+msgid "Inspector:Export:CropSecond"
+msgstr "Crop to the selection (2nd)"
+
+msgid "Inspector:Export:Failed"
+msgstr "Export failed"
+
+msgid "Inspector:Export:SkipConfirm"
+msgstr "The recoloring will no longer show on these materials (the edits will be turned off):\n{0}\nContinue?"
+
+msgid "Inspector:Export:ProOnly"
+msgstr "Export and applying on upload are available in the paid edition."
+
+msgid "Scene:Panel:Target"
+msgstr "Target: {0}"
+
+msgid "Scene:Panel:PickTarget"
+msgstr "Choose a target, or click a model in the Scene."
+
+msgid "Scene:Panel:ChangeTarget"
+msgstr "Change target"
+
+msgid "Scene:Panel:CrossTexture"
+msgstr "Select across materials"
+
+msgid "Help:CrossTexture"
+msgstr "When on, Ctrl+click and drag selection can add UV islands from other materials (textures) to the same edit. One edit per texture is created and linked, so colors and settings apply to all of them."
+
+msgid "Scene:Panel:SelectHidden"
+msgstr "Select hidden parts too"
+
+msgid "Help:SelectHidden"
+msgstr "When on, drag selection also picks UV islands hidden behind other meshes if they fall inside the dragged area. When off, only surfaces visible in the Scene are picked. Does not affect Ctrl+click."
+
+msgid "Scene:Panel:CrossTextureOff"
+msgstr "'Select across materials' is off, so islands on other textures are not added"
+
+msgid "Scene:Panel:CrossTextureOffRect"
+msgstr "{0} island(s) on other textures were not added ('Select across materials' is off)"
+
+msgid "Scene:Panel:HairToolNotice"
+msgstr "This part is handled by Chimera Hair Master. On upload its processing is applied on top of this recolor, so export from Chimera Hair Master first, then recolor."
+
+msgid "Scene:Panel:ShowRange"
+msgstr "Show selection"
+
+msgid "Scene:Panel:UseSelection"
+msgstr "Selected: {0}"
+
+msgid "Scene:Panel:Mode"
+msgstr "Affected area"
+
+msgid "Scene:Panel:Mode:Island"
+msgstr "Island"
+
+msgid "Scene:Panel:Mode:SameColor"
+msgstr "Same color"
+
+msgid "Scene:Panel:Mode:SimilarColor"
+msgstr "Similar color"
+
+msgid "Scene:Panel:EscHint"
+msgstr "Exit (or press Esc)"
+
+msgid "Scene:Panel:ShiftHint"
+msgstr "Shift+click to start a new edit"
+
+msgid "Scene:Panel:CtrlHint"
+msgstr "Ctrl+click: add/remove an island"
+
+msgid "Scene:Panel:RectHint"
+msgstr "Ctrl+drag: add all islands in the box"
+
+msgid "Scene:Panel:PerSeedStats"
+msgstr "Match color per point"
+
+msgid "Scene:Panel:CtrlOtherTexture"
+msgstr "Islands on a different texture can't be added to a whole-avatar edit"
+
+msgid "Scene:Panel:CtrlGroupNotice"
+msgstr "Islands can't be added to a whole-avatar edit"
+
+msgid "Scene:Panel:RectColorModeNotice"
+msgstr "Box selection works in island mode"
+
+msgid "Scene:Panel:NoPick"
+msgstr "Click the part you want to recolor"
+
+msgid "Scene:Panel:GroupScope"
+msgstr "Selection"
+
+msgid "Scene:Panel:GroupColor"
+msgstr "Color"
+
+msgid "Scene:Color:Original"
+msgstr "Original"
+
+msgid "Scene:Color:ResetButton"
+msgstr "Reset"
+
+msgid "Scene:Color:ResetToOriginal"
+msgstr "Click to revert to the original color"
+
+msgid "Scene:Color:Target"
+msgstr "Color 1"
+
+msgid "Scene:Color:Hue"
+msgstr "Hue"
+
+msgid "Scene:Color:Sat"
+msgstr "Saturation"
+
+msgid "Scene:Color:Val"
+msgstr "Brightness"
+
+msgid "Scene:Color:Red"
+msgstr "R"
+
+msgid "Scene:Color:Green"
+msgstr "G"
+
+msgid "Scene:Color:Blue"
+msgstr "B"
+
+msgid "Scene:Color:Recent"
+msgstr "Recent colors"
+
+msgid "Scene:Select:Threshold"
+msgstr "Threshold"
+
+msgid "Scene:Select:Feather"
+msgstr "Feather"
+
+msgid "Scene:Select:Scope"
+msgstr "Search area"
+
+msgid "Scene:Select:Scope:Contiguous"
+msgstr "Connected"
+
+msgid "Scene:Select:Scope:Island"
+msgstr "Within island"
+
+msgid "Scene:Select:Scope:Whole"
+msgstr "Whole texture"
+
+msgid "Scene:Select:Scope:WholeAvatar"
+msgstr "Whole avatar (may be slow)"
+
+msgid "Scene:Select:Cleanup"
+msgstr "Remove specks"
+
+msgid "Scene:Color:AutoDarkEnd"
+msgstr "Auto-adjust shadow darkness"
+
+msgid "Scene:Color:DarkEnd"
+msgstr "Shadow darkness"
+
+msgid "Scene:Color:ShadingStretch"
+msgstr "Shading emphasis"
+
+msgid "Scene:Color:Strength"
+msgstr "Opacity"
+
+msgid "Scene:Color:ShadingFor2"
+msgstr " (Color 2)"
+
+msgid "Scene:Color:Gradient"
+msgstr "Gradient"
+
+msgid "Scene:Color:GradientInsideOnly"
+msgstr "Inside box only"
+
+msgid "Scene:Color:GradientPreview"
+msgstr "Color 1 → Color 2"
+
+msgid "Scene:Color:EditTarget:Start"
+msgstr "Color 1"
+
+msgid "Scene:Color:EditTarget:End"
+msgstr "Color 2"
+
+msgid "Scene:Color:Padding"
+msgstr "Edge padding"
+
+msgid "Scene:Color:DeleteEdit"
+msgstr "Delete this edit"
+
+msgid "Scene:Label:Format"
+msgstr "{0} / {1} / {2}"
+
+msgid "Help:ShowRange"
+msgstr "Overlays stripes in the Scene on the area the current edit recolors. This does not affect the uploaded result."
+
+msgid "Help:PerSeedStats"
+msgstr "When on, the brightness distribution is taken separately for each island added with Ctrl+Click, and each one is matched to the target color. When off, one distribution is taken for the whole selection, so brightness differences between islands are kept. The same applies to links across materials."
+
+msgid "Help:Mode"
+msgstr "Decides how much gets recolored when you click. Changing it also updates the edit you are working on."
+
+msgid "Help:Mode:Island"
+msgstr "Island: recolors the whole part (UV island) you clicked."
+
+msgid "Help:Mode:SameColor"
+msgstr "Same color: recolors only colors that nearly match the clicked spot. Good for patterns and lines."
+
+msgid "Help:Mode:SimilarColor"
+msgstr "Similar color: recolors a wider range of colors close to the clicked spot. Good for gradients and shaded areas."
+
+msgid "Help:Threshold"
+msgstr "How close a color has to be to get selected. Higher selects more, lower selects less."
+
+msgid "Help:Feather"
+msgstr "Softens the edge of the selection. Higher values blend the border more gradually."
+
+msgid "Help:Scope"
+msgstr "Where to look for matching colors.\nConnected: only the area that connects to the clicked spot without a break\nWithin island: only inside the clicked part\nWhole texture: anywhere in the same texture\nWhole avatar: every texture on the avatar (this can be slow)"
+
+msgid "Help:Cleanup"
+msgstr "Removes small scattered dots that the texture's paint leaves in the selection. Higher values also remove larger dots."
+
+msgid "Help:DarkEnd"
+msgstr "How dark the shaded areas become. Right makes shadows darker, left makes them lighter. Move it left if shadows look grayish with bright colors such as white."
+
+msgid "Help:ShadingStretch"
+msgstr "Areas with weak original shading (such as nearly pure white or black hair) keep weak shading after recoloring and can look flat. Raising the value stretches the shading to fill the whole target brightness range (too high also makes the original noise more visible). Combine it with 'Match color per point' to give multiple parts the same tone and the same shading."
+
+msgid "Help:Strength"
+msgstr "Opacity of the recolor. At 1 the chosen color is applied fully; lower values keep more of the original color."
+
+msgid "Help:Gradient"
+msgstr "When on, a box appears in the Scene. The color changes from Color 1 at the bottom of the box to Color 2 at the top. Move the box to set the direction and range."
+
+msgid "Help:GradientInsideOnly"
+msgstr "When on, everything above the top and below the bottom of the box is left as the original color, and only the box height becomes a gradient. Sideways the box does not cut anything. When off, the colors continue beyond both ends."
+
+msgid "Help:Padding"
+msgstr "How far (in pixels) the color spreads into unused texture space around the part. Raise it if a line of the original color shows along seams."
+
+msgid "Help:PreviewResolution"
+msgstr "Maximum resolution used for the Scene preview. Lower is faster. Upload and export always use the original resolution."
+
+msgid "Help:ApplyOnBuild"
+msgstr "When on, your edits are baked into the main texture on upload (build) in the paid edition. The original textures and materials are left unchanged. The free edition only shows a notice in the report window."
+
+msgid "Help:Export:Main"
+msgstr "Saves a new texture with your edits baked in (name_recolor.png) next to the original. With 'Duplicate and replace materials' on, the materials are duplicated and swapped in. Exported edits are turned off automatically. Ctrl+Z undoes it."
+
+msgid "Help:Export:Second"
+msgstr "Puts only the recolored area on lilToon's 2nd layer (or the 3rd if the 2nd is in use). The main texture stays as it is, so turning the layer off brings back the original. Exported edits are turned off. A warning is shown if the 3rd layer is also in use. Ctrl+Z undoes it."
+
+msgid "Help:Export:Mask"
+msgstr "Saves the selection as a black-and-white image (name_recolormask.png) that you can use as a mask in other tools. Materials and edits are not changed."
+
+msgid "Help:Export:CropSecond"
+msgstr "Crops the 2nd-layer image to just the area around the selection so the file stays small. The layer position is adjusted automatically."
+
+msgid "Error:SeedRendererMissing"
+msgstr "The Renderer clicked for edit '{0}' was not found (it may have been deleted), so this edit is skipped."
+
+msgid "Error:TextureUnused"
+msgstr "Texture '{0}' is not used by any material on the avatar, so it is skipped."
+
+msgid "Error:ComputeUnavailable"
+msgstr "Compute shaders are not available in this environment, so recoloring cannot be applied on upload."
+
+msgid "Error:MaskFailed"
+msgstr "Could not build the selection for edit '{0}' (for example, mesh Read/Write is disabled or the GPU is unavailable), so this edit is skipped."
+
+msgid "Error:ApplyFailed"
+msgstr "Could not apply recoloring to texture '{0}', so it is skipped."
+
+msgid "Error:FreeEdition"
+msgstr "Free edition: not applied on upload (available in the paid edition)."
+
+msgid "Error:OriginalTextureStillReferenced"
+msgstr "Original texture '{0}' is still referenced (material '{1}'), so both the original and the generated texture will be included in the upload."

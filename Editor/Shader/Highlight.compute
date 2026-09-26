@@ -1,0 +1,48 @@
+// 選択範囲のハイライト（設計 §8.3）。プレビューの結果にだけ掛ける（ビルドには乗らない）。
+// out = lerp(in, Tint, mask × 0.5 × 縞)。縞は斜め 8px 幅で 0.35 と 1.0 を交互に取る（静止していても範囲の境目が見える）。
+//
+// === 色空間 ===
+// In / Out は線形の値（ARGBHalf・sRGB フラグ無しの RT）。Tint も線形で渡すこと（C# 側で変換する）。
+// In と Out は必ず別の RT を渡すこと。
+#pragma kernel CSHighlight
+
+Texture2D<float4> In;     // 線形 RGB + α（プレビューの結果）
+Texture2D<float> Mask;    // 選択マスク M（0..1）。In と別サイズでもよい（正規化座標で対応させる）
+RWTexture2D<float4> Out;  // 線形 RGB + α
+int Width;                // In / Out の大きさ
+int Height;
+int MaskWidth;
+int MaskHeight;
+float4 Tint;              // ハイライト色（線形 RGB。w は未使用）
+float Phase;              // 縞のずらし（px）。今はアニメしないので 0
+
+static const float StripeWidth = 8.0;
+static const float StripeLow = 0.35;
+static const float TintAmount = 0.35; // 0.5 から 30% 薄く（ユーザー要望 2026-09-24）
+
+[numthreads(16, 16, 1)]
+void CSHighlight(uint3 id : SV_DispatchThreadID)
+{
+    if ((int)id.x >= Width || (int)id.y >= Height) return;
+
+    float4 src = In[id.xy];
+
+    // 画素中心の正規化座標でマスクの画素を引く（ColorShift.compute と同じ対応）
+    int2 q = int2((float2(id.xy) + 0.5) * float2(MaskWidth, MaskHeight) / float2(Width, Height));
+    q = clamp(q, int2(0, 0), int2(MaskWidth - 1, MaskHeight - 1));
+    float m = saturate(Mask[q]);
+
+    // マスク外は元の値をそのまま書く
+    if (m <= 0.0)
+    {
+        Out[id.xy] = src;
+        return;
+    }
+
+    // 斜め（x + y）方向に StripeWidth px ごとに濃い／薄いを繰り返す
+    float band = floor((float(id.x + id.y) + Phase) / StripeWidth);
+    float stripe = fmod(abs(band), 2.0) < 0.5 ? 1.0 : StripeLow;
+
+    // α は触らない（透過マスク温存）
+    Out[id.xy] = float4(lerp(src.rgb, Tint.rgb, m * TintAmount * stripe), src.a);
+}

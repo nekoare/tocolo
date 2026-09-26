@@ -1,0 +1,25 @@
+{
+  "name": "dev.nekoare.click-recolor",
+  "version": "0.1.0",
+  "displayName": "Tocolo",
+  "description": "Scene でクリックした場所のメインテクスチャの色を、陰影を保ったまま非破壊（NDMF）で変えるツール",
+  "unity": "2022.3",
+  "author": {
+    "name": "nekoare",
+    "url": "https://neko-to-same.booth.pm/"
+  },
+  "license": "SEE LICENSE IN LICENSE",
+  "vpmDependencies": {
+    "com.vrchat.avatars": ">=3.7.0",
+    "nadena.dev.ndmf": ">=1.14.0"
+  },
+  "keywords": [
+    "vrchat",
+    "ndmf",
+    "texture",
+    "color"
+  ],
+  "testables": [
+    "dev.nekoare.click-recolor.tests"
+  ]
+}

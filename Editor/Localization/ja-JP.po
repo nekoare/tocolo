@@ -1,0 +1,373 @@
+msgid ""
+msgstr ""
+"Language: ja-JP\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+
+msgid "Inspector:Title"
+msgstr "Tocolo"
+
+msgid "Inspector:Description"
+msgstr "Scene でクリックした場所のメインテクスチャの色を、陰影を保ったまま非破壊で変えます。"
+
+msgid "Inspector:StartTool"
+msgstr "Scene で色を変える"
+
+msgid "Inspector:StopTool"
+msgstr "Scene 編集を終了"
+
+msgid "Inspector:EditCount"
+msgstr "編集: {0} 件"
+
+msgid "Inspector:UnreadableMesh"
+msgstr "Read/Write が無効なメッシュがあります（{0}）。メッシュのインポート設定で Read/Write を有効にしてください"
+
+msgid "Inspector:PersistentNotice"
+msgstr "シーンに置いたアバターで使ってください（Project の Prefab では動きません）"
+
+msgid "Inspector:PlayModeNotice"
+msgstr "Play モード中は使えません（Play を止めてから開始してください）"
+
+msgid "Inspector:ApplyOnBuildHint"
+msgstr "アップロード時にメインテクスチャへ反映します（元の資産は変更しません）"
+
+msgid "Inspector:ApplyOnBuildHint:Free"
+msgstr "有料版を入れると、アップロード時にメインテクスチャへ反映されます（元の資産は変更しません）"
+
+msgid "Inspector:Edits"
+msgstr "編集一覧"
+
+msgid "Inspector:Edit:SelectInScene"
+msgstr "Scene で選ぶ"
+
+msgid "Inspector:Edit:DeleteAll"
+msgstr "すべて削除"
+
+msgid "Inspector:Edit:DeleteAllConfirm"
+msgstr "すべての編集を削除しますか？"
+
+msgid "Inspector:Edit:Cancel"
+msgstr "キャンセル"
+
+msgid "Inspector:Edit:NoTarget"
+msgstr "色未設定"
+
+msgid "Inspector:Edit:Mode:Island"
+msgstr "UVアイランド"
+
+msgid "Inspector:Edit:Mode:Color"
+msgstr "色"
+
+msgid "Inspector:Edit:GroupCount"
+msgstr "（{0} テクスチャ）"
+
+msgid "Inspector:Export"
+msgstr "書き出し"
+
+msgid "Inspector:Export:Main"
+msgstr "メインテクスチャに焼き込み"
+
+msgid "Inspector:Export:ReplaceMaterial"
+msgstr "マテリアルを複製して差し替え"
+
+msgid "Inspector:Export:Overwrite"
+msgstr "既に {0} があります。上書きしますか？"
+
+msgid "Inspector:Export:OverwriteOk"
+msgstr "上書き"
+
+msgid "Inspector:Export:Done"
+msgstr "{0} を書き出しました"
+
+msgid "Inspector:Export:NoEdits"
+msgstr "書き出す編集がありません"
+
+msgid "Inspector:Export:Second"
+msgstr "2nd テクスチャに焼き込み"
+
+msgid "Inspector:Export:NotLilToon"
+msgstr "lilToon のマテリアルではありません"
+
+msgid "Inspector:Export:SecondBusy"
+msgstr "2nd と 3rd が使用中のため書き出せません"
+
+msgid "Inspector:Export:UseThird"
+msgstr "2nd が使用中です。3rd に書き出しますか？"
+
+msgid "Inspector:Export:Mask"
+msgstr "マスクだけ書き出し"
+
+msgid "Inspector:Export:CropSecond"
+msgstr "選択範囲だけ切り抜く（2nd）"
+
+msgid "Inspector:Export:Failed"
+msgstr "書き出せませんでした"
+
+msgid "Inspector:Export:SkipConfirm"
+msgstr "次のマテリアルには反映されません（編集は無効になります）:\n{0}\n続けますか？"
+
+msgid "Inspector:Export:ProOnly"
+msgstr "書き出しとアップロードへの反映は有料版で使えます"
+
+msgid "Scene:Panel:Target"
+msgstr "対象: {0}"
+
+msgid "Scene:Panel:PickTarget"
+msgstr "対象を選ぶか、Scene でモデルをクリックしてください"
+
+msgid "Scene:Panel:ChangeTarget"
+msgstr "対象を変える"
+
+msgid "Scene:Panel:CrossTexture"
+msgstr "マテリアルをまたいで選ぶ"
+
+msgid "Help:CrossTexture"
+msgstr "オンにすると、Ctrl＋クリックやドラッグ選択で別のマテリアル（テクスチャ）のUVアイランドも同じ編集に足せます。テクスチャごとの編集が自動で連結され、色や設定はまとめて効きます。"
+
+msgid "Scene:Panel:SelectHidden"
+msgstr "隠れている範囲も選ぶ"
+
+msgid "Help:SelectHidden"
+msgstr "オンにすると、ドラッグ選択で他のメッシュの奥に隠れているUVアイランドも、ドラッグ範囲に入っていれば選びます。オフでは Scene で見えている面だけを選びます。Ctrl＋クリックには効きません。"
+
+msgid "Scene:Panel:CrossTextureOff"
+msgstr "「マテリアルをまたいで選ぶ」がオフなので、別のテクスチャのUVアイランドは足しません"
+
+msgid "Scene:Panel:CrossTextureOffRect"
+msgstr "別のテクスチャのUVアイランド（{0} 個）は足しませんでした（「マテリアルをまたいで選ぶ」がオフ）"
+
+msgid "Scene:Panel:HairToolNotice"
+msgstr "このパーツはキメラヘアマスターの対象です。アップロード時はキメラヘアマスターの加工がこの色変えの上に掛かるため、先にキメラヘアマスターでエクスポートしてから色を変えてください"
+
+msgid "Scene:Panel:ShowRange"
+msgstr "範囲を表示"
+
+msgid "Scene:Panel:UseSelection"
+msgstr "選択中: {0}"
+
+msgid "Scene:Panel:Mode"
+msgstr "影響範囲"
+
+msgid "Scene:Panel:Mode:Island"
+msgstr "UVアイランド"
+
+msgid "Scene:Panel:Mode:SameColor"
+msgstr "同じ色"
+
+msgid "Scene:Panel:Mode:SimilarColor"
+msgstr "似た色"
+
+msgid "Scene:Panel:EscHint"
+msgstr "終了する（Esc キーでも終了できます）"
+
+msgid "Scene:Panel:ShiftHint"
+msgstr "Shift＋クリックで新しい編集"
+
+msgid "Scene:Panel:CtrlHint"
+msgstr "Ctrl＋クリックでUVアイランドを追加／外す"
+
+msgid "Scene:Panel:RectHint"
+msgstr "Ctrl＋ドラッグで範囲内のUVアイランドをまとめて追加"
+
+msgid "Scene:Panel:PerSeedStats"
+msgstr "各点の色を揃える"
+
+msgid "Scene:Panel:CtrlOtherTexture"
+msgstr "「アバター全体」の編集には別のテクスチャのUVアイランドを追加できません"
+
+msgid "Scene:Panel:CtrlGroupNotice"
+msgstr "「アバター全体」の編集にはUVアイランドを追加できません"
+
+msgid "Scene:Panel:RectColorModeNotice"
+msgstr "矩形選択はUVアイランドモードで使えます"
+
+msgid "Scene:Panel:NoPick"
+msgstr "色を変えたいところをクリックしてください"
+
+msgid "Scene:Panel:GroupScope"
+msgstr "範囲"
+
+msgid "Scene:Panel:GroupColor"
+msgstr "色"
+
+msgid "Scene:Color:Original"
+msgstr "元の色"
+
+msgid "Scene:Color:ResetButton"
+msgstr "リセット"
+
+msgid "Scene:Color:ResetToOriginal"
+msgstr "クリックで元の色に戻す"
+
+msgid "Scene:Color:Target"
+msgstr "色 1"
+
+msgid "Scene:Color:Hue"
+msgstr "色相"
+
+msgid "Scene:Color:Sat"
+msgstr "彩度"
+
+msgid "Scene:Color:Val"
+msgstr "明るさ"
+
+msgid "Scene:Color:Red"
+msgstr "R"
+
+msgid "Scene:Color:Green"
+msgstr "G"
+
+msgid "Scene:Color:Blue"
+msgstr "B"
+
+msgid "Scene:Color:Recent"
+msgstr "最近使った色"
+
+msgid "Scene:Select:Threshold"
+msgstr "しきい値"
+
+msgid "Scene:Select:Feather"
+msgstr "ぼかし"
+
+msgid "Scene:Select:Scope"
+msgstr "範囲"
+
+msgid "Scene:Select:Scope:Contiguous"
+msgstr "つながった範囲"
+
+msgid "Scene:Select:Scope:Island"
+msgstr "UVアイランドの中"
+
+msgid "Scene:Select:Scope:Whole"
+msgstr "テクスチャ全体"
+
+msgid "Scene:Select:Scope:WholeAvatar"
+msgstr "アバター全体(重いかも)"
+
+msgid "Scene:Select:Cleanup"
+msgstr "ゴマ塩除去"
+
+msgid "Scene:Color:AutoDarkEnd"
+msgstr "陰影の暗さを自動調整"
+
+msgid "Scene:Color:DarkEnd"
+msgstr "陰影の暗さ"
+
+msgid "Scene:Color:ShadingStretch"
+msgstr "陰影の強調"
+
+msgid "Scene:Color:Strength"
+msgstr "不透明度"
+
+msgid "Scene:Color:ShadingFor2"
+msgstr "（色 2）"
+
+msgid "Scene:Color:Gradient"
+msgstr "グラデーション"
+
+msgid "Scene:Color:GradientInsideOnly"
+msgstr "箱の中だけ"
+
+msgid "Scene:Color:GradientPreview"
+msgstr "色 1 → 色 2"
+
+msgid "Scene:Color:EditTarget:Start"
+msgstr "色 1"
+
+msgid "Scene:Color:EditTarget:End"
+msgstr "色 2"
+
+msgid "Scene:Color:Padding"
+msgstr "はみ出し幅"
+
+msgid "Scene:Color:DeleteEdit"
+msgstr "この編集を削除"
+
+msgid "Scene:Label:Format"
+msgstr "{0} / {1} / {2}"
+
+msgid "Help:ShowRange"
+msgstr "今の編集で色が変わる範囲を、Scene に縞模様で重ねて表示します。アップロード結果には影響しません。"
+
+msgid "Help:PerSeedStats"
+msgstr "オンにすると、Ctrl＋クリックで足した点ごとに明るさの分布を取り、それぞれを目標の色に揃えます。オフでは全体で 1 つの分布を取るので、点どうしの明るさの差が保たれます。マテリアルをまたいだ連結でも同様です。"
+
+msgid "Help:Mode"
+msgstr "クリックしたときに、どこまでを色変えの対象にするかを決めます。選んでいる編集にもすぐ反映されます。"
+
+msgid "Help:Mode:Island"
+msgstr "UVアイランド: クリックしたパーツ（UV のひとかたまり）をまるごと変えます。"
+
+msgid "Help:Mode:SameColor"
+msgstr "同じ色: クリックした場所とほぼ同じ色だけを変えます。模様や線を選ぶのに向いています。"
+
+msgid "Help:Mode:SimilarColor"
+msgstr "似た色: クリックした場所に近い色を広めに変えます。グラデーションや影のある部分に向いています。"
+
+msgid "Help:Threshold"
+msgstr "どれくらい近い色まで選ぶかです。大きくすると広く、小さくすると狭く選びます。"
+
+msgid "Help:Feather"
+msgstr "選んだ範囲の境目をなめらかにする幅です。大きくすると境目がふんわりなじみます。"
+
+msgid "Help:Scope"
+msgstr "色を探す範囲を指定します。\nつながった範囲: クリックした場所から途切れずにつながる部分だけ\nUVアイランドの中: クリックしたパーツの中だけ\nテクスチャ全体: 同じテクスチャのどこでも\nアバター全体: アバターのすべてのテクスチャ※重いと思います"
+
+msgid "Help:Cleanup"
+msgstr "テクスチャの塗りによって選んだ範囲に混じる細かい点（ゴマ塩状のノイズ）を取り除きます。大きくするほど大きめの点まで消えます。"
+
+msgid "Help:DarkEnd"
+msgstr "陰になる部分をどれだけ暗くするかです。右ほど陰が暗く、左ほど明るくなります。白など明るい色で陰が灰色っぽく見えるときは左に寄せてください。"
+
+msgid "Help:ShadingStretch"
+msgstr "元の陰影が弱い部分（真っ白・真っ黒に近い髪など）は、そのままだと色を変えても陰影が弱いまま浮いて見えます。数値を上げると目標の明るさ範囲いっぱいに陰影を広げます（上げすぎると元のノイズも目立ちます）。「各点の色を揃える」と組み合わせて、複数のパーツを同じトーン・同じ陰影に揃えられます。"
+
+msgid "Help:Strength"
+msgstr "色変えの不透明度です。１で完全に指定した色になり、下げるほど元の色が残ります。"
+
+msgid "Help:Gradient"
+msgstr "オンにすると Scene に箱が出ます。箱の下端から上端に向けて「色 1」から「色 2」へ変化します。箱を動かして向きと範囲を決めてください"
+
+msgid "Help:GradientInsideOnly"
+msgstr "オンにすると、箱の上端より上と下端より下は色変えせず元の色のままになり、箱の高さの範囲だけがグラデーションになります。横方向は箱で切りません。オフでは上下の外側も端の色で続きます。"
+
+msgid "Help:Padding"
+msgstr "パーツのまわりの、UV で使われていない部分まで色を広げる幅（ピクセル）です。つなぎ目に元の色の線が見えるときは上げてください。"
+
+msgid "Help:PreviewResolution"
+msgstr "Scene のプレビューで使う解像度の上限です。小さいほど軽く動きます。アップロードと書き出しは元の解像度で行います。"
+
+msgid "Help:ApplyOnBuild"
+msgstr "オンにすると、アップロード（ビルド）のときに色変えをメインテクスチャへ焼き込みます（有料版）。元のテクスチャとマテリアルは変更しません。無料版では反映されず、報告窓に案内が出ます。"
+
+msgid "Help:Export:Main"
+msgstr "色変えを焼き込んだ新しいテクスチャ（元の名前_recolor.png）を元の隣に保存します。「マテリアルを複製して差し替え」がオンなら、複製したマテリアルに差し替えます。書き出した編集は自動でオフになります。Ctrl＋ｚで元に戻せます。"
+
+msgid "Help:Export:Second"
+msgstr "lilToon の 2nd（使用中なら 3rd）の層に、色を変えた部分だけを載せます。元のメインテクスチャはそのまま残るので、層をオフにすれば元に戻せます。書き出した編集はオフになります。3rdも使用中の場合警告が出ます。Ctrl＋ｚで元に戻せます。"
+
+msgid "Help:Export:Mask"
+msgstr "選んだ範囲を白黒の画像（元の名前_recolormask.png）で保存します。他のツールでマスクとして使えます。マテリアルと編集は変わりません。"
+
+msgid "Help:Export:CropSecond"
+msgstr "2nd に書き出す画像を、選んだ範囲のまわりだけに切り抜いて小さくします。層の位置は自動で合わせます。"
+
+msgid "Error:SeedRendererMissing"
+msgstr "編集「{0}」でクリックした Renderer が見つからないため、この編集は反映しません（削除された可能性があります）"
+
+msgid "Error:TextureUnused"
+msgstr "テクスチャ「{0}」はアバター内のどのマテリアルからも使われていないため、反映しません"
+
+msgid "Error:ComputeUnavailable"
+msgstr "この環境では色変換（compute shader）が使えないため、アップロード時に色を反映できません"
+
+msgid "Error:MaskFailed"
+msgstr "編集「{0}」の選択範囲を作れなかったため、この編集は反映しません（メッシュの Read/Write が無効、GPU が使えない等）"
+
+msgid "Error:ApplyFailed"
+msgstr "テクスチャ「{0}」に色変えを適用できなかったため、反映しません"
+
+msgid "Error:FreeEdition"
+msgstr "無料版のためアップロードには反映されません（有料版で反映できます）"
+
+msgid "Error:OriginalTextureStillReferenced"
+msgstr "元テクスチャ「{0}」がまだ参照されているため、元と生成の両方がアップロードに含まれます（マテリアル「{1}」）"

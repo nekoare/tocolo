@@ -1,0 +1,38 @@
+// 位置マップ（PositionMap）の膨張: 描かれていない画素（A = 0）を、3×3 近傍で描かれた画素（A > 0）の位置の平均で埋めて A = 1 にする。
+// 描かれた画素はそのまま。1 回で 1 画素ずつ広がるので、PositionMap が ping-pong で N 回走らせる
+// （はみ出し幅（パディング）の画素が t = 0 ＝「新しい色」にならないようにする）
+#pragma kernel CSFill
+
+Texture2D<float4> In;
+RWTexture2D<float4> Out;
+int Width;
+int Height;
+
+[numthreads(8, 8, 1)]
+void CSFill(uint3 id : SV_DispatchThreadID)
+{
+    if ((int)id.x >= Width || (int)id.y >= Height) return;
+
+    float4 center = In[id.xy];
+    if (center.a > 0.0)
+    {
+        Out[id.xy] = center;
+        return;
+    }
+
+    float3 sum = float3(0.0, 0.0, 0.0);
+    float count = 0.0;
+    for (int dy = -1; dy <= 1; dy++)
+    {
+        for (int dx = -1; dx <= 1; dx++)
+        {
+            int2 p = int2(id.xy) + int2(dx, dy);
+            if (p.x < 0 || p.y < 0 || p.x >= Width || p.y >= Height) continue;
+            float4 q = In[p];
+            if (q.a <= 0.0) continue;
+            sum += q.xyz;
+            count += 1.0;
+        }
+    }
+    Out[id.xy] = count > 0.0 ? float4(sum / count, 1.0) : float4(0.0, 0.0, 0.0, 0.0);
+}
