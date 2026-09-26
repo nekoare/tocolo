@@ -27,6 +27,12 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             if (Event.current.type == EventType.Repaint && rect.height > 0f) LastContentHeight = rect.height;
             try
             {
+                if (ToolSession.IsInPrefabMode)
+                {
+                    // Prefab 編集モード中は操作できないので、終了ボタンだけ
+                    if (GUILayout.Button(Locales.Tr("Scene:Panel:EscHint"), GUILayout.Height(26))) RecolorSceneTool.Deactivate();
+                    return;
+                }
                 // 編集済みの範囲の再クリックはその編集を選ぶので、新しく作る方法を案内する
                 GUILayout.Label(Locales.Tr("Scene:Panel:ShiftHint"), EditorStyles.miniLabel);
                 // 現在の編集に島を足す／外す方法

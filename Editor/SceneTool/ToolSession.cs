@@ -133,6 +133,12 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             s_hairToolTarget[editId] = value;
         }
 
+        /// <summary>
+        /// Prefab の編集モード中か。NDMF のプレビューは Prefab 編集モードでは描画を差し替えないため、Tocolo の結果も Scene に出ない。
+        /// その間はクリックを受け付けず、案内だけ出す（ユーザー判断 2026-09-26）
+        /// </summary>
+        public static bool IsInPrefabMode => UnityEditor.SceneManagement.PrefabStageUtility.GetCurrentPrefabStage() != null;
+
         private const string KeyCrossTexture = "ClickRecolor.CrossTextureEnabled";
         private const string KeySelectHidden = "ClickRecolor.SelectHiddenEnabled";
 

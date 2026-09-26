@@ -34,6 +34,12 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             if (Event.current.type == EventType.Repaint && rect.height > 0f) LastContentHeight = rect.height;
             try
             {
+                if (ToolSession.IsInPrefabMode)
+                {
+                    EditorGUILayout.HelpBox(Locales.Tr("Scene:Panel:PrefabModeNotice"), MessageType.Warning);
+                    return;
+                }
+
                 if (!ToolSession.TryGetActiveRoot(out var root))
                 {
                     // 対象の候補ボタンは「操作」オーバーレイ（HintOverlay）に出す（ユーザー要望 2026-09-25）。ここは案内だけ

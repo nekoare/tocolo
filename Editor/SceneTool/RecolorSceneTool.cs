@@ -201,6 +201,19 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 return;
             }
 
+            // Prefab 編集モード中はプレビューが出ないので、クリック・ホバー・箱の操作を受け付けない（パネルに案内を出す）
+            if (ToolSession.IsInPrefabMode)
+            {
+                if (e.type == EventType.Layout)
+                {
+                    KeepHintAtBottomRight(sceneView);
+                    SavePanelPositionIfMoved(sceneView);
+                    KeepPanelInView(sceneView);
+                }
+                if (ToolSession.HoverPick.HasValue) { ToolSession.HoverPick = null; sceneView.Repaint(); }
+                return;
+            }
+
             // グラデーションの箱のハンドル。Layout でも呼んで距離を登録する（ハンドルに近いクリックはハンドルが取り、Pick に来ない）
             DrawGradientBox();
             // 箱のハンドルなど他のコントロールがマウスを掴んでいる間は、クリック・ドラッグを処理しない

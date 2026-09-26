@@ -70,12 +70,15 @@ namespace Nekoare.ClickRecolor.Editor.Inspector
                 bool persistent = EditorUtility.IsPersistent(target);
                 // Play 中の編集は Play 終了で消えるので開始させない
                 bool playing = EditorApplication.isPlayingOrWillChangePlaymode;
-                using (new EditorGUI.DisabledScope(persistent || playing))
+                // Prefab 編集モード中は NDMF のプレビューが出ないので開始させない
+                bool prefabMode = ToolSession.IsInPrefabMode;
+                using (new EditorGUI.DisabledScope(persistent || playing || prefabMode))
                 {
                     if (GUILayout.Button(Locales.Tr("Inspector:StartTool"), GUILayout.Height(32))) RecolorSceneTool.Activate(component.gameObject);
                 }
                 if (persistent) EditorGUILayout.HelpBox(Locales.Tr("Inspector:PersistentNotice"), MessageType.Warning);
                 if (playing) EditorGUILayout.HelpBox(Locales.Tr("Inspector:PlayModeNotice"), MessageType.Warning);
+                if (prefabMode && !persistent) EditorGUILayout.HelpBox(Locales.Tr("Scene:Panel:PrefabModeNotice"), MessageType.Warning);
             }
 
             _editList.DoLayoutList();

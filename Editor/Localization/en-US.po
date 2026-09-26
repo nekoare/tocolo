@@ -27,6 +27,9 @@ msgstr "Use this on an avatar placed in the Scene. It does not work on Prefab as
 msgid "Inspector:PlayModeNotice"
 msgstr "Not available in Play mode. Exit Play mode to start."
 
+msgid "Scene:Panel:PrefabModeNotice"
+msgstr "Preview is not available while editing a Prefab. Close Prefab mode and use it in the scene."
+
 msgid "Inspector:ApplyOnBuildHint"
 msgstr "Baked into the main texture on upload. Original assets are left unchanged."
 

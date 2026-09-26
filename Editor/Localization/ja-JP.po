@@ -27,6 +27,9 @@ msgstr "シーンに置いたアバターで使ってください（Project の 
 msgid "Inspector:PlayModeNotice"
 msgstr "Play モード中は使えません（Play を止めてから開始してください）"
 
+msgid "Scene:Panel:PrefabModeNotice"
+msgstr "Prefab の編集モード中はプレビューされません。シーンに戻して（Prefab 編集を閉じて）使ってください"
+
 msgid "Inspector:ApplyOnBuildHint"
 msgstr "アップロード時にメインテクスチャへ反映します（元の資産は変更しません）"
 
