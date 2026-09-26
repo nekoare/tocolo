@@ -176,10 +176,11 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         /// <summary>［範囲を表示］: 現在の編集の選択範囲をプレビューにハイライトするか（既定 ON）</summary>
         public static bool HighlightEnabled
         {
-            get => SessionState.GetBool(KeyHighlight, true);
+            // 再起動後も残す（EditorPrefs。ユーザー要望 2026-09-27）。既定 ON
+            get => EditorPrefs.GetBool(KeyHighlight, true);
             set
             {
-                SessionState.SetBool(KeyHighlight, value);
+                EditorPrefs.SetBool(KeyHighlight, value);
                 PublishHighlight();
             }
         }
@@ -244,7 +245,6 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             SessionState.EraseInt(KeyRoot);
             SessionState.EraseInt(KeyPreset);
             SessionState.EraseString(KeyCurrentEdit);
-            SessionState.EraseBool(KeyHighlight);
             SessionState.EraseInt(KeyColorScope);
             s_hasTwin.Clear();
             s_hairToolTarget.Clear();

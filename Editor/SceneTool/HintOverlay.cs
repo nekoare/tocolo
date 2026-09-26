@@ -16,15 +16,41 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         public const float Width = 260f;
         /// <summary>直近の Repaint で測った中身の高さ（px）。RecolorSceneTool が右下に置くときの高さに使う。0 なら未測定</summary>
         internal static float LastContentHeight;
+        /// <summary>直近の Repaint での表示幅（倍率込み）。0 なら未測定（基準幅 Width を使う）</summary>
+        internal static float LastContentWidth;
+
+        /// <summary>対象 root に現在の編集（選択点）があるか</summary>
+        private static bool HasCurrentEdit(GameObject root)
+        {
+            var component = root != null ? root.GetComponent<ClickRecolor>() : null;
+            return component != null && component.FindEdit(ToolSession.CurrentEditId) != null;
+        }
 
         /// <summary>ToolPanelOverlay と同じく、保存レイアウトの復元より後にツールの状態へ合わせる</summary>
-        public override void OnCreated() { EditorApplication.delayCall += () => displayed = RecolorSceneTool.IsActive; }
+        public override void OnCreated()
+        {
+            EditorApplication.delayCall += () => displayed = RecolorSceneTool.IsActive;
+            OverlayScaler.ClearUnitySizeOverride(this);
+        }
+
+        /// <summary>中身の素の高さ（倍率 1 のとき）</summary>
+        private static float s_naturalHeight;
 
         public override void OnGUI()
         {
+            // 中身は基準幅で描き、リサイズの幅に応じて GUI.matrix で拡大する（比率を保つ。ToolPanelOverlay と同じ）
+            var scope = OverlayScaler.Begin(this, Width, s_naturalHeight > 0f ? s_naturalHeight : 100f);
             var rect = EditorGUILayout.BeginVertical(GUILayout.Width(Width));
             // 中身の高さは対象の候補数などで変わるので実測して、右下から見切れないよう置き直してもらう（ユーザー報告 2026-09-25）
-            if (Event.current.type == EventType.Repaint && rect.height > 0f) LastContentHeight = rect.height;
+            if (Event.current.type == EventType.Repaint && rect.height > 0f)
+            {
+                // 中身の高さが変わった（対象の行が増えた等）ら、固定している高さを次の描画で合わせるために描き直す
+                // （描き直しが無いと 1 フレーム前の高さのままで下のボタンが見切れる。ユーザー報告 2026-09-26）
+                if (Mathf.Abs(rect.height - s_naturalHeight) > 0.5f) containerWindow?.Repaint();
+                s_naturalHeight = rect.height;
+                LastContentHeight = rect.height * scope.scale;
+                LastContentWidth = Width * scope.scale;
+            }
             try
             {
                 if (ToolSession.IsInPrefabMode)
@@ -33,34 +59,29 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                     if (GUILayout.Button(Locales.Tr("Scene:Panel:EscHint"), GUILayout.Height(26))) RecolorSceneTool.Deactivate();
                     return;
                 }
+                bool hasRoot = ToolSession.TryGetActiveRoot(out var root);
+                // 現在の編集（選択点）があるかで文言を変える: 無ければ「選択」、1 点でもあれば「追加」（ユーザー要望 2026-09-26）
+                bool hasEdit = hasRoot && HasCurrentEdit(root);
                 // 編集済みの範囲の再クリックはその編集を選ぶので、新しく作る方法を案内する
                 GUILayout.Label(Locales.Tr("Scene:Panel:ShiftHint"), EditorStyles.miniLabel);
-                // 現在の編集に島を足す／外す方法
-                GUILayout.Label(Locales.Tr("Scene:Panel:CtrlHint"), EditorStyles.miniLabel);
-                // 矩形でまとめて足す方法
-                // 矩形選択は UV アイランドモード専用なので、そのときだけ案内する
-                if (ToolSession.Mode == SelectionMode.Island) GUILayout.Label(Locales.Tr("Scene:Panel:RectHint"), EditorStyles.miniLabel);
+                // Shift の行と Ctrl の行の間を 1 行空ける（ユーザー要望 2026-09-26）
+                EditorGUILayout.Space(EditorGUIUtility.singleLineHeight * 0.8f);
+                // 現在の編集にパーツを足す／外す方法
+                GUILayout.Label(Locales.Tr(hasEdit ? "Scene:Panel:CtrlHint" : "Scene:Panel:CtrlHint:Select"), EditorStyles.miniLabel);
+                // 矩形でまとめて足す方法（矩形選択はパーツモード専用なので、そのときだけ案内する）
+                if (ToolSession.Mode == SelectionMode.Island)
+                {
+                    GUILayout.Label(Locales.Tr(hasEdit ? "Scene:Panel:RectHint" : "Scene:Panel:RectHint:Select"), EditorStyles.miniLabel);
+                }
                 EditorGUILayout.Space(4);
-                // 対象の表示と「対象を変える」（ToolPanelOverlay から移動）。対象未設定のときは候補のボタンをここに出す（ユーザー要望 2026-09-25）
-                if (ToolSession.TryGetActiveRoot(out var root))
-                {
-                    using (new EditorGUILayout.HorizontalScope())
-                    {
-                        GUILayout.Label(Locales.Tr("Scene:Panel:Target", root.name), EditorStyles.wordWrappedLabel);
-                        if (GUILayout.Button(Locales.Tr("Scene:Panel:ChangeTarget"), GUILayout.ExpandWidth(false))) ToolPanelOverlay.ChangeTarget();
-                    }
-                }
-                else
-                {
-                    GUILayout.Label(Locales.Tr("Scene:Panel:PickTarget"), EditorStyles.wordWrappedLabel);
-                    ToolPanelOverlay.DrawTargetButtons();
-                }
+                // 対象の表示・切り替え・候補のボタンは ToolPanelOverlay（「範囲」の上）に置く（ユーザー要望 2026-09-26）
                 // 終了はボタンでも Esc でもできる
                 if (GUILayout.Button(Locales.Tr("Scene:Panel:EscHint"), GUILayout.Height(26))) RecolorSceneTool.Deactivate();
             }
             finally
             {
                 EditorGUILayout.EndVertical();
+                OverlayScaler.End(this, scope);
             }
         }
     }

@@ -31,10 +31,25 @@ msgid "Scene:Panel:PrefabModeNotice"
 msgstr "Preview is not available while editing a Prefab. Close Prefab mode and use it in the scene."
 
 msgid "Inspector:ApplyOnBuildHint"
-msgstr "Baked into the main texture on upload. Original assets are left unchanged."
+msgstr "Baked into the main texture on upload."
+
+msgid "Inspector:PreviewResolution"
+msgstr "Preview resolution"
+
+msgid "Inspector:PreviewResolution:Full"
+msgstr "Original resolution"
+
+msgid "Inspector:PreviewEnabled"
+msgstr "Show preview"
+
+msgid "Inspector:ApplyOnBuild"
+msgstr "Apply on build"
+
+msgid "Inspector:Export:PerTexture"
+msgstr "Export per texture"
 
 msgid "Inspector:ApplyOnBuildHint:Free"
-msgstr "With the paid edition installed, edits are baked into the main texture on upload. Original assets are left unchanged."
+msgstr "With the paid edition installed, edits are baked into the main texture on upload."
 
 msgid "Inspector:Edits"
 msgstr "Edits"
@@ -55,7 +70,7 @@ msgid "Inspector:Edit:NoTarget"
 msgstr "No color set"
 
 msgid "Inspector:Edit:Mode:Island"
-msgstr "Isl."
+msgstr "Part"
 
 msgid "Inspector:Edit:Mode:Color"
 msgstr "Col."
@@ -67,7 +82,7 @@ msgid "Inspector:Export"
 msgstr "Export"
 
 msgid "Inspector:Export:Main"
-msgstr "Bake into main texture"
+msgstr "Bake to main"
 
 msgid "Inspector:Export:ReplaceMaterial"
 msgstr "Duplicate and replace materials"
@@ -81,11 +96,14 @@ msgstr "Overwrite"
 msgid "Inspector:Export:Done"
 msgstr "Exported {0}"
 
+msgid "Inspector:Export:All"
+msgstr "All textures"
+
 msgid "Inspector:Export:NoEdits"
 msgstr "Nothing to export"
 
 msgid "Inspector:Export:Second"
-msgstr "Bake into 2nd texture"
+msgstr "Bake to 2nd"
 
 msgid "Inspector:Export:NotLilToon"
 msgstr "Not a lilToon material"
@@ -97,7 +115,7 @@ msgid "Inspector:Export:UseThird"
 msgstr "The 2nd layer is in use. Export to the 3rd layer instead?"
 
 msgid "Inspector:Export:Mask"
-msgstr "Export mask only"
+msgstr "Export mask"
 
 msgid "Inspector:Export:CropSecond"
 msgstr "Crop to the selection (2nd)"
@@ -118,25 +136,25 @@ msgid "Scene:Panel:PickTarget"
 msgstr "Choose a target, or click a model in the Scene."
 
 msgid "Scene:Panel:ChangeTarget"
-msgstr "Change target"
+msgstr "Switch target avatar"
 
 msgid "Scene:Panel:CrossTexture"
 msgstr "Select across materials"
 
 msgid "Help:CrossTexture"
-msgstr "When on, Ctrl+click and drag selection can add UV islands from other materials (textures) to the same edit. One edit per texture is created and linked, so colors and settings apply to all of them."
+msgstr "When on, Ctrl+click and drag selection can add parts (UV islands) from other materials (textures) to the same edit. One edit per texture is created and linked, so colors and settings apply to all of them."
 
 msgid "Scene:Panel:SelectHidden"
 msgstr "Select hidden parts too"
 
 msgid "Help:SelectHidden"
-msgstr "When on, drag selection also picks UV islands hidden behind other meshes if they fall inside the dragged area. When off, only surfaces visible in the Scene are picked. Does not affect Ctrl+click."
+msgstr "When on, drag selection also picks parts (UV islands) hidden behind other meshes if they fall inside the dragged area. When off, only surfaces visible in the Scene are picked. Does not affect Ctrl+click."
 
 msgid "Scene:Panel:CrossTextureOff"
-msgstr "'Select across materials' is off, so islands on other textures are not added"
+msgstr "'Select across materials' is off, so parts on other textures are not added"
 
 msgid "Scene:Panel:CrossTextureOffRect"
-msgstr "{0} island(s) on other textures were not added ('Select across materials' is off)"
+msgstr "{0} part(s) on other textures were not added ('Select across materials' is off)"
 
 msgid "Scene:Panel:HairToolNotice"
 msgstr "This part is handled by Chimera Hair Master. On upload its processing is applied on top of this recolor, so export from Chimera Hair Master first, then recolor."
@@ -151,7 +169,7 @@ msgid "Scene:Panel:Mode"
 msgstr "Affected area"
 
 msgid "Scene:Panel:Mode:Island"
-msgstr "Island"
+msgstr "Part"
 
 msgid "Scene:Panel:Mode:SameColor"
 msgstr "Same color"
@@ -166,22 +184,28 @@ msgid "Scene:Panel:ShiftHint"
 msgstr "Shift+click to start a new edit"
 
 msgid "Scene:Panel:CtrlHint"
-msgstr "Ctrl+click: add/remove an island"
+msgstr "Ctrl+click: add/remove a part"
+
+msgid "Scene:Panel:CtrlHint:Select"
+msgstr "Ctrl+click: select a part"
 
 msgid "Scene:Panel:RectHint"
-msgstr "Ctrl+drag: add all islands in the box"
+msgstr "Ctrl+drag: add all parts in the box"
+
+msgid "Scene:Panel:RectHint:Select"
+msgstr "Ctrl+drag: select all parts in the box"
 
 msgid "Scene:Panel:PerSeedStats"
 msgstr "Match color per point"
 
 msgid "Scene:Panel:CtrlOtherTexture"
-msgstr "Islands on a different texture can't be added to a whole-avatar edit"
+msgstr "Parts on a different texture can't be added to a whole-avatar edit"
 
 msgid "Scene:Panel:CtrlGroupNotice"
-msgstr "Islands can't be added to a whole-avatar edit"
+msgstr "Parts can't be added to a whole-avatar edit"
 
 msgid "Scene:Panel:RectColorModeNotice"
-msgstr "Box selection works in island mode"
+msgstr "Box selection works in part mode"
 
 msgid "Scene:Panel:NoPick"
 msgstr "Click the part you want to recolor"
@@ -247,7 +271,7 @@ msgid "Scene:Select:Scope:Contiguous"
 msgstr "Connected"
 
 msgid "Scene:Select:Scope:Island"
-msgstr "Within island"
+msgstr "Within part"
 
 msgid "Scene:Select:Scope:Whole"
 msgstr "Whole texture"
@@ -301,13 +325,13 @@ msgid "Help:ShowRange"
 msgstr "Overlays stripes in the Scene on the area the current edit recolors. This does not affect the uploaded result."
 
 msgid "Help:PerSeedStats"
-msgstr "When on, the brightness distribution is taken separately for each island added with Ctrl+Click, and each one is matched to the target color. When off, one distribution is taken for the whole selection, so brightness differences between islands are kept. The same applies to links across materials."
+msgstr "When on, the brightness distribution is taken separately for each part added with Ctrl+Click, and each one is matched to the target color. When off, one distribution is taken for the whole selection, so brightness differences between parts are kept. The same applies to links across materials."
 
 msgid "Help:Mode"
 msgstr "Decides how much gets recolored when you click. Changing it also updates the edit you are working on."
 
 msgid "Help:Mode:Island"
-msgstr "Island: recolors the whole part (UV island) you clicked."
+msgstr "Part: recolors the whole part (UV island) you clicked."
 
 msgid "Help:Mode:SameColor"
 msgstr "Same color: recolors only colors that nearly match the clicked spot. Good for patterns and lines."
@@ -322,7 +346,7 @@ msgid "Help:Feather"
 msgstr "Softens the edge of the selection. Higher values blend the border more gradually."
 
 msgid "Help:Scope"
-msgstr "Where to look for matching colors.\nConnected: only the area that connects to the clicked spot without a break\nWithin island: only inside the clicked part\nWhole texture: anywhere in the same texture\nWhole avatar: every texture on the avatar (this can be slow)"
+msgstr "Where to look for matching colors.\nConnected: only the area that connects to the clicked spot without a break\nWithin part: only inside the clicked part\nWhole texture: anywhere in the same texture\nWhole avatar: every texture on the avatar (this can be slow)"
 
 msgid "Help:Cleanup"
 msgstr "Removes small scattered dots that the texture's paint leaves in the selection. Higher values also remove larger dots."

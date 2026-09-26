@@ -57,9 +57,6 @@ namespace Nekoare.ClickRecolor.Editor.Inspector
 
             Locales.DrawLanguagePicker();
 
-            EditorGUILayout.LabelField(Locales.Tr("Inspector:Title"), EditorStyles.boldLabel);
-            EditorGUILayout.LabelField(Locales.Tr("Inspector:Description"), EditorStyles.wordWrappedLabel);
-
             // ツールが有効でも対象（ルート）がこの GameObject でなければ「開始」を出す（押すと対象を乗り換える）
             if (RecolorSceneTool.IsActive && ToolSession.TryGetActiveRoot(out var root) && root == component.gameObject)
             {
@@ -96,9 +93,10 @@ namespace Nekoare.ClickRecolor.Editor.Inspector
             if (drawExportSection != null) drawExportSection(this, component);
             else EditorGUILayout.HelpBox(Locales.Tr("Inspector:Export:ProOnly"), MessageType.Info);
 
-            DrawPropertyWithHelp(_previewResolution, "Help:PreviewResolution");
-            EditorGUILayout.PropertyField(_previewEnabled);
-            DrawPropertyWithHelp(_applyOnBuild, "Help:ApplyOnBuild");
+            // 項目名は日本語で出す（ユーザー要望 2026-09-26）。解像度は「2048×2048」のように分かりやすく
+            DrawResolutionWithHelp(_previewResolution, "Help:PreviewResolution");
+            EditorGUILayout.PropertyField(_previewEnabled, new GUIContent(Locales.Tr("Inspector:PreviewEnabled")));
+            DrawPropertyWithHelp(_applyOnBuild, new GUIContent(Locales.Tr("Inspector:ApplyOnBuild")), "Help:ApplyOnBuild");
             // 無料版では反映されないので、文言を分ける（レビュー指摘 2026-09-25）
             EditorGUILayout.LabelField(
                 Locales.Tr(drawExportSection != null ? "Inspector:ApplyOnBuildHint" : "Inspector:ApplyOnBuildHint:Free"),
@@ -112,9 +110,38 @@ namespace Nekoare.ClickRecolor.Editor.Inspector
         /// <summary>プロパティの右に「？」を置き、開いていれば直下に説明を出す</summary>
         private static void DrawPropertyWithHelp(SerializedProperty property, string helpKey)
         {
+            DrawPropertyWithHelp(property, null, helpKey);
+        }
+
+        private static void DrawPropertyWithHelp(SerializedProperty property, GUIContent label, string helpKey)
+        {
             using (new EditorGUILayout.HorizontalScope())
             {
-                EditorGUILayout.PropertyField(property);
+                if (label != null) EditorGUILayout.PropertyField(property, label);
+                else EditorGUILayout.PropertyField(property);
+                HelpMark.Draw(helpKey);
+            }
+            HelpMark.DrawBoxIfOpen(helpKey);
+        }
+
+        private static readonly WorkingResolution[] ResolutionChoices = { WorkingResolution.R1024, WorkingResolution.R2048, WorkingResolution.Full };
+
+        /// <summary>プレビュー解像度のポップアップ。表示は「1024×1024」「2048×2048」「元の解像度」（enum 名の R2048 は出さない）</summary>
+        private static void DrawResolutionWithHelp(SerializedProperty property, string helpKey)
+        {
+            var names = new string[ResolutionChoices.Length];
+            int current = 0;
+            for (int i = 0; i < ResolutionChoices.Length; i++)
+            {
+                int v = (int)ResolutionChoices[i];
+                names[i] = v > 0 ? $"{v}×{v}" : Locales.Tr("Inspector:PreviewResolution:Full");
+                if (v == property.intValue) current = i;
+            }
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                EditorGUI.BeginChangeCheck();
+                int selected = EditorGUILayout.Popup(Locales.Tr("Inspector:PreviewResolution"), current, names);
+                if (EditorGUI.EndChangeCheck()) property.intValue = (int)ResolutionChoices[selected];
                 HelpMark.Draw(helpKey);
             }
             HelpMark.DrawBoxIfOpen(helpKey);

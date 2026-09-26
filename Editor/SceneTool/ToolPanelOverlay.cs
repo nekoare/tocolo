@@ -20,7 +20,11 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         /// Unity 再起動時やツール有効中に新しく開いた SceneView でも、ツールの状態に合わせる。
         /// 保存レイアウトの表示状態の復元が OnCreated より後に効くため、1 フレーム遅らせて上書きする
         /// </summary>
-        public override void OnCreated() { EditorApplication.delayCall += () => displayed = RecolorSceneTool.IsActive; }
+        public override void OnCreated()
+        {
+            EditorApplication.delayCall += () => displayed = RecolorSceneTool.IsActive;
+            OverlayScaler.ClearUnitySizeOverride(this);
+        }
 
         /// <summary>ドラッグ・数値入力の途中で SceneView ごと閉じられた場合も、Undo のまとめを閉じる</summary>
         public override void OnWillBeDestroyed() { FinishDrag(); }
@@ -33,6 +37,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         /// <summary>Scene ビューの高さ（直近の OnGUI で取得）。0 なら不明</summary>
         private static float s_viewHeight;
         private static Vector2 s_scroll;
+        private static bool s_lastScroll;
         /// <summary>スクロールにするとき、縦スクロールバーのぶん広げる幅</summary>
         private const float ScrollBarWidth = 16f;
         /// <summary>オーバーレイの枠（見出しと余白）が中身に足す高さの概算（RecolorSceneTool と同じ値）</summary>
@@ -47,24 +52,35 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         /// </summary>
         private static float MaxContentHeight => s_viewHeight > 0f ? s_viewHeight - TopMargin - ViewMargin - FrameHeight : float.MaxValue;
 
-        /// <summary>今スクロール領域にしているか（中身の素の高さが Scene ビューに収まらない）</summary>
-        private static bool UseScroll => s_naturalHeight > 0f && s_naturalHeight > MaxContentHeight;
+        /// <summary>倍率（リサイズで拡大しているとき）で割った、基準の大きさでの最大の高さ</summary>
+        private static float MaxContentHeightUnscaled(float scale) => MaxContentHeight / Mathf.Max(scale, 0.01f);
+
+        /// <summary>今スクロール領域にしているか（中身の素の高さ×倍率が Scene ビューに収まらない）</summary>
+        private static bool UseScroll(float scale) => s_naturalHeight > 0f && s_naturalHeight > MaxContentHeightUnscaled(scale);
 
         public override void OnGUI()
         {
             if (containerWindow != null) s_viewHeight = containerWindow.position.height;
-            bool scroll = UseScroll;
+            float scale = OverlayScaler.CurrentScale(this, PanelWidth + ScrollBarWidth);
+            // つまみのドラッグ中はスクロールの有無を切り替えない（切り替えの瞬間にレイアウトが変わって引っかかる）。離した後に反映する
+            bool scroll = OverlayScaler.Dragging ? s_lastScroll : UseScroll(scale);
+            s_lastScroll = scroll;
+            float shownHeight = scroll ? MaxContentHeightUnscaled(scale) : (s_naturalHeight > 0f ? s_naturalHeight : 100f);
+            // 中身は基準幅で描き、リサイズの幅に応じて GUI.matrix で拡大する（比率を保つ）
+            var scope = OverlayScaler.Begin(this, PanelWidth + ScrollBarWidth, shownHeight);
             if (scroll)
             {
                 s_scroll = EditorGUILayout.BeginScrollView(s_scroll, false, true,
-                    GUILayout.Width(PanelWidth + ScrollBarWidth), GUILayout.Height(MaxContentHeight));
+                    GUILayout.Width(PanelWidth + ScrollBarWidth), GUILayout.Height(shownHeight));
             }
             var rect = EditorGUILayout.BeginVertical(GUILayout.Width(PanelWidth));
             if (Event.current.type == EventType.Repaint && rect.height > 0f)
             {
+                // 中身の高さが変わったら、固定している高さを次の描画で合わせるために描き直す（HintOverlay と同じ）
+                if (Mathf.Abs(rect.height - s_naturalHeight) > 0.5f) containerWindow?.Repaint();
                 s_naturalHeight = rect.height;
-                // 置き直しに使う高さは実際に表示している高さ（スクロール中はスクロール領域の高さ）
-                LastContentHeight = scroll ? MaxContentHeight : rect.height;
+                // 置き直しに使う高さは実際に表示している高さ（倍率込み。スクロール中はスクロール領域の高さ）
+                LastContentHeight = shownHeight * scope.scale;
             }
             try
             {
@@ -76,10 +92,21 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
 
                 if (!ToolSession.TryGetActiveRoot(out var root))
                 {
-                    // 対象の候補ボタンは「操作」オーバーレイ（HintOverlay）に出す（ユーザー要望 2026-09-25）。ここは案内だけ
+                    // 対象未設定: 案内と候補のボタン（ユーザー要望 2026-09-26: 候補は「操作」側からこちらへ戻す）
                     GUILayout.Label(Locales.Tr("Scene:Panel:PickTarget"), EditorStyles.wordWrappedLabel);
+                    DrawTargetButtons();
                     QueueAutoSelectIfSingleAvatar();
                     return;
+                }
+
+                // 対象の表示と「対象アバターを切り替える」（切り替え先の候補が 2 つ以上あるときだけ）。「範囲」ブロックの上
+                if (CountTargetCandidates() > 1)
+                {
+                    using (new EditorGUILayout.HorizontalScope())
+                    {
+                        GUILayout.Label(Locales.Tr("Scene:Panel:Target", root.name), EditorStyles.wordWrappedLabel);
+                        if (GUILayout.Button(Locales.Tr("Scene:Panel:ChangeTarget"), GUILayout.ExpandWidth(false))) ChangeTarget();
+                    }
                 }
 
                 // 「範囲」ブロック → 「色」ブロック → 削除、の順（Overlay 2 枚だと位置が合わせられないので 1 枚に統合した）。
@@ -90,6 +117,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             {
                 EditorGUILayout.EndVertical();
                 if (scroll) EditorGUILayout.EndScrollView();
+                OverlayScaler.End(this, scope);
             }
         }
 
@@ -383,10 +411,13 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             // スポイト中の案内
             if (ToolSession.EyedropperActive) EditorGUILayout.HelpBox(Locales.Tr("Scene:Color:EyedropperHint"), MessageType.Info);
 
+            // Scene ビューが低い（FHD で通常の大きさ等）ときはホイールを小さくして、全体が収まりやすくする
+            float wheelSize = s_viewHeight > 0f && s_viewHeight < SmallWheelViewHeight ? SmallWheelSize : WheelSize;
             // カラーホイール（中央寄せ）。左上にスポイトのトグル（ユーザー要望 2026-09-26）
             using (new EditorGUILayout.HorizontalScope())
             {
-                using (new EditorGUILayout.VerticalScope(GUILayout.Width(EyedropperButtonSize)))
+                // 高さをホイールに固定する（FlexibleSpace が親の高さいっぱいに伸びて行が間延びしないように）
+                using (new EditorGUILayout.VerticalScope(GUILayout.Width(EyedropperButtonSize), GUILayout.Height(wheelSize)))
                 {
                     var eyedropperContent = EyedropperContent;
                     bool active = GUILayout.Toggle(ToolSession.EyedropperActive, eyedropperContent, EditorStyles.miniButton,
@@ -399,8 +430,6 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                     GUILayout.FlexibleSpace();
                 }
                 GUILayout.FlexibleSpace();
-                // Scene ビューが低い（FHD で通常の大きさ等）ときはホイールを小さくして、全体が収まりやすくする
-                float wheelSize = s_viewHeight > 0f && s_viewHeight < SmallWheelViewHeight ? SmallWheelSize : WheelSize;
                 var wheelRect = GUILayoutUtility.GetRect(wheelSize, wheelSize, GUILayout.ExpandWidth(false));
                 EditorGUI.BeginChangeCheck();
                 var wheelColor = ColorWheelGUI.Draw(wheelRect, EditingColor(edit, end), s_wheelHint);
@@ -1053,6 +1082,13 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 if (!avatars.Contains(root)) selectionRoot = root;
             }
             return avatars;
+        }
+
+        /// <summary>対象になりうるものの数（シーンのアバター＋アバターでない選択中のルート）。HintOverlay が切り替えボタンを出すかの判定に使う</summary>
+        internal static int CountTargetCandidates()
+        {
+            var avatars = CollectTargetCandidates(out var selectionRoot);
+            return avatars.Count + (selectionRoot != null ? 1 : 0);
         }
 
         /// <summary>

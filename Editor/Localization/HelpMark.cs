@@ -47,6 +47,12 @@ namespace Nekoare.ClickRecolor.Editor.Localization
             if (IsOpen(key)) EditorGUILayout.HelpBox(Locales.Tr(key), MessageType.Info);
         }
 
+        /// <summary>見出し付きで出す（同じ場所に複数の説明が並ぶとき、どれの説明か分かるようにする）。title はそのまま 1 行目に出す</summary>
+        internal static void DrawBoxIfOpen(string key, string title)
+        {
+            if (IsOpen(key)) EditorGUILayout.HelpBox($"【{title}】\n{Locales.Tr(key)}", MessageType.Info);
+        }
+
         /// <summary>Layout イベントのときだけ、押された key の開閉を反映する（同じイベントの Layout と Repaint で部品の数を揃える）</summary>
         private static void ApplyPendingOnLayout()
         {

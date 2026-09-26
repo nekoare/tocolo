@@ -221,6 +221,13 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 return;
             }
 
+            // オーバーレイのつまみが離しを取りこぼして握ったままだと Scene の操作が効かなくなる（実機 2026-09-26）ので、
+            // Scene 側で押し・離しを見たら解除する
+            if (OverlayScaler.Dragging && (e.type == EventType.MouseUp || e.type == EventType.MouseDown || e.rawType == EventType.MouseUp))
+            {
+                OverlayScaler.ForceEndDrag();
+            }
+
             // グラデーションの箱のハンドル。Layout でも呼んで距離を登録する（ハンドルに近いクリックはハンドルが取り、Pick に来ない）
             DrawGradientBox();
             // 箱のハンドルなど他のコントロールがマウスを掴んでいる間は、クリック・ドラッグを処理しない
@@ -1287,16 +1294,41 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         private static float HintHeight =>
             (HintOverlay.LastContentHeight > 0f ? HintOverlay.LastContentHeight : HintEstimatedContentHeight) + OverlayFrameHeight;
 
+        private const string HintPosXKey = "ClickRecolor.HintPos.x";
+        private const string HintPosYKey = "ClickRecolor.HintPos.y";
+        /// <summary>見切れ防止・右下配置でこちらが最後に設定した案内の位置（ユーザーの移動と区別するため）</summary>
+        private static Vector2? s_lastAppliedHintPos;
+
+        /// <summary>
+        /// 案内オーバーレイの位置合わせ（Layout ごと）。ユーザーが動かしていれば EditorPrefs に覚え（パネルと同じ。ユーザー要望 2026-09-26）、
+        /// 覚えた位置があればそれを Scene に収まる範囲で使い、無ければ右下に置く。Scene の大きさや中身の高さが変わったら置き直す
+        /// </summary>
         private static void KeepHintAtBottomRight(SceneView view)
         {
+            if (!view.TryGetOverlay(HintOverlay.Id, out Overlay hint) || !hint.displayed) return;
+            SaveHintPositionIfMoved(hint);
             var key = new Vector3(view.position.width, view.position.height, HintHeight);
             int id = view.GetInstanceID();
             if (s_hintPlacedKey.TryGetValue(id, out var last) && last == key) return;
-            if (!view.TryGetOverlay(HintOverlay.Id, out Overlay hint) || !hint.displayed) return;
             PlaceHintAtBottomRight(view, hint);
         }
 
-        /// <summary>案内オーバーレイを浮動にして Scene の右下に置く（中身の高さが変わっても下に見切れないよう、高さぶん上にずらす）</summary>
+        /// <summary>ユーザーが案内を動かしたら位置を保存する（こちらが設定した位置のままなら何もしない）</summary>
+        private static void SaveHintPositionIfMoved(Overlay hint)
+        {
+            if (!hint.floating) return;
+            var pos = hint.floatingPosition;
+            if (s_lastAppliedHintPos.HasValue && (pos - s_lastAppliedHintPos.Value).sqrMagnitude < 0.25f) return;
+            if (!s_lastAppliedHintPos.HasValue) return; // まだこちらで置いていない（復元前）なら判定しない
+            EditorPrefs.SetFloat(HintPosXKey, pos.x);
+            EditorPrefs.SetFloat(HintPosYKey, pos.y);
+            s_lastAppliedHintPos = pos;
+        }
+
+        /// <summary>
+        /// 案内オーバーレイを浮動にして置く。覚えた位置があればそれを Scene に収まるよう詰めて使い、無ければ右下
+        /// （中身の高さが変わっても下に見切れないよう、高さぶん上にずらす）
+        /// </summary>
         private static void PlaceHintAtBottomRight(SceneView view, Overlay hint)
         {
             float height = HintHeight;
@@ -1304,9 +1336,22 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             try
             {
                 hint.Undock();
-                float x = Mathf.Max(0f, view.position.width - HintOverlay.Width - 12f);
-                float y = Mathf.Max(0f, view.position.height - height - 12f);
-                hint.floatingPosition = new Vector2(x, y);
+                float hintWidth = HintOverlay.LastContentWidth > 0f ? HintOverlay.LastContentWidth : HintOverlay.Width;
+                float maxX = Mathf.Max(0f, view.position.width - hintWidth - 12f);
+                float maxY = Mathf.Max(0f, view.position.height - height - 12f);
+                Vector2 pos;
+                if (EditorPrefs.HasKey(HintPosXKey))
+                {
+                    pos = new Vector2(
+                        Mathf.Clamp(EditorPrefs.GetFloat(HintPosXKey), 0f, maxX),
+                        Mathf.Clamp(EditorPrefs.GetFloat(HintPosYKey), ToolPanelOverlay.TopMargin, Mathf.Max(ToolPanelOverlay.TopMargin, maxY)));
+                }
+                else
+                {
+                    pos = new Vector2(maxX, maxY);
+                }
+                hint.floatingPosition = pos;
+                s_lastAppliedHintPos = pos;
             }
             catch (System.Exception e)
             {
