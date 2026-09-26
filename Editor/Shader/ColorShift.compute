@@ -53,7 +53,9 @@ float GradientT(float4 position)
 {
     if (position.a <= 0.0) return 0.0;
     float3 local = mul(WorldToBox, float4(position.xyz, 1.0)).xyz;
-    float height = max(abs(BoxSize.y), MinBoxHeight);
+    // 高さは符号付き: 箱を上下に反転（大きさの y が負）させたらグラデーションも反転する（実機 2026-09-27 の不具合修正）
+    float height = BoxSize.y;
+    if (abs(height) < MinBoxHeight) height = height < 0.0 ? -MinBoxHeight : MinBoxHeight;
     return saturate(local.y / height + 0.5);
 }
 

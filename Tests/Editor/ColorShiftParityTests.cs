@@ -426,6 +426,26 @@ namespace Nekoare.ClickRecolor.Tests
             Assert.That(HueDistance(Hue(0, Size - 1), startHue), Is.LessThan(0.05f), "描かれていない画素は t = 0（目標 1）");
             // 途中の行は両端の間（目標 1 から離れていく）
             Assert.That(HueDistance(Hue(4, Size / 2), startHue), Is.GreaterThan(HueDistance(Hue(4, 1), startHue)));
+
+            // 箱を上下に反転（大きさの y が負）させると、下端が目標 2・上端が目標 1 になる（GPU と CPU とも）
+            p.boxSize = new Vector3(1f, -1f, 1f);
+            var flipped = RunGpu(MakeSource(src), MakeMask(mask), p, posMap);
+            float FlippedHue(int x, int y)
+            {
+                var c = flipped[y * Size + x];
+                return OklabConverter.OklabToOklch(OklabConverter.LinearRGBToOklab(new Vector3(c.r, c.g, c.b))).z;
+            }
+            Assert.That(HueDistance(FlippedHue(4, 0), endHue), Is.LessThan(0.05f), "反転: 下端の行は目標 2");
+            Assert.That(HueDistance(FlippedHue(4, Size - 1), startHue), Is.LessThan(0.05f), "反転: 上端の行は目標 1");
+            for (int i = 0; i < src.Length; i++)
+            {
+                Color cpu = ColorShiftCpu.ShiftLinear(src[i], 1f, p, positions[i]);
+                Color cpuSrgb = OklabConverter.LinearToSRGB(new Vector3(cpu.r, cpu.g, cpu.b));
+                Color gpuSrgb = OklabConverter.LinearToSRGB(new Vector3(flipped[i].r, flipped[i].g, flipped[i].b));
+                Assert.That(gpuSrgb.r, Is.EqualTo(cpuSrgb.r).Within(SrgbTolerance), $"反転 画素 {i} の R");
+                Assert.That(gpuSrgb.g, Is.EqualTo(cpuSrgb.g).Within(SrgbTolerance), $"反転 画素 {i} の G");
+                Assert.That(gpuSrgb.b, Is.EqualTo(cpuSrgb.b).Within(SrgbTolerance), $"反転 画素 {i} の B");
+            }
         }
 
         [Test]

@@ -140,7 +140,9 @@ namespace Nekoare.ClickRecolor.Editor.Colors
         {
             if (position.w <= 0f) return 0f;
             Vector3 local = p.rootToBox.MultiplyPoint3x4(new Vector3(position.x, position.y, position.z));
-            float height = Mathf.Max(Mathf.Abs(p.boxSize.y), MinBoxHeight);
+            // 高さは符号付き（箱の上下反転でグラデーションも反転。compute と同じ）
+            float height = p.boxSize.y;
+            if (Mathf.Abs(height) < MinBoxHeight) height = height < 0f ? -MinBoxHeight : MinBoxHeight;
             return Mathf.Clamp01(local.y / height + 0.5f);
         }
 
