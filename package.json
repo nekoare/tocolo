@@ -1,6 +1,6 @@
 {
   "name": "dev.nekoare.click-recolor",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "displayName": "Tocolo",
   "description": "Scene でクリックした場所のメインテクスチャの色を、陰影を保ったまま非破壊（NDMF）で変えるツール",
   "unity": "2022.3",

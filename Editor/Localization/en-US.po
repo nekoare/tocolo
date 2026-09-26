@@ -400,7 +400,7 @@ msgid "Help:PreviewResolution"
 msgstr "Maximum resolution used for the Scene preview. Lower is faster. Upload and export always use the original resolution."
 
 msgid "Help:ApplyOnBuild"
-msgstr "When on, your edits are baked into the main texture on upload (build) in the paid edition. The original textures and materials are left unchanged. The free edition only shows a notice in the report window."
+msgstr "When on, your edits are baked into the main texture on upload (build) in the paid edition. The original textures and materials are left unchanged. The trial edition only shows a notice in the report window."
 
 msgid "Help:Export:Main"
 msgstr "Saves a new texture with your edits baked in (name_recolor.png) next to the original. With 'Duplicate and replace materials' on, the materials are duplicated and swapped in. Exported edits are turned off automatically. Ctrl+Z undoes it."
@@ -430,7 +430,7 @@ msgid "Error:ApplyFailed"
 msgstr "Could not apply recoloring to texture '{0}', so it is skipped."
 
 msgid "Error:FreeEdition"
-msgstr "Free edition: not applied on upload (available in the paid edition)."
+msgstr "Trial edition: not applied on upload (available in the paid edition)."
 
 msgid "Error:OriginalTextureStillReferenced"
 msgstr "Original texture '{0}' is still referenced (material '{1}'), so both the original and the generated texture will be included in the upload."
