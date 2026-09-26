@@ -31,6 +31,8 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
 
         /// <summary>直近の Repaint で測った中身の高さ（px）。RecolorSceneTool が下に見切れないよう置き直すのに使う。0 なら未測定</summary>
         internal static float LastContentHeight;
+        /// <summary>直近の Repaint での表示幅（倍率・つまみ込み）。除外リストを隣に置くのに使う。0 なら未測定</summary>
+        internal static float LastContentWidth;
 
         /// <summary>パネルの中身の素の高さ（スクロールしないときの高さ）。0 なら未測定</summary>
         private static float s_naturalHeight;
@@ -81,6 +83,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 s_naturalHeight = rect.height;
                 // 置き直しに使う高さは実際に表示している高さ（倍率込み。スクロール中はスクロール領域の高さ）
                 LastContentHeight = shownHeight * scope.scale;
+                LastContentWidth = scope.outer.width;
             }
             try
             {
@@ -108,6 +111,19 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                         if (GUILayout.Button(Locales.Tr("Scene:Panel:ChangeTarget"), GUILayout.ExpandWidth(false))) ChangeTarget();
                     }
                 }
+                // 除外リスト（右寄せ。押すと別のオーバーレイを開閉。ユーザー要望 2026-09-27）
+                using (new EditorGUILayout.HorizontalScope())
+                {
+                    GUILayout.FlexibleSpace();
+                    var component = root.GetComponent<ClickRecolor>();
+                    int count = component != null && component.excludedRenderers != null ? component.excludedRenderers.Count : 0;
+                    var view = containerWindow as SceneView;
+                    bool shown = ExcludeListOverlay.IsShown(view);
+                    string label = count > 0 ? Locales.Tr("Scene:Panel:ExcludeListCount", count) : Locales.Tr("Scene:Panel:ExcludeList");
+                    if (GUILayout.Toggle(shown, label, EditorStyles.miniButton, GUILayout.ExpandWidth(false)) != shown) ExcludeListOverlay.Toggle(view);
+                    HelpMark.Draw("Help:ExcludeList");
+                }
+                HelpMark.DrawBoxIfOpen("Help:ExcludeList");
 
                 // 「範囲」ブロック → 「色」ブロック → 削除、の順（Overlay 2 枚だと位置が合わせられないので 1 枚に統合した）。
                 // 「対象: ○○／対象を変える」は HintOverlay（右下）に移した（ユーザー要望 2026-09-24）

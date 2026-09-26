@@ -138,6 +138,33 @@ msgstr "対象を選ぶか、Scene でモデルをクリックしてください
 msgid "Scene:Panel:ChangeTarget"
 msgstr "対象アバターを切り替える"
 
+msgid "Scene:Panel:ExcludeList"
+msgstr "除外リスト"
+
+msgid "Scene:Panel:ExcludeListCount"
+msgstr "除外リスト ({0})"
+
+msgid "Scene:Exclude:DropHere"
+msgstr "ここに Hierarchy から GameObject をドロップ（Renderer 単位で登録）"
+
+msgid "Scene:Exclude:Empty"
+msgstr "除外はありません"
+
+msgid "Scene:Exclude:ClearAll"
+msgstr "すべて外す"
+
+msgid "Scene:Exclude:NotInTarget"
+msgstr "対象アバターの外の GameObject は除外できません"
+
+msgid "Scene:Exclude:NoRenderer"
+msgstr "ドロップした GameObject に Renderer がありません"
+
+msgid "Inspector:ExcludedRenderers"
+msgstr "除外する Renderer"
+
+msgid "Help:ExcludeList"
+msgstr "ここに登録した Renderer（GameObject）は色変えの対象から外れます。プレビュー・アップロード・書き出しのどれでも元のマテリアルのままになり、Scene でクリックしても選ばれません。同じテクスチャを使う別のパーツの色を変えたくないときに使います。"
+
 msgid "Scene:Panel:CrossTexture"
 msgstr "マテリアルをまたいで選ぶ"
 

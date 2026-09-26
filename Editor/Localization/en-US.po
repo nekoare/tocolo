@@ -138,6 +138,33 @@ msgstr "Choose a target, or click a model in the Scene."
 msgid "Scene:Panel:ChangeTarget"
 msgstr "Switch target avatar"
 
+msgid "Scene:Panel:ExcludeList"
+msgstr "Exclusions"
+
+msgid "Scene:Panel:ExcludeListCount"
+msgstr "Exclusions ({0})"
+
+msgid "Scene:Exclude:DropHere"
+msgstr "Drop GameObjects here from the Hierarchy (registered per Renderer)"
+
+msgid "Scene:Exclude:Empty"
+msgstr "No exclusions"
+
+msgid "Scene:Exclude:ClearAll"
+msgstr "Remove all"
+
+msgid "Scene:Exclude:NotInTarget"
+msgstr "GameObjects outside the target avatar cannot be excluded"
+
+msgid "Scene:Exclude:NoRenderer"
+msgstr "The dropped GameObject has no Renderer"
+
+msgid "Inspector:ExcludedRenderers"
+msgstr "Excluded renderers"
+
+msgid "Help:ExcludeList"
+msgstr "Renderers (GameObjects) listed here are left out of the recolor. They keep their original material in the preview, on upload and in exports, and cannot be clicked in the Scene. Use it when another part shares the same texture but should keep its color."
+
 msgid "Scene:Panel:CrossTexture"
 msgstr "Select across materials"
 

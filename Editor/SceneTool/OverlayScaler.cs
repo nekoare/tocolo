@@ -62,6 +62,8 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             public string id;
             /// <summary>つまみのコントロール ID（Begin の先頭で取る。後ろにスクロールビュー等が増減しても番号が変わらないようにする）</summary>
             public int gripControl;
+            /// <summary>他のオーバーレイの倍率に追従しているか（つまみ無し）</summary>
+            public bool follow;
         }
 
         /// <summary>覚えた倍率を捨てて 1 に戻す</summary>
@@ -109,9 +111,12 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         }
 
         /// <summary>オーバーレイ（id）の倍率（EditorPrefs。無ければ 1）。Scene ビュー全体に収まる上限で切る</summary>
-        public static float CurrentScale(Overlay overlay, float baseWidth)
+        public static float CurrentScale(Overlay overlay, float baseWidth) => CurrentScale(overlay, overlay.id, baseWidth);
+
+        /// <summary>scaleId の倍率を使う版（他のオーバーレイの倍率に追従させるとき）</summary>
+        public static float CurrentScale(Overlay overlay, string scaleId, float baseWidth)
         {
-            float saved = Mathf.Clamp(EditorPrefs.GetFloat(ScaleKeyPrefix + overlay.id, 1f), MinScale, MaxScale);
+            float saved = Mathf.Clamp(EditorPrefs.GetFloat(ScaleKeyPrefix + scaleId, 1f), MinScale, MaxScale);
             return Mathf.Min(saved, MaxScaleInView(overlay, baseWidth));
         }
 
@@ -147,27 +152,34 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         /// GUI.matrix を拡大にしてから GUILayout.BeginArea で基準の大きさの領域を開く。中身が変わる間は 1 フレーム下が切れるが、
         /// 呼び出し側が高さの変化で描き直しを要求するのですぐ追いつく
         /// </summary>
-        public static Scope Begin(Overlay overlay, float baseWidth, float contentHeight)
+        public static Scope Begin(Overlay overlay, float baseWidth, float contentHeight) => Begin(overlay, baseWidth, contentHeight, null);
+
+        /// <summary>
+        /// followScaleId を渡すと、そのオーバーレイの倍率に追従する（自分のつまみは出さず、位置の寄せ直しもしない。除外リスト用）
+        /// </summary>
+        public static Scope Begin(Overlay overlay, float baseWidth, float contentHeight, string followScaleId)
         {
+            bool follow = !string.IsNullOrEmpty(followScaleId);
             var scope = new Scope
             {
-                scale = CurrentScale(overlay, baseWidth), savedMatrix = GUI.matrix, baseWidth = baseWidth,
-                contentHeight = Mathf.Max(contentHeight, 1f), id = overlay.id,
+                scale = CurrentScale(overlay, follow ? followScaleId : overlay.id, baseWidth), savedMatrix = GUI.matrix, baseWidth = baseWidth,
+                contentHeight = Mathf.Max(contentHeight, 1f), id = overlay.id, follow = follow,
                 // 先頭で取る: スクロールバーが出た瞬間にコントロールの数が変わり、後ろで取った ID がずれてドラッグが切れる（実機 2026-09-27）
                 gripControl = GUIUtility.GetControlID(s_gripHint, FocusType.Passive),
             };
-            scope.outer = GUILayoutUtility.GetRect((baseWidth + GripSpace) * scope.scale, scope.contentHeight * scope.scale, GUILayout.ExpandWidth(false));
+            float extra = follow ? 0f : GripSpace;
+            scope.outer = GUILayoutUtility.GetRect((baseWidth + extra) * scope.scale, scope.contentHeight * scope.scale, GUILayout.ExpandWidth(false));
             // ドラッグ中は寄せ直さない（寄せるとマウスとの相対位置が変わって倍率が飛び、端で引っかかる）。離した後の描画で寄せる
-            if (Event.current.type == EventType.Layout && !Dragging) KeepInsideView(overlay, (baseWidth + GripSpace) * scope.scale, scope.contentHeight * scope.scale);
+            if (!follow && Event.current.type == EventType.Layout && !Dragging) KeepInsideView(overlay, (baseWidth + extra) * scope.scale, scope.contentHeight * scope.scale);
             GUI.matrix = scope.savedMatrix * Matrix4x4.TRS(new Vector3(scope.outer.x, scope.outer.y, 0f), Quaternion.identity, new Vector3(scope.scale, scope.scale, 1f));
-            GUILayout.BeginArea(new Rect(0f, 0f, baseWidth + GripSpace, scope.contentHeight));
+            GUILayout.BeginArea(new Rect(0f, 0f, baseWidth + extra, scope.contentHeight));
             return scope;
         }
 
-        /// <summary>中身の描画を終える。右端につまみを描き、ドラッグで倍率を変える。GUI.matrix を戻す</summary>
+        /// <summary>中身の描画を終える。右端につまみを描き（追従のときは描かない）、ドラッグで倍率を変える。GUI.matrix を戻す</summary>
         public static void End(Overlay overlay, in Scope scope)
         {
-            DrawGrip(overlay, scope);
+            if (!scope.follow) DrawGrip(overlay, scope);
             GUILayout.EndArea();
             GUI.matrix = scope.savedMatrix;
         }

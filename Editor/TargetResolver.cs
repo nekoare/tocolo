@@ -62,6 +62,22 @@ namespace Nekoare.ClickRecolor.Editor
         /// <summary>開いている全シーン（読み込み済みのみ）から VRCAvatarDescriptor を持つ GameObject を Hierarchy 順に集める</summary>
         public static List<GameObject> FindSceneAvatarRoots()
         {
+            // 無効（チェックが外れている）か、Hierarchy の目のマークで隠されているアバターは対象の候補に数えない（ユーザー要望 2026-09-27）。
+            // 表示状態はキャッシュに入れず毎回見る（目のマークの切り替えは hierarchyChanged を起こさないため）
+            var all = FindAllSceneAvatarRoots();
+            var visible = new List<GameObject>(all.Count);
+            foreach (var go in all)
+            {
+                if (go == null || !go.activeInHierarchy) continue;
+                if (SceneVisibilityManager.instance.IsHidden(go)) continue;
+                visible.Add(go);
+            }
+            return visible;
+        }
+
+        /// <summary>シーンの全アバターのルート（有効・表示にかかわらず）。Hierarchy の変更まではキャッシュする</summary>
+        private static List<GameObject> FindAllSceneAvatarRoots()
+        {
             if (s_avatarRootsCache != null && s_avatarRootsCache.TrueForAll(g => g != null)) return s_avatarRootsCache;
             var result = new List<GameObject>();
             s_avatarRootsCache = result;

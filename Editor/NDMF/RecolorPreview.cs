@@ -163,6 +163,8 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
                     {
                         if (!(renderer is SkinnedMeshRenderer || renderer is MeshRenderer)) continue;
                         if (!context.ActiveInHierarchy(renderer.gameObject)) continue;
+                        // 除外リストの Renderer は元のマテリアルのまま（差し替えない）
+                        if (ClickRecolor.IsExcludedByAny(components, renderer)) continue;
 
                         // マテリアル差し替え・メインテクスチャの差し替えでグループを作り直す
                         var materials = context.Observe(renderer, r => r.sharedMaterials, SameMaterialArray);
@@ -629,6 +631,13 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
                 int h = 17;
                 h = h * 31 + (int)component.previewResolution;
                 h = h * 31 + (component.previewEnabled ? 1 : 0);
+                // 除外リストの増減で対象の Renderer が変わる
+                var excluded = component.excludedRenderers;
+                if (excluded != null)
+                {
+                    h = h * 31 + excluded.Count;
+                    foreach (var r in excluded) h = h * 31 + (r != null ? r.GetInstanceID() : 0);
+                }
                 var edits = component.edits;
                 if (edits == null) return h;
                 h = h * 31 + edits.Count;

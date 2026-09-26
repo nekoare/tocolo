@@ -784,8 +784,11 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         private void CollectPickRenderers(GameObject root)
         {
             _renderers.Clear();
+            var component = root.GetComponent<ClickRecolor>();
             foreach (var r in root.GetComponentsInChildren<Renderer>(true))
             {
+                // 除外リストの Renderer はクリック・ホバー・矩形の対象にしない（ユーザー判断 2026-09-27）
+                if (component != null && component.IsExcluded(r)) continue;
                 if (IsPickable(r)) _renderers.Add(r);
             }
         }
@@ -1083,10 +1086,13 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         internal static List<Renderer> CollectPreviewRenderers(GameObject root)
         {
             var result = new List<Renderer>();
+            var component = root.GetComponent<ClickRecolor>();
             foreach (var renderer in root.GetComponentsInChildren<Renderer>(true))
             {
                 if (!(renderer is SkinnedMeshRenderer || renderer is MeshRenderer)) continue;
                 if (!renderer.gameObject.activeInHierarchy) continue;
+                // 除外リストの Renderer はプレビューの利用者に入らない（マスクの鍵をプレビューと揃える）
+                if (component != null && component.IsExcluded(renderer)) continue;
                 result.Add(renderer);
             }
             return result;
@@ -1279,6 +1285,8 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                     // 案内は初回限定ではなく、表示のたびに右下へ置く
                     if (displayed) PlaceHintAtBottomRight(view, hint);
                 }
+                // 除外リストはボタンで開くので、ツールの終了時に閉じるだけ
+                if (!displayed && view.TryGetOverlay(ExcludeListOverlay.Id, out Overlay exclude)) exclude.displayed = false;
             }
         }
 

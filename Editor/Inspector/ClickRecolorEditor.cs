@@ -14,6 +14,7 @@ namespace Nekoare.ClickRecolor.Editor.Inspector
     {
         private SerializedProperty _previewResolution;
         private SerializedProperty _previewEnabled;
+        private SerializedProperty _excludedRenderers;
         private SerializedProperty _applyOnBuild;
         private SerializedProperty _edits;
         private ReorderableList _editList;
@@ -31,6 +32,7 @@ namespace Nekoare.ClickRecolor.Editor.Inspector
             _previewEnabled = serializedObject.FindProperty(nameof(ClickRecolor.previewEnabled));
             _applyOnBuild = serializedObject.FindProperty(nameof(ClickRecolor.applyOnBuild));
             _edits = serializedObject.FindProperty(nameof(ClickRecolor.edits));
+            _excludedRenderers = serializedObject.FindProperty(nameof(ClickRecolor.excludedRenderers));
             _editList = new ReorderableList(serializedObject, _edits,
                 draggable: true, displayHeader: true, displayAddButton: false, displayRemoveButton: true)
             {
@@ -97,6 +99,8 @@ namespace Nekoare.ClickRecolor.Editor.Inspector
             DrawResolutionWithHelp(_previewResolution, "Help:PreviewResolution");
             EditorGUILayout.PropertyField(_previewEnabled, new GUIContent(Locales.Tr("Inspector:PreviewEnabled")));
             DrawPropertyWithHelp(_applyOnBuild, new GUIContent(Locales.Tr("Inspector:ApplyOnBuild")), "Help:ApplyOnBuild");
+            // 除外リスト（Scene のオーバーレイと同じ一覧。ここでも足し引きできる）
+            DrawPropertyWithHelp(_excludedRenderers, new GUIContent(Locales.Tr("Inspector:ExcludedRenderers")), "Help:ExcludeList");
             // 無料版では反映されないので、文言を分ける（レビュー指摘 2026-09-25）
             EditorGUILayout.LabelField(
                 Locales.Tr(drawExportSection != null ? "Inspector:ApplyOnBuildHint" : "Inspector:ApplyOnBuildHint:Free"),

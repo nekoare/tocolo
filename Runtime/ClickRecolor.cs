@@ -18,7 +18,34 @@ namespace Nekoare.ClickRecolor
         public WorkingResolution previewResolution = WorkingResolution.R2048;
         public bool previewEnabled = true;
         public bool applyOnBuild = true;
+        /// <summary>
+        /// 色変えの除外リスト（Renderer 単位）。ここにある Renderer はプレビュー・ビルド・書き出しで元のマテリアルのまま（色を変えたテクスチャを使わない）で、
+        /// Scene でクリックしても選ばれない（ユーザー要望 2026-09-27）
+        /// </summary>
+        public List<Renderer> excludedRenderers = new List<Renderer>();
         [HideInInspector] public int dataVersion = 1;
+
+        /// <summary>renderer が除外リストにあるか（null は除外扱いしない）</summary>
+        public bool IsExcluded(Renderer renderer)
+        {
+            if (renderer == null || excludedRenderers == null) return false;
+            for (int i = 0; i < excludedRenderers.Count; i++)
+            {
+                if (excludedRenderers[i] == renderer) return true;
+            }
+            return false;
+        }
+
+        /// <summary>components のどれかの除外リストに renderer があるか</summary>
+        public static bool IsExcludedByAny(IEnumerable<ClickRecolor> components, Renderer renderer)
+        {
+            if (components == null || renderer == null) return false;
+            foreach (var component in components)
+            {
+                if (component != null && component.IsExcluded(renderer)) return true;
+            }
+            return false;
+        }
 
         /// <summary>
         /// 末尾に追加し、名前が空なら「編集 N」を付ける。
