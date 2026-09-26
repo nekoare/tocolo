@@ -204,6 +204,15 @@ msgstr "クリックで元の色に戻す"
 msgid "Scene:Color:Target"
 msgstr "色 1"
 
+msgid "Scene:Color:Eyedropper"
+msgstr "スポイト: Scene のモデルをクリックして、その場所の元の色を取ります（Esc でやめる）"
+
+msgid "Scene:Color:EyedropperShort"
+msgstr "スポイト"
+
+msgid "Scene:Color:EyedropperHint"
+msgstr "スポイト中: モデルをクリックするとその場所の元の色が入ります\n（Escで中止）"
+
 msgid "Scene:Color:Hue"
 msgstr "色相"
 

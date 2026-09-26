@@ -342,9 +342,24 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             // 元の色の見本は押すと編集中の色を元に戻す。編集中の色の右に 16 進入力（# なし）
             DrawColorRow(component, edit, end);
 
-            // カラーホイール（中央寄せ）
+            // スポイト中の案内
+            if (ToolSession.EyedropperActive) EditorGUILayout.HelpBox(Locales.Tr("Scene:Color:EyedropperHint"), MessageType.Info);
+
+            // カラーホイール（中央寄せ）。左上にスポイトのトグル（ユーザー要望 2026-09-26）
             using (new EditorGUILayout.HorizontalScope())
             {
+                using (new EditorGUILayout.VerticalScope(GUILayout.Width(EyedropperButtonSize)))
+                {
+                    var eyedropperContent = EyedropperContent;
+                    bool active = GUILayout.Toggle(ToolSession.EyedropperActive, eyedropperContent, EditorStyles.miniButton,
+                        GUILayout.Width(EyedropperButtonSize), GUILayout.Height(EyedropperButtonSize));
+                    if (active != ToolSession.EyedropperActive)
+                    {
+                        ToolSession.EyedropperActive = active;
+                        SceneView.RepaintAll();
+                    }
+                    GUILayout.FlexibleSpace();
+                }
                 GUILayout.FlexibleSpace();
                 var wheelRect = GUILayoutUtility.GetRect(WheelSize, WheelSize, GUILayout.ExpandWidth(false));
                 EditorGUI.BeginChangeCheck();
@@ -434,7 +449,8 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 EditorUtility.SetDirty(component);
             }
 
-            // グラデーションの項目は暗めの赤の枠でまとめる（ユーザー要望 2026-09-25）
+            // グラデーションの項目は暗めの赤の枠でまとめる（ユーザー要望 2026-09-25）。上の不透明度スライダーと詰まらないよう少し空ける
+            EditorGUILayout.Space(6);
             using (new SubBlockScope(GradientBlockColor, GradientBlockBorder)) DrawGradient(component, edit);
         }
 
@@ -480,6 +496,35 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             }
             }
             }
+        }
+
+        private const float EyedropperButtonSize = 26f;
+        private static GUIContent s_eyedropperContent;
+
+        /// <summary>スポイトボタンの中身（Unity 組み込みのスポイトアイコン。無ければ文字）</summary>
+        private static GUIContent EyedropperContent
+        {
+            get
+            {
+                if (s_eyedropperContent == null)
+                {
+                    var icon = EditorGUIUtility.IconContent(EditorGUIUtility.isProSkin ? "d_eyeDropper.Large" : "eyeDropper.Large");
+                    s_eyedropperContent = icon != null && icon.image != null
+                        ? new GUIContent(icon.image, Locales.Tr("Scene:Color:Eyedropper"))
+                        : new GUIContent(Locales.Tr("Scene:Color:EyedropperShort"), Locales.Tr("Scene:Color:Eyedropper"));
+                }
+                return s_eyedropperContent;
+            }
+        }
+
+        /// <summary>
+        /// スポイトで取った色を編集中の色（色 1、グラデーションで色 2 を選んでいれば色 2）に入れる。RecolorSceneTool から呼ぶ。
+        /// 連結なら連結の全編集に効く（CommitColor と同じ）
+        /// </summary>
+        internal static void ApplyEyedropperColor(ClickRecolor component, RecolorEdit edit, Color color)
+        {
+            if (component == null || edit == null) return;
+            CommitColor(component, edit, new Color(color.r, color.g, color.b, 1f), IsEditingGradientEnd(edit));
         }
 
         /// <summary>ホイール・スライダー・最近の色の書き込み先が「終了色」か（グラデーション ON かつ切り替えで終了色を選んでいる）</summary>

@@ -167,6 +167,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             DiscardPendingEdit();
             // 選択範囲のハイライトを消す（ビルドには元々乗らないが、ツール外のプレビューにも出さない）
             ToolSession.HideHighlight();
+            ToolSession.EyedropperActive = false;
             SetOverlaysDisplayed(false);
             _picker?.Dispose();
             _picker = null;
@@ -193,10 +194,16 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 sceneView.Repaint();
                 return;
             }
-            // Esc は対象未設定でも効かせる（ツールバーから直接有効化した場合も抜けられるように）
+            // Esc は対象未設定でも効かせる（ツールバーから直接有効化した場合も抜けられるように）。スポイト中は先にスポイトだけやめる
             if (e.type == EventType.KeyDown && e.keyCode == KeyCode.Escape)
             {
                 e.Use();
+                if (ToolSession.EyedropperActive)
+                {
+                    ToolSession.EyedropperActive = false;
+                    sceneView.Repaint();
+                    return;
+                }
                 ToolManager.RestorePreviousTool();
                 return;
             }
@@ -266,6 +273,21 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             if (e.type == EventType.MouseMove)
             {
                 UpdateHover(root, sceneView, e.mousePosition);
+                return;
+            }
+
+            // スポイト: 次のクリックでその場所の元の色を編集中の色に入れる（編集は作らない）。外したらスポイトのまま
+            if (ToolSession.EyedropperActive)
+            {
+                // 十字のカーソル（自前のテクスチャ。CustomCursor は Cursor.SetCursor で設定したものを使う）
+                Cursor.SetCursor(CrosshairCursor, new Vector2(CrosshairSize * 0.5f, CrosshairSize * 0.5f), CursorMode.Auto);
+                EditorGUIUtility.AddCursorRect(new Rect(0f, 0f, sceneView.position.width, sceneView.position.height), MouseCursor.CustomCursor);
+                if (e.type == EventType.MouseDown && e.button == 0 && !e.alt)
+                {
+                    e.Use();
+                    PickColorWithEyedropper(root, e.mousePosition);
+                    sceneView.Repaint();
+                }
                 return;
             }
 
@@ -694,6 +716,61 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 ToolSession.LastPick = null;
                 ToolSession.LastPickColor = null;
             }
+        }
+
+        private const int CrosshairSize = 32;
+        private static Texture2D s_crosshair;
+
+        /// <summary>スポイト用の十字カーソル（32×32、中心に隙間のある白い十字＋黒い縁）。ドメインリロードで作り直す</summary>
+        private static Texture2D CrosshairCursor
+        {
+            get
+            {
+                if (s_crosshair != null) return s_crosshair;
+                int n = CrosshairSize, c = n / 2;
+                var tex = new Texture2D(n, n, TextureFormat.RGBA32, false) { hideFlags = HideFlags.HideAndDontSave, filterMode = FilterMode.Point };
+                var px = new Color32[n * n];
+                for (int y = 0; y < n; y++)
+                {
+                    for (int x = 0; x < n; x++)
+                    {
+                        int dx = Mathf.Abs(x - c), dy = Mathf.Abs(y - c);
+                        // 腕: 中心から 4px 空けて端まで。太さ 1px（白）、その周り 1px は黒い縁
+                        bool armX = dy == 0 && dx >= 4 && dx <= 14;
+                        bool armY = dx == 0 && dy >= 4 && dy <= 14;
+                        bool edgeX = dy <= 1 && dx >= 3 && dx <= 15;
+                        bool edgeY = dx <= 1 && dy >= 3 && dy <= 15;
+                        bool center = dx <= 1 && dy <= 1 && (dx == 1 || dy == 1);
+                        Color32 col = armX || armY ? new Color32(255, 255, 255, 255)
+                            : center ? new Color32(255, 255, 255, 220)
+                            : edgeX || edgeY ? new Color32(0, 0, 0, 200)
+                            : new Color32(0, 0, 0, 0);
+                        px[y * n + x] = col;
+                    }
+                }
+                tex.SetPixels32(px);
+                tex.Apply(false, false);
+                s_crosshair = tex;
+                AssemblyReloadEvents.beforeAssemblyReload += () => { if (s_crosshair != null) Object.DestroyImmediate(s_crosshair); s_crosshair = null; };
+                return tex;
+            }
+        }
+
+        /// <summary>スポイト: mousePosition の下のモデルの元の色（見本色と同じ取り方）を現在の編集の色に入れ、スポイトを終える。当たらなければ何もしない</summary>
+        private void PickColorWithEyedropper(GameObject root, Vector2 mousePosition)
+        {
+            if (_picker == null) _picker = new ScenePicker(); // ドメインリロード直後の保険
+            CollectPickRenderers(root);
+            var ray = HandleUtility.GUIPointToWorldRay(mousePosition);
+            if (!_picker.TryPick(ray, _renderers, null, out var hit)) return;
+            var color = SampleSwatchColor(hit);
+            if (!color.HasValue) return;
+
+            var component = root.GetComponent<ClickRecolor>();
+            var edit = component != null ? component.FindEdit(ToolSession.CurrentEditId) : null;
+            if (edit == null) return;
+            ToolPanelOverlay.ApplyEyedropperColor(component, edit, color.Value);
+            ToolSession.EyedropperActive = false;
         }
 
         /// <summary>root 配下のクリック・矩形選択の対象の Renderer（IsPickable）を _renderers に入れ直す</summary>

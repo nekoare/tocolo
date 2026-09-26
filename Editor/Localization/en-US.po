@@ -204,6 +204,15 @@ msgstr "Click to revert to the original color"
 msgid "Scene:Color:Target"
 msgstr "Color 1"
 
+msgid "Scene:Color:Eyedropper"
+msgstr "Eyedropper: click the model in the Scene to pick the original color there (Esc to cancel)"
+
+msgid "Scene:Color:EyedropperShort"
+msgstr "Pick"
+
+msgid "Scene:Color:EyedropperHint"
+msgstr "Eyedropper: click the model to use the original color there\n(Esc to cancel)"
+
 msgid "Scene:Color:Hue"
 msgstr "Hue"
 

@@ -133,6 +133,23 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             s_hairToolTarget[editId] = value;
         }
 
+        private static bool s_eyedropperActive;
+
+        /// <summary>
+        /// スポイト中か（ON の間、Scene の次のクリックでその場所の元の色を編集中の色に入れる。取ったら OFF）。ツール終了で消える。
+        /// OFF にしたときは Scene のカーソルを標準に戻す（ON 中は RecolorSceneTool が十字のカーソルを出す）
+        /// </summary>
+        public static bool EyedropperActive
+        {
+            get => s_eyedropperActive;
+            set
+            {
+                if (s_eyedropperActive == value) return;
+                s_eyedropperActive = value;
+                if (!value) Cursor.SetCursor(null, Vector2.zero, CursorMode.Auto);
+            }
+        }
+
         /// <summary>
         /// Prefab の編集モード中か。NDMF のプレビューは Prefab 編集モードでは描画を差し替えないため、Tocolo の結果も Scene に出ない。
         /// その間はクリックを受け付けず、案内だけ出す（ユーザー判断 2026-09-26）
@@ -236,6 +253,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             LastPick = null;
             LastPickColor = null;
             HoverPick = null;
+            EyedropperActive = false;
             HideHighlight();
         }
     }
