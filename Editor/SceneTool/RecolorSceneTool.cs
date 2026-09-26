@@ -1333,7 +1333,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 else
                 {
                     float x = Mathf.Max(0f, view.position.width - PanelDefaultWidth - 12f);
-                    panel.floatingPosition = new Vector2(x, 12f);
+                    panel.floatingPosition = new Vector2(x, ToolPanelOverlay.TopMargin);
                 }
                 s_lastSavedPanelPos = panel.floatingPosition;
             }
@@ -1374,7 +1374,8 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             float height = ToolPanelOverlay.LastContentHeight + OverlayFrameHeight;
             var desired = s_lastSavedPanelPos;
             float maxY = view.position.height - height - 12f;
-            var clamped = new Vector2(desired.x, Mathf.Max(0f, Mathf.Min(desired.y, maxY)));
+            // 上端のツールバーには重ねない（TopMargin より上へは寄せない）
+            var clamped = new Vector2(desired.x, Mathf.Max(ToolPanelOverlay.TopMargin, Mathf.Min(desired.y, maxY)));
             var pos = panel.floatingPosition;
             if ((pos - clamped).sqrMagnitude < 0.25f) return;
             try

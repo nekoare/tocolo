@@ -28,10 +28,44 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         /// <summary>直近の Repaint で測った中身の高さ（px）。RecolorSceneTool が下に見切れないよう置き直すのに使う。0 なら未測定</summary>
         internal static float LastContentHeight;
 
+        /// <summary>パネルの中身の素の高さ（スクロールしないときの高さ）。0 なら未測定</summary>
+        private static float s_naturalHeight;
+        /// <summary>Scene ビューの高さ（直近の OnGUI で取得）。0 なら不明</summary>
+        private static float s_viewHeight;
+        private static Vector2 s_scroll;
+        /// <summary>スクロールにするとき、縦スクロールバーのぶん広げる幅</summary>
+        private const float ScrollBarWidth = 16f;
+        /// <summary>オーバーレイの枠（見出しと余白）が中身に足す高さの概算（RecolorSceneTool と同じ値）</summary>
+        private const float FrameHeight = 26f;
+        /// <summary>Scene ビューの下に残す余白</summary>
+        private const float ViewMargin = 12f;
+        /// <summary>Scene ビューの上に残す余白。上端のツールバー（2D・ライト等のボタン列）にパネルが重ならないようにする（ユーザー要望 2026-09-26）</summary>
+        internal const float TopMargin = 40f;
+
+        /// <summary>
+        /// 中身が Scene ビューに収まる最大の高さ。収まらないときはこの高さのスクロール領域にする（FHD 等で見切れないため。ユーザー報告 2026-09-26）
+        /// </summary>
+        private static float MaxContentHeight => s_viewHeight > 0f ? s_viewHeight - TopMargin - ViewMargin - FrameHeight : float.MaxValue;
+
+        /// <summary>今スクロール領域にしているか（中身の素の高さが Scene ビューに収まらない）</summary>
+        private static bool UseScroll => s_naturalHeight > 0f && s_naturalHeight > MaxContentHeight;
+
         public override void OnGUI()
         {
+            if (containerWindow != null) s_viewHeight = containerWindow.position.height;
+            bool scroll = UseScroll;
+            if (scroll)
+            {
+                s_scroll = EditorGUILayout.BeginScrollView(s_scroll, false, true,
+                    GUILayout.Width(PanelWidth + ScrollBarWidth), GUILayout.Height(MaxContentHeight));
+            }
             var rect = EditorGUILayout.BeginVertical(GUILayout.Width(PanelWidth));
-            if (Event.current.type == EventType.Repaint && rect.height > 0f) LastContentHeight = rect.height;
+            if (Event.current.type == EventType.Repaint && rect.height > 0f)
+            {
+                s_naturalHeight = rect.height;
+                // 置き直しに使う高さは実際に表示している高さ（スクロール中はスクロール領域の高さ）
+                LastContentHeight = scroll ? MaxContentHeight : rect.height;
+            }
             try
             {
                 if (ToolSession.IsInPrefabMode)
@@ -55,6 +89,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             finally
             {
                 EditorGUILayout.EndVertical();
+                if (scroll) EditorGUILayout.EndScrollView();
             }
         }
 
@@ -239,6 +274,9 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
 
         /// <summary>ホイールの一辺（px）</summary>
         private const float WheelSize = 200f;
+        /// <summary>Scene ビューの高さがこれ未満ならホイールを SmallWheelSize にする</summary>
+        private const float SmallWheelViewHeight = 900f;
+        private const float SmallWheelSize = 150f;
 
         private static readonly int s_wheelHint = "ClickRecolor.ColorWheel".GetHashCode();
 
@@ -361,7 +399,9 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                     GUILayout.FlexibleSpace();
                 }
                 GUILayout.FlexibleSpace();
-                var wheelRect = GUILayoutUtility.GetRect(WheelSize, WheelSize, GUILayout.ExpandWidth(false));
+                // Scene ビューが低い（FHD で通常の大きさ等）ときはホイールを小さくして、全体が収まりやすくする
+                float wheelSize = s_viewHeight > 0f && s_viewHeight < SmallWheelViewHeight ? SmallWheelSize : WheelSize;
+                var wheelRect = GUILayoutUtility.GetRect(wheelSize, wheelSize, GUILayout.ExpandWidth(false));
                 EditorGUI.BeginChangeCheck();
                 var wheelColor = ColorWheelGUI.Draw(wheelRect, EditingColor(edit, end), s_wheelHint);
                 if (EditorGUI.EndChangeCheck()) ChangeColor(component, edit, wheelColor, end);
