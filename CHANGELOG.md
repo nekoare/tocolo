@@ -2,7 +2,7 @@
 
 ## [0.1.9] - 2026-09-27
 
-- 同梱の案内ファイル名を TRIAL_README.txt に変更（日本語ファイル名だと ALCOM で「path in zip file is not utf8」となり更新できなかった）
+- 0.1.8 で同梱した案内ファイル（日本語ファイル名）を取りやめ（ALCOM で「path in zip file is not utf8」となり更新できなかったため）
 
 ## [0.1.8] - 2026-09-27
 
