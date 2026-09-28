@@ -19,8 +19,8 @@ namespace Nekoare.ClickRecolor
         public bool previewEnabled = true;
         public bool applyOnBuild = true;
         /// <summary>
-        /// 色変えの除外リスト（Renderer 単位）。ここにある Renderer はプレビュー・ビルド・書き出しで元のマテリアルのまま（色を変えたテクスチャを使わない）で、
-        /// Scene でクリックしても選ばれない（ユーザー要望 2026-09-27）
+        /// 除外リスト（Renderer 単位）。ここにある Renderer は Scene でクリック・ホバー・エリア選択の対象にならない（誤って選ばないためのガード）。
+        /// 見た目には影響しない: 共有テクスチャに掛かった編集はそのまま映り、プレビュー・ビルド・書き出しも通常どおり（ユーザー判断 2026-09-28）
         /// </summary>
         public List<Renderer> excludedRenderers = new List<Renderer>();
         [HideInInspector] public int dataVersion = 1;

@@ -145,7 +145,7 @@ msgid "Scene:Panel:ExcludeListCount"
 msgstr "Exclusions ({0})"
 
 msgid "Scene:Exclude:DropHere"
-msgstr "Drop GameObjects here from the Hierarchy (registered per Renderer)"
+msgstr "Drop GameObjects here from the Hierarchy (registered per Renderer as not selectable)"
 
 msgid "Scene:Exclude:Empty"
 msgstr "No exclusions"
@@ -160,10 +160,10 @@ msgid "Scene:Exclude:NoRenderer"
 msgstr "The dropped GameObject has no Renderer"
 
 msgid "Inspector:ExcludedRenderers"
-msgstr "Excluded renderers"
+msgstr "Non-selectable renderers"
 
 msgid "Help:ExcludeList"
-msgstr "Renderers (GameObjects) listed here are left out of the recolor. They keep their original material in the preview, on upload and in exports, and cannot be clicked in the Scene. Use it when another part shares the same texture but should keep its color."
+msgstr "Renderers (GameObjects) listed here can no longer be picked in the Scene by clicking or by drag selection. Use it to keep parts you do not want to pick accidentally. It does not change the appearance: edits on a shared texture still show on them."
 
 msgid "Scene:Panel:CrossTexture"
 msgstr "Select across materials"

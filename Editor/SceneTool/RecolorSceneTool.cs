@@ -787,7 +787,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             var component = root.GetComponent<ClickRecolor>();
             foreach (var r in root.GetComponentsInChildren<Renderer>(true))
             {
-                // 除外リストの Renderer はクリック・ホバー・矩形の対象にしない（ユーザー判断 2026-09-27）
+                // 除外リストの Renderer はクリック・ホバー・エリア選択の対象にしない（選択のガード。見た目には影響しない。ユーザー判断 2026-09-28）
                 if (component != null && component.IsExcluded(r)) continue;
                 if (IsPickable(r)) _renderers.Add(r);
             }
@@ -1091,8 +1091,6 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             {
                 if (!(renderer is SkinnedMeshRenderer || renderer is MeshRenderer)) continue;
                 if (!renderer.gameObject.activeInHierarchy) continue;
-                // 除外リストの Renderer はプレビューの利用者に入らない（マスクの鍵をプレビューと揃える）
-                if (component != null && component.IsExcluded(renderer)) continue;
                 result.Add(renderer);
             }
             return result;

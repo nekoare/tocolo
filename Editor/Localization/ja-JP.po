@@ -145,7 +145,7 @@ msgid "Scene:Panel:ExcludeListCount"
 msgstr "除外リスト ({0})"
 
 msgid "Scene:Exclude:DropHere"
-msgstr "ここに Hierarchy から GameObject をドロップ（Renderer 単位で登録）"
+msgstr "ここに Hierarchy から GameObject をドロップ（選択しないパーツとして登録。Renderer 単位）"
 
 msgid "Scene:Exclude:Empty"
 msgstr "除外はありません"
@@ -160,10 +160,10 @@ msgid "Scene:Exclude:NoRenderer"
 msgstr "ドロップした GameObject に Renderer がありません"
 
 msgid "Inspector:ExcludedRenderers"
-msgstr "除外する Renderer"
+msgstr "選択しない Renderer"
 
 msgid "Help:ExcludeList"
-msgstr "ここに登録した Renderer（GameObject）は色変えの対象から外れます。プレビュー・アップロード・書き出しのどれでも元のマテリアルのままになり、Scene でクリックしても選ばれません。同じテクスチャを使う別のパーツの色を変えたくないときに使います。"
+msgstr "ここに登録した Renderer（GameObject）は、Scene でクリックしてもエリア選択で囲んでも選ばれなくなります。誤って選びたくないパーツを入れておくためのもので、見た目には影響しません（共有テクスチャに掛かった編集はそのまま映ります）。"
 
 msgid "Scene:Panel:CrossTexture"
 msgstr "マテリアルをまたいで選ぶ"
@@ -232,7 +232,7 @@ msgid "Scene:Panel:CtrlGroupNotice"
 msgstr "「アバター全体」の編集にはパーツを追加できません"
 
 msgid "Scene:Panel:RectColorModeNotice"
-msgstr "矩形選択はパーツモードで使えます"
+msgstr "エリア選択はパーツモードで使えます"
 
 msgid "Scene:Panel:NoPick"
 msgstr "色を変えたいところをクリックしてください"
@@ -400,7 +400,7 @@ msgid "Help:PreviewResolution"
 msgstr "Scene のプレビューで使う解像度の上限です。小さいほど軽く動きます。アップロードと書き出しは元の解像度で行います。"
 
 msgid "Help:ApplyOnBuild"
-msgstr "オンにすると、アップロード（ビルド）のときに色変えをメインテクスチャへ焼き込みます（有料版）。元のテクスチャとマテリアルは変更しません。体験版では反映されず、報告窓に案内が出ます。"
+msgstr "オンにすると、アップロード（ビルド）のときに色変えをメインテクスチャへ焼き込みます（有料版）。元のテクスチャとマテリアルは変更しません。体験版では反映されず、報告ウィンドウに案内が出ます。"
 
 msgid "Help:Export:Main"
 msgstr "色変えを焼き込んだ新しいテクスチャ（元の名前_recolor.png）を元の隣に保存します。「マテリアルを複製して差し替え」がオンなら、複製したマテリアルに差し替えます。書き出した編集は自動でオフになります。Ctrl＋ｚで元に戻せます。"
