@@ -93,6 +93,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                     return;
                 }
 
+                DropTargetIfUnusable();
                 if (!ToolSession.TryGetActiveRoot(out var root))
                 {
                     // 対象未設定: 案内と候補のボタン（ユーザー要望 2026-09-26: 候補は「操作」側からこちらへ戻す）
@@ -1079,6 +1080,30 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             ToolSession.LastPick = null;
             ToolSession.LastPickColor = null;
             SceneView.RepaintAll();
+        }
+
+        private static bool s_dropQueued;
+
+        /// <summary>
+        /// 対象が無効化・非表示（目のマーク）になっていたら次の更新で外す。外れた後は対象未設定と同じ流れになり、
+        /// 候補が 1 体なら自動で選び、2 体以上なら候補のボタンを出す（ユーザー要望 2026-09-29: A を非表示にして開いたら B を選んでほしい）。
+        /// OnGUI の途中で外すと Layout と Repaint で部品の数が変わるので delayCall にする
+        /// </summary>
+        private static void DropTargetIfUnusable()
+        {
+            if (s_dropQueued || !ToolSession.TryGetActiveRoot(out var root) || TargetResolver.IsUsableTarget(root)) return;
+            s_dropQueued = true;
+            EditorApplication.delayCall += () =>
+            {
+                s_dropQueued = false;
+                if (!RecolorSceneTool.IsActive || !ToolSession.TryGetActiveRoot(out var current) || TargetResolver.IsUsableTarget(current)) return;
+                RecolorSceneTool.DiscardPendingEdit();
+                ToolSession.SetActiveRoot(null);
+                ToolSession.LastPick = null;
+                ToolSession.LastPickColor = null;
+                ResetAutoSelect(); // 外した後の自動選択を許す
+                SceneView.RepaintAll();
+            };
         }
 
         /// <summary>自動選択を積んだか。ツールの有効化ごとに 1 回だけ走らせる（RecolorSceneTool.OnActivated がリセット）</summary>

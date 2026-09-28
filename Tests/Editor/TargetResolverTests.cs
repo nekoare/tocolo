@@ -60,6 +60,28 @@ namespace Nekoare.ClickRecolor.Tests
         }
 
         [Test]
+        public void IsUsableTarget_は_無効化と目のマークの非表示で_false()
+        {
+            _root = new GameObject("avatar");
+            Assert.That(TargetResolver.IsUsableTarget(_root), Is.True);
+
+            _root.SetActive(false);
+            Assert.That(TargetResolver.IsUsableTarget(_root), Is.False, "無効化");
+            _root.SetActive(true);
+
+            SceneVisibilityManager.instance.Hide(_root, true);
+            try
+            {
+                Assert.That(TargetResolver.IsUsableTarget(_root), Is.False, "目のマークで非表示");
+            }
+            finally
+            {
+                SceneVisibilityManager.instance.Show(_root, true);
+            }
+            Assert.That(TargetResolver.IsUsableTarget(null), Is.False);
+        }
+
+        [Test]
         public void FindSceneAvatarRoots_は_Descriptor_付きオブジェクトを検出する()
         {
             var descriptorType = FindAvatarDescriptorType();

@@ -75,6 +75,13 @@ namespace Nekoare.ClickRecolor.Editor
             return visible;
         }
 
+        /// <summary>
+        /// 対象として使える状態か（有効で、Hierarchy の目のマークで隠されていない）。
+        /// 対象にした後で無効化・非表示にされたアバターを外す判定に使う（ユーザー要望 2026-09-29）
+        /// </summary>
+        public static bool IsUsableTarget(GameObject root) =>
+            root != null && root.activeInHierarchy && !SceneVisibilityManager.instance.IsHidden(root);
+
         /// <summary>シーンの全アバターのルート（有効・表示にかかわらず）。Hierarchy の変更まではキャッシュする</summary>
         private static List<GameObject> FindAllSceneAvatarRoots()
         {
