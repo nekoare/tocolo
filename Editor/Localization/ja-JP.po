@@ -33,6 +33,36 @@ msgstr "Prefab の編集モード中はプレビューされません。シー�
 msgid "Inspector:ApplyOnBuildHint"
 msgstr "アップロード時にメインテクスチャへ反映します"
 
+msgid "Inspector:BakeCompression"
+msgstr "生成テクスチャの圧縮（PC）"
+
+msgid "Inspector:BakeCompression:HighQuality"
+msgstr "高画質（BC7）"
+
+msgid "Inspector:BakeCompression:SameAsOriginal"
+msgstr "元と同じ"
+
+msgid "Inspector:BakeCompression:Uncompressed"
+msgstr "非圧縮（非推奨）"
+
+msgid "Inspector:BakeCompressionAndroid"
+msgstr "生成テクスチャの圧縮（Quest）"
+
+msgid "Inspector:BakeCompressionAndroid:HighQuality"
+msgstr "高画質（ASTC 4x4）"
+
+msgid "Inspector:BakeCompressionAndroid:Normal"
+msgstr "標準（ASTC 6x6）"
+
+msgid "Help:BakeCompressionAndroid"
+msgstr "Android（Quest）向けのアップロードで生成するテクスチャと、書き出した PNG の Android 用インポート設定に使う圧縮形式です。既定の高画質（ASTC 4x4）は BC7 と同じ容量で、グラデーションがきれいに残ります。Quest の容量を優先するなら標準（ASTC 6x6。容量は約半分）にしてください。「元と同じ」で元が PC 用の形式（BC 系）のときは ASTC 6x6 になります。"
+
+msgid "Help:BakeCompression"
+msgstr "PC 向けのアップロードで生成するテクスチャと、書き出した PNG のインポート設定に使う圧縮形式です。元のテクスチャが BC1（DXT1）だと、グラデーションや同系色の変化がブロック状に潰れることがあるため、既定は高画質（BC7。Android は ASTC 4x4）です。容量は BC1 の約 2 倍になります。容量を優先するなら「元と同じ」にしてください。"
+
+msgid "Error:LowQualityFormat"
+msgstr "テクスチャ「{0}」は元の圧縮形式（{1}）のまま焼き込みました。グラデーションがブロック状に見える場合は、コンポーネントの「生成テクスチャの圧縮」を「高画質」にしてください（PC と Quest で別々に選べます）"
+
 msgid "Inspector:PreviewResolution"
 msgstr "プレビューの解像度"
 

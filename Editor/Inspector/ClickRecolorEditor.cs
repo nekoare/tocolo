@@ -15,6 +15,8 @@ namespace Nekoare.ClickRecolor.Editor.Inspector
         private SerializedProperty _previewResolution;
         private SerializedProperty _previewEnabled;
         private SerializedProperty _excludedRenderers;
+        private SerializedProperty _bakeCompression;
+        private SerializedProperty _bakeCompressionAndroid;
         private SerializedProperty _applyOnBuild;
         private SerializedProperty _edits;
         private ReorderableList _editList;
@@ -33,6 +35,8 @@ namespace Nekoare.ClickRecolor.Editor.Inspector
             _applyOnBuild = serializedObject.FindProperty(nameof(ClickRecolor.applyOnBuild));
             _edits = serializedObject.FindProperty(nameof(ClickRecolor.edits));
             _excludedRenderers = serializedObject.FindProperty(nameof(ClickRecolor.excludedRenderers));
+            _bakeCompression = serializedObject.FindProperty(nameof(ClickRecolor.bakeCompression));
+            _bakeCompressionAndroid = serializedObject.FindProperty(nameof(ClickRecolor.bakeCompressionAndroid));
             _editList = new ReorderableList(serializedObject, _edits,
                 draggable: true, displayHeader: true, displayAddButton: false, displayRemoveButton: true)
             {
@@ -99,6 +103,8 @@ namespace Nekoare.ClickRecolor.Editor.Inspector
             DrawResolutionWithHelp(_previewResolution, "Help:PreviewResolution");
             EditorGUILayout.PropertyField(_previewEnabled, new GUIContent(Locales.Tr("Inspector:PreviewEnabled")));
             DrawPropertyWithHelp(_applyOnBuild, new GUIContent(Locales.Tr("Inspector:ApplyOnBuild")), "Help:ApplyOnBuild");
+            DrawCompressionWithHelp(_bakeCompression, "Help:BakeCompression");
+            DrawAndroidCompressionWithHelp(_bakeCompressionAndroid, "Help:BakeCompressionAndroid");
             // 除外リスト（Scene のオーバーレイと同じ一覧。ここでも足し引きできる）
             DrawPropertyWithHelp(_excludedRenderers, new GUIContent(Locales.Tr("Inspector:ExcludedRenderers")), "Help:ExcludeList");
             // 無料版では反映されないので、文言を分ける（レビュー指摘 2026-09-25）
@@ -129,6 +135,52 @@ namespace Nekoare.ClickRecolor.Editor.Inspector
         }
 
         private static readonly WorkingResolution[] ResolutionChoices = { WorkingResolution.R1024, WorkingResolution.R2048, WorkingResolution.Full };
+        private static readonly BakeCompression[] CompressionChoices = { BakeCompression.HighQuality, BakeCompression.SameAsOriginal, BakeCompression.Uncompressed };
+        private static readonly AndroidBakeCompression[] AndroidCompressionChoices =
+            { AndroidBakeCompression.HighQuality, AndroidBakeCompression.Normal, AndroidBakeCompression.SameAsOriginal, AndroidBakeCompression.Uncompressed };
+
+        /// <summary>Quest（Android）向けの圧縮のポップアップ（高画質／標準／元と同じ／非圧縮）</summary>
+        private static void DrawAndroidCompressionWithHelp(SerializedProperty property, string helpKey)
+        {
+            var names = new[]
+            {
+                Locales.Tr("Inspector:BakeCompressionAndroid:HighQuality"),
+                Locales.Tr("Inspector:BakeCompressionAndroid:Normal"),
+                Locales.Tr("Inspector:BakeCompression:SameAsOriginal"),
+                Locales.Tr("Inspector:BakeCompression:Uncompressed"),
+            };
+            int current = System.Array.IndexOf(AndroidCompressionChoices, (AndroidBakeCompression)property.intValue);
+            if (current < 0) current = 0;
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                EditorGUI.BeginChangeCheck();
+                int selected = EditorGUILayout.Popup(Locales.Tr("Inspector:BakeCompressionAndroid"), current, names);
+                if (EditorGUI.EndChangeCheck()) property.intValue = (int)AndroidCompressionChoices[selected];
+                HelpMark.Draw(helpKey);
+            }
+            HelpMark.DrawBoxIfOpen(helpKey);
+        }
+
+        /// <summary>生成テクスチャの圧縮のポップアップ（高画質／元と同じ／非圧縮）。有料版のビルド・書き出しで使う</summary>
+        private static void DrawCompressionWithHelp(SerializedProperty property, string helpKey)
+        {
+            var names = new[]
+            {
+                Locales.Tr("Inspector:BakeCompression:HighQuality"),
+                Locales.Tr("Inspector:BakeCompression:SameAsOriginal"),
+                Locales.Tr("Inspector:BakeCompression:Uncompressed"),
+            };
+            int current = System.Array.IndexOf(CompressionChoices, (BakeCompression)property.intValue);
+            if (current < 0) current = 0;
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                EditorGUI.BeginChangeCheck();
+                int selected = EditorGUILayout.Popup(Locales.Tr("Inspector:BakeCompression"), current, names);
+                if (EditorGUI.EndChangeCheck()) property.intValue = (int)CompressionChoices[selected];
+                HelpMark.Draw(helpKey);
+            }
+            HelpMark.DrawBoxIfOpen(helpKey);
+        }
 
         /// <summary>プレビュー解像度のポップアップ。表示は「1024×1024」「2048×2048」「元の解像度」（enum 名の R2048 は出さない）</summary>
         private static void DrawResolutionWithHelp(SerializedProperty property, string helpKey)

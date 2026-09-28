@@ -33,6 +33,36 @@ msgstr "Preview is not available while editing a Prefab. Close Prefab mode and u
 msgid "Inspector:ApplyOnBuildHint"
 msgstr "Baked into the main texture on upload."
 
+msgid "Inspector:BakeCompression"
+msgstr "Generated texture compression (PC)"
+
+msgid "Inspector:BakeCompression:HighQuality"
+msgstr "High quality (BC7)"
+
+msgid "Inspector:BakeCompression:SameAsOriginal"
+msgstr "Same as original"
+
+msgid "Inspector:BakeCompression:Uncompressed"
+msgstr "Uncompressed (not recommended)"
+
+msgid "Inspector:BakeCompressionAndroid"
+msgstr "Generated texture compression (Quest)"
+
+msgid "Inspector:BakeCompressionAndroid:HighQuality"
+msgstr "High quality (ASTC 4x4)"
+
+msgid "Inspector:BakeCompressionAndroid:Normal"
+msgstr "Normal (ASTC 6x6)"
+
+msgid "Help:BakeCompressionAndroid"
+msgstr "Compression used for the texture generated on Android (Quest) uploads and for the Android import settings of exported PNGs. The default, High quality (ASTC 4x4), is the same size as BC7 and keeps gradients clean. Choose Normal (ASTC 6x6, about half the size) to prioritize Quest size. With Same as original, PC-only formats (BC family) become ASTC 6x6."
+
+msgid "Help:BakeCompression"
+msgstr "Compression used for the texture generated on PC uploads and for the import settings of exported PNGs. If the original texture is BC1 (DXT1), gradients and subtle color changes can turn blocky, so the default is high quality (BC7; ASTC 4x4 on Android), which is about twice the size of BC1. Choose Same as original to prioritize size."
+
+msgid "Error:LowQualityFormat"
+msgstr "Texture {0} was baked in its original compression format ({1}). If gradients look blocky, set Generated texture compression to High quality on the component (PC and Quest are set separately)"
+
 msgid "Inspector:PreviewResolution"
 msgstr "Preview resolution"
 

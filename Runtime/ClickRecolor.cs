@@ -18,6 +18,10 @@ namespace Nekoare.ClickRecolor
         public WorkingResolution previewResolution = WorkingResolution.R2048;
         public bool previewEnabled = true;
         public bool applyOnBuild = true;
+        /// <summary>生成テクスチャの圧縮形式（アップロード時の焼き込みと書き出しの PNG のインポート設定に使う）</summary>
+        public BakeCompression bakeCompression = BakeCompression.HighQuality;
+        /// <summary>Android（Quest）向けビルド・書き出しで生成するテクスチャの圧縮形式</summary>
+        public AndroidBakeCompression bakeCompressionAndroid = AndroidBakeCompression.HighQuality;
         /// <summary>
         /// 除外リスト（Renderer 単位）。ここにある Renderer は Scene でクリック・ホバー・エリア選択の対象にならない（誤って選ばないためのガード）。
         /// 見た目には影響しない: 共有テクスチャに掛かった編集はそのまま映り、プレビュー・ビルド・書き出しも通常どおり（ユーザー判断 2026-09-28）
