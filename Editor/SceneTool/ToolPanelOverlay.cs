@@ -127,6 +127,8 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 }
                 HelpMark.DrawBoxIfOpen("Help:ExcludeList");
 
+                DrawUnreadableNotice(root);
+
                 // 「範囲」ブロック → 「色」ブロック → 削除、の順（Overlay 2 枚だと位置が合わせられないので 1 枚に統合した）。
                 // 「対象: ○○／対象を変える」は HintOverlay（右下）に移した（ユーザー要望 2026-09-24）
                 DrawPanel(root);
@@ -1116,7 +1118,38 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             ToolSession.SetActiveRoot(null);
             ToolSession.LastPick = null;
             ToolSession.LastPickColor = null;
+            ToolSession.UnreadableRenderer = null;
             SceneView.RepaintAll();
+        }
+
+        /// <summary>
+        /// 最後のクリックが Read/Write 無効のメッシュに当たったときの案内と［Read/Write を有効にする］（ユーザー判断 2026-09-29: 案 B）。
+        /// 書き換えられない場所のメッシュならボタンは出さず、元の FBX で有効にするよう案内する
+        /// </summary>
+        private static void DrawUnreadableNotice(GameObject root)
+        {
+            var renderer = ToolSession.UnreadableRenderer;
+            if (renderer == null || !renderer.transform.IsChildOf(root.transform)) return;
+            var mesh = RendererMeshAccess.GetSharedMesh(renderer);
+            // 直った（他の方法で有効にされた）なら消す。部品の数を変えないよう描画はこのイベントでは続ける
+            bool fixable = mesh != null && Picking.MeshReadWriteFixer.GetFixablePath(mesh) != null;
+            EditorGUILayout.HelpBox(
+                Locales.Tr(fixable ? "Scene:Panel:Unreadable" : "Scene:Panel:UnreadableLocked", renderer.name),
+                MessageType.Warning);
+            if (!fixable) return;
+            if (GUILayout.Button(Locales.Tr("Scene:Panel:UnreadableFix")))
+            {
+                // ダイアログと再インポートは OnGUI の外で行う
+                EditorApplication.delayCall += () =>
+                {
+                    if (Picking.MeshReadWriteFixer.Fix(new[] { RendererMeshAccess.GetSharedMesh(renderer) }))
+                    {
+                        ToolSession.UnreadableRenderer = null;
+                        SceneView.RepaintAll();
+                    }
+                };
+                GUIUtility.ExitGUI();
+            }
         }
 
         private static bool s_dropQueued;
@@ -1178,6 +1211,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 ToolSession.SetActiveRoot(null);
                 ToolSession.LastPick = null;
                 ToolSession.LastPickColor = null;
+                ToolSession.UnreadableRenderer = null;
                 ResetAutoSelect(); // 外した後の自動選択を許す
                 SceneView.RepaintAll();
             };

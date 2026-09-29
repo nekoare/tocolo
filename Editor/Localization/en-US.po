@@ -21,6 +21,24 @@ msgstr "Edits: {0}"
 msgid "Inspector:UnreadableMesh"
 msgstr "Some meshes have Read/Write disabled ({0}). Enable Read/Write in the mesh import settings."
 
+msgid "Scene:Panel:Unreadable"
+msgstr "\"{0}\" can't be selected because its mesh has Read/Write disabled. Use the button below to enable it."
+
+msgid "Scene:Panel:UnreadableLocked"
+msgstr "\"{0}\" can't be selected because its mesh has Read/Write disabled. The mesh is in a location that can't be changed, so enable Read/Write in the original FBX import settings."
+
+msgid "Scene:Panel:UnreadableFix"
+msgstr "Enable Read/Write"
+
+msgid "Dialog:ReadWriteTitle"
+msgstr "Enable Read/Write"
+
+msgid "Dialog:ReadWriteConfirm"
+msgstr "Read/Write will be enabled in the import settings of these meshes."
+
+msgid "Dialog:ReadWriteNote"
+msgstr "This also affects other avatars using the same FBX, and slightly increases the memory of the uploaded avatar."
+
 msgid "Inspector:PersistentNotice"
 msgstr "Use this on an avatar placed in the Scene. It does not work on Prefab assets in the Project."
 

@@ -92,7 +92,18 @@ namespace Nekoare.ClickRecolor.Editor.Inspector
                 if (GUILayout.Button(Locales.Tr("Inspector:Edit:DeleteAll"), GUILayout.ExpandWidth(false))) _deleteAllRequested = true;
             }
             string unreadable = FindUnreadableRendererNames(component);
-            if (unreadable != null) EditorGUILayout.HelpBox(Locales.Tr("Inspector:UnreadableMesh", unreadable), MessageType.Warning);
+            if (unreadable != null)
+            {
+                EditorGUILayout.HelpBox(Locales.Tr("Inspector:UnreadableMesh", unreadable), MessageType.Warning);
+                // 直せる（書き換えられる場所の）メッシュがあれば、同意を取ってまとめて有効にする（ユーザー判断 2026-09-29: 案 B）
+                var meshes = FindUnreadableMeshes(component);
+                bool anyFixable = meshes.Exists(m => Picking.MeshReadWriteFixer.GetFixablePath(m) != null);
+                if (anyFixable && GUILayout.Button(Locales.Tr("Scene:Panel:UnreadableFix")))
+                {
+                    EditorApplication.delayCall += () => Picking.MeshReadWriteFixer.Fix(meshes);
+                    GUIUtility.ExitGUI();
+                }
+            }
 
             // 書き出し欄は有料版が差し込む。無ければ案内だけ出す
             var drawExportSection = InspectorExtensions.DrawExportSection;
@@ -454,6 +465,20 @@ namespace Nekoare.ClickRecolor.Editor.Inspector
         /// 種の Renderer のメッシュが Read/Write 無効な編集があれば、その Renderer 名を「, 」区切りで返す（重複は 1 回）。無ければ null。
         /// 島の再計算にメッシュの読み取りが要るので、無効だとその編集はプレビューに効かない
         /// </summary>
+        /// <summary>編集の種の Renderer のうち、メッシュの Read/Write が無効なもののメッシュ（重複なし）</summary>
+        private static List<Mesh> FindUnreadableMeshes(ClickRecolor component)
+        {
+            var result = new List<Mesh>();
+            foreach (var edit in component.edits)
+            {
+                if (edit == null || edit.seedRenderer == null) continue;
+                var mesh = RendererMeshAccess.GetSharedMesh(edit.seedRenderer);
+                if (mesh == null || mesh.isReadable || result.Contains(mesh)) continue;
+                result.Add(mesh);
+            }
+            return result;
+        }
+
         private static string FindUnreadableRendererNames(ClickRecolor component)
         {
             List<string> names = null;

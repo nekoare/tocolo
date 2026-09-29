@@ -21,6 +21,24 @@ msgstr "編集: {0} 件"
 msgid "Inspector:UnreadableMesh"
 msgstr "Read/Write が無効なメッシュがあります（{0}）。メッシュのインポート設定で Read/Write を有効にしてください"
 
+msgid "Scene:Panel:Unreadable"
+msgstr "「{0}」はメッシュの Read/Write が無効なため選べません。下のボタンで有効にできます。"
+
+msgid "Scene:Panel:UnreadableLocked"
+msgstr "「{0}」はメッシュの Read/Write が無効なため選べません。変更できない場所のメッシュなので、元の FBX のインポート設定で Read/Write を有効にしてください。"
+
+msgid "Scene:Panel:UnreadableFix"
+msgstr "Read/Write を有効にする"
+
+msgid "Dialog:ReadWriteTitle"
+msgstr "Read/Write を有効にする"
+
+msgid "Dialog:ReadWriteConfirm"
+msgstr "次のメッシュのインポート設定で Read/Write を有効にします。"
+
+msgid "Dialog:ReadWriteNote"
+msgstr "同じ FBX を使う他のアバターにも反映されます。アップロードしたアバターのメモリが少し増えます。"
+
 msgid "Inspector:PersistentNotice"
 msgstr "シーンに置いたアバターで使ってください（Project の Prefab では動きません）"
 

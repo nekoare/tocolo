@@ -48,6 +48,12 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         /// </summary>
         public static bool BoxDragging { get; set; }
 
+        /// <summary>
+        /// 最後のクリックが当たった、メッシュの Read/Write が無効で選べない Renderer。パネルに案内と［Read/Write を有効にする］を出す。
+        /// 次に何かを選べたとき・ツールの終了・対象の切り替えで消える（ユーザー報告 2026-09-29: 後から追加したアイテムが選べない）
+        /// </summary>
+        public static Renderer UnreadableRenderer { get; set; }
+
         /// <summary>最後にクリックした結果（Repaint で描く）。ドメインリロードで消えてよい</summary>
         public static PickHit? LastPick;
 
@@ -263,6 +269,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             s_transientNoticeArgs = null;
             LastPick = null;
             LastPickColor = null;
+            UnreadableRenderer = null;
             HoverPick = null;
             EyedropperActive = false;
             HideHighlight();

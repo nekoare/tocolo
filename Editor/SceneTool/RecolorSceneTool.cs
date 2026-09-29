@@ -173,6 +173,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             _picker = null;
             ToolSession.LastPick = null;
             ToolSession.LastPickColor = null;
+            ToolSession.UnreadableRenderer = null;
             ToolSession.HoverPick = null;
             SceneView.RepaintAll();
         }
@@ -866,6 +867,18 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         {
             if (_picker == null) _picker = new ScenePicker(); // ドメインリロード直後の保険
             CollectPickRenderers(root);
+            // Read/Write 無効のメッシュは自前のレイ判定に乗らず、クリックが奥の物に抜けてしまう。
+            // Unity の Scene ピック（GPU で描いて判定するので Read/Write に関係なく当たる）で手前の物を調べ、
+            // それが選べないメッシュなら編集は作らずパネルに案内を出す
+            var unreadable = FindClickedUnreadable(root, mousePosition);
+            ToolSession.UnreadableRenderer = unreadable;
+            if (unreadable != null)
+            {
+                ToolSession.LastPick = null;
+                ToolSession.LastPickColor = null;
+                SceneView.RepaintAll();
+                return;
+            }
             var ray = HandleUtility.GUIPointToWorldRay(mousePosition);
             if (_picker.TryPick(ray, _renderers, null, out var hit))
             {
@@ -954,6 +967,41 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             if (edit == null) return;
             ToolPanelOverlay.ApplyEyedropperColor(component, edit, color.Value);
             ToolSession.EyedropperActive = false;
+        }
+
+        /// <summary>
+        /// mousePosition の手前に写っている物（Unity の Scene ピック）が root 配下の、選べる状態（IsPickable・除外リスト外）で
+        /// メッシュの Read/Write が無効な Renderer ならそれを返す。そうでなければ null。
+        /// Scene ピックが別の物（NDMF プレビューの代わりの物など）を返したときは、レイが境界箱に当たる選べないメッシュのうち
+        /// 自前のレイ判定の当たりより手前のものを返す
+        /// </summary>
+        private Renderer FindClickedUnreadable(GameObject root, Vector2 mousePosition)
+        {
+            var component = root.GetComponent<ClickRecolor>();
+            var picked = HandleUtility.PickGameObject(mousePosition, false);
+            if (picked != null && picked.transform.IsChildOf(root.transform))
+            {
+                var renderer = picked.GetComponent<Renderer>();
+                if (renderer == null || !IsPickable(renderer) || (component != null && component.IsExcluded(renderer))) return null;
+                return MeshReadWriteFixer.IsUnreadable(renderer) ? renderer : null;
+            }
+
+            // 予備: 選べないメッシュの境界箱にレイが当たり、自前の判定の当たりより手前なら、それを押したとみなす
+            var ray = HandleUtility.GUIPointToWorldRay(mousePosition);
+            float hitDistance = float.PositiveInfinity;
+            if (_picker.TryPick(ray, _renderers, null, out var hit)) hitDistance = hit.distance;
+            Renderer best = null;
+            float bestDistance = float.PositiveInfinity;
+            foreach (var renderer in root.GetComponentsInChildren<Renderer>(true))
+            {
+                if (!IsPickable(renderer) || (component != null && component.IsExcluded(renderer))) continue;
+                if (!MeshReadWriteFixer.IsUnreadable(renderer)) continue;
+                if (!renderer.bounds.IntersectRay(ray, out float distance)) continue;
+                if (distance >= hitDistance || distance >= bestDistance) continue;
+                best = renderer;
+                bestDistance = distance;
+            }
+            return best;
         }
 
         /// <summary>root 配下のクリック・矩形選択の対象の Renderer（IsPickable）を _renderers に入れ直す</summary>
