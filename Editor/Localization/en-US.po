@@ -108,6 +108,18 @@ msgstr "Select in Scene"
 msgid "Inspector:Edit:DeleteAll"
 msgstr "Delete all"
 
+msgid "Inspector:Edit:DeleteMissing"
+msgstr "Delete missing edits"
+
+msgid "Inspector:Edit:DeleteMissingCount"
+msgstr "Delete missing edits ({0})"
+
+msgid "Inspector:Edit:MissingTooltip"
+msgstr "The part (Renderer) you clicked can't be found. It may have been deleted. This edit is not applied."
+
+msgid "Inspector:Edit:Mode:Box"
+msgstr "Box"
+
 msgid "Inspector:Edit:DeleteAllConfirm"
 msgstr "Delete all edits?"
 

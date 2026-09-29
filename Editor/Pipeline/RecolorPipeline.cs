@@ -389,6 +389,13 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
         /// マスクを作るのに種の Renderer（メッシュ）が要るか。色モード・アバター全体・共有の種色あり（hasSeedOklab）の編集だけは要らない
         /// （種色は保存済み、範囲は色だけで選ぶ）。それ以外で種の Renderer が消えていたら、その編集は反映できない
         /// </summary>
+        /// <summary>
+        /// クリックしたパーツ（種の Renderer）が削除などで無くなり、反映できない編集か。
+        /// 自動では消さない（GameObject の削除を Undo したときに編集ごと戻せるように）。Inspector で印と一括削除を出す
+        /// </summary>
+        internal static bool IsSeedMissing(RecolorEdit edit) =>
+            edit != null && edit.seedRenderer == null && NeedsSeedRenderer(edit);
+
         internal static bool NeedsSeedRenderer(RecolorEdit edit)
         {
             if (edit == null) return true;

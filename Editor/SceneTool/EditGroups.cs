@@ -205,6 +205,18 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             return members[0];
         }
 
+        /// <summary>
+        /// クリックしたパーツが見つからない編集（RecolorPipeline.IsSeedMissing）を消す。連結のメンバーなら 1 件ずつ外す（RemoveMember）。
+        /// 消した件数を返す。Undo.RecordObject は呼び出し側で行う
+        /// </summary>
+        internal static int RemoveMissing(ClickRecolor component)
+        {
+            if (component == null || component.edits == null) return 0;
+            var missing = component.edits.FindAll(Pipeline.RecolorPipeline.IsSeedMissing);
+            foreach (var edit in missing) RemoveMember(component, edit);
+            return missing.Count;
+        }
+
         /// <summary>edit の連結ごと削除する（単独なら edit だけ）</summary>
         internal static void RemoveGroup(ClickRecolor component, RecolorEdit edit)
         {

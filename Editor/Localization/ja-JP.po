@@ -108,6 +108,18 @@ msgstr "Scene で選ぶ"
 msgid "Inspector:Edit:DeleteAll"
 msgstr "すべて削除"
 
+msgid "Inspector:Edit:DeleteMissing"
+msgstr "見つからない編集を削除"
+
+msgid "Inspector:Edit:DeleteMissingCount"
+msgstr "見つからない編集を削除（{0}）"
+
+msgid "Inspector:Edit:MissingTooltip"
+msgstr "クリックしたパーツ（Renderer）が見つかりません。削除された可能性があります。この編集は反映されません。"
+
+msgid "Inspector:Edit:Mode:Box"
+msgstr "箱"
+
 msgid "Inspector:Edit:DeleteAllConfirm"
 msgstr "すべての編集を削除しますか？"
 

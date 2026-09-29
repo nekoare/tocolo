@@ -27,6 +27,7 @@ namespace Nekoare.ClickRecolor.Editor.Inspector
         /// </summary>
         private string _selectRequestId;
         private bool _deleteAllRequested;
+        private bool _deleteMissingRequested;
 
         private void OnEnable()
         {
@@ -85,11 +86,25 @@ namespace Nekoare.ClickRecolor.Editor.Inspector
             }
 
             _editList.DoLayoutList();
-            using (new EditorGUI.DisabledScope(component.edits.Count == 0))
             using (new EditorGUILayout.HorizontalScope())
             {
                 GUILayout.FlexibleSpace();
-                if (GUILayout.Button(Locales.Tr("Inspector:Edit:DeleteAll"), GUILayout.ExpandWidth(false))) _deleteAllRequested = true;
+                // クリックしたパーツが見つからない編集をまとめて消す（あるときだけ押せる。ユーザー要望 2026-09-29）
+                int missing = component.edits.FindAll(Pipeline.RecolorPipeline.IsSeedMissing).Count;
+                using (new EditorGUI.DisabledScope(missing == 0))
+                {
+                    string label = missing > 0
+                        ? Locales.Tr("Inspector:Edit:DeleteMissingCount", missing)
+                        : Locales.Tr("Inspector:Edit:DeleteMissing");
+                    if (GUILayout.Button(new GUIContent(label, Locales.Tr("Inspector:Edit:MissingTooltip")), GUILayout.ExpandWidth(false)))
+                    {
+                        _deleteMissingRequested = true;
+                    }
+                }
+                using (new EditorGUI.DisabledScope(component.edits.Count == 0))
+                {
+                    if (GUILayout.Button(Locales.Tr("Inspector:Edit:DeleteAll"), GUILayout.ExpandWidth(false))) _deleteAllRequested = true;
+                }
             }
             string unreadable = FindUnreadableRendererNames(component);
             if (unreadable != null)
@@ -349,6 +364,28 @@ namespace Nekoare.ClickRecolor.Editor.Inspector
                 }
             }
 
+            // クリックしたパーツが見つからない編集（連結ならどれか 1 つでも）は、名前の前に警告の印を出す（ユーザー要望 2026-09-29）
+            if (RowHasMissingSeed(index, groupIndices))
+            {
+                const float iconWidth = 18f;
+                var iconRect = new Rect(nameRect.x, y, iconWidth, line);
+                nameRect.xMin += iconWidth;
+                // アイコンを GUI.Label に渡すと描かれないことがあった（実機 2026-09-29）ので、テクスチャを直接描く。
+                // 取れなければ橙の「⚠」を文字で出す
+                var texture = WarnIcon;
+                var square = new Rect(iconRect.x + 1f, iconRect.y + (line - 16f) * 0.5f, 16f, 16f);
+                if (texture != null) GUI.DrawTexture(square, texture, ScaleMode.ScaleToFit);
+                else
+                {
+                    var previous = GUI.contentColor;
+                    GUI.contentColor = new Color(1f, 0.6f, 0.1f);
+                    GUI.Label(iconRect, "\u26A0", EditorStyles.boldLabel);
+                    GUI.contentColor = previous;
+                }
+                // ツールチップ用（文字は空）
+                GUI.Label(iconRect, new GUIContent(string.Empty, Locales.Tr("Inspector:Edit:MissingTooltip")));
+            }
+
             EditorGUI.BeginChangeCheck();
             string newName = EditorGUI.TextField(nameRect, nameProp.stringValue);
             if (EditorGUI.EndChangeCheck())
@@ -376,9 +413,12 @@ namespace Nekoare.ClickRecolor.Editor.Inspector
                 GUI.Label(swatchRect, new GUIContent(string.Empty, Locales.Tr("Inspector:Edit:NoTarget")));
             }
 
-            string modeLabel = (SelectionMode)modeProp.intValue == SelectionMode.Color
-                ? Locales.Tr("Inspector:Edit:Mode:Color")
-                : Locales.Tr("Inspector:Edit:Mode:Island");
+            string modeLabel = (SelectionMode)modeProp.intValue switch
+            {
+                SelectionMode.Color => Locales.Tr("Inspector:Edit:Mode:Color"),
+                SelectionMode.Box => Locales.Tr("Inspector:Edit:Mode:Box"),
+                _ => Locales.Tr("Inspector:Edit:Mode:Island"),
+            };
             EditorGUI.LabelField(modeRect, modeLabel);
 
             // 開始ボタンと同じ条件で無効化する（Project の Prefab アセット／Play 中）
@@ -388,6 +428,36 @@ namespace Nekoare.ClickRecolor.Editor.Inspector
             {
                 if (GUI.Button(buttonRect, Locales.Tr("Inspector:Edit:SelectInScene"))) _selectRequestId = idProp.stringValue;
             }
+        }
+
+        /// <summary>警告アイコン（Unity の組み込みアイコン。ダークスキンは d_ 付き）。見つからなければ null</summary>
+        private static Texture WarnIcon
+        {
+            get
+            {
+                if (s_warnIcon != null) return s_warnIcon;
+                foreach (var name in EditorGUIUtility.isProSkin
+                             ? new[] { "d_console.warnicon.sm", "console.warnicon.sm", "d_console.warnicon", "console.warnicon" }
+                             : new[] { "console.warnicon.sm", "console.warnicon" })
+                {
+                    s_warnIcon = EditorGUIUtility.FindTexture(name);
+                    if (s_warnIcon != null) break;
+                }
+                return s_warnIcon;
+            }
+        }
+
+        private static Texture s_warnIcon;
+
+        /// <summary>行 index（連結なら groupIndices の全編集）に、クリックしたパーツが見つからない編集があるか</summary>
+        private bool RowHasMissingSeed(int index, List<int> groupIndices)
+        {
+            if (groupIndices == null) return Pipeline.RecolorPipeline.IsSeedMissing(GetEdit(index));
+            foreach (int i in groupIndices)
+            {
+                if (Pipeline.RecolorPipeline.IsSeedMissing(GetEdit(i))) return true;
+            }
+            return false;
         }
 
         /// <summary>
@@ -436,6 +506,20 @@ namespace Nekoare.ClickRecolor.Editor.Inspector
                         ToolSession.CurrentEditId = id;
                     }
                     SceneView.RepaintAll();
+                }
+                GUIUtility.ExitGUI();
+            }
+
+            if (_deleteMissingRequested)
+            {
+                _deleteMissingRequested = false;
+                bool currentIsHere = component.FindEdit(ToolSession.CurrentEditId) != null;
+                Undo.RecordObject(component, "Tocolo: 見つからない編集を削除");
+                if (EditGroups.RemoveMissing(component) > 0)
+                {
+                    EditorUtility.SetDirty(component);
+                    // パネルで選んでいた編集が消えたら選択を外す
+                    if (currentIsHere && component.FindEdit(ToolSession.CurrentEditId) == null) ToolSession.CurrentEditId = null;
                 }
                 GUIUtility.ExitGUI();
             }
