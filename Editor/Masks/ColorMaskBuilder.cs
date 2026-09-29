@@ -140,6 +140,11 @@ namespace Nekoare.ClickRecolor.Editor.Masks
                 {
                     Morphology.DilateInto(rt, r.coverage, r.padding, invertAllowed: true);
                 }
+                // 負のはみ出し幅: 縁を |padding| px 削る（範囲にかかわらず）
+                else if (r.padding < 0)
+                {
+                    Morphology.Erode(rt, -r.padding);
+                }
                 // ぼかしは被覆の外（とマスク内）にだけ書く。制約なしだと隣のチャートの縁 1px へにじむ
                 if (r.coverage != null) Morphology.Blur1(rt, r.coverage, invertAllowed: true);
                 else Morphology.Blur1(rt);

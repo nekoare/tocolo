@@ -73,6 +73,22 @@ namespace Nekoare.ClickRecolor.Editor.Masks
             }
         }
 
+        /// <summary>収縮（正方形窓の最小値）。負のはみ出し幅（選択範囲を縮める）に使う。r ≤ 0 なら何もしない</summary>
+        internal static void Erode(RenderTexture rt, int r)
+        {
+            if (r <= 0 || Compute == null || rt == null) return;
+            var tmp = MaskTextures.GetTemporary(rt.width, rt.height);
+            try
+            {
+                Run(s_kernelErode, rt, tmp, r);
+                Graphics.CopyTexture(tmp, rt);
+            }
+            finally
+            {
+                RenderTexture.ReleaseTemporary(tmp);
+            }
+        }
+
         /// <summary>クローズ（膨張→収縮）: ラスタライズの 1px 穴など内側の小さな穴を埋める。r ≤ 0 なら何もしない</summary>
         internal static void Close(RenderTexture rt, int r)
         {

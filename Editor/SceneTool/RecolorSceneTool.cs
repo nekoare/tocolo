@@ -230,6 +230,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
 
             // グラデーションの箱のハンドル。Layout でも呼んで距離を登録する（ハンドルに近いクリックはハンドルが取り、Pick に来ない）
             DrawGradientBox();
+            DrawSelectionBox();
             // 箱のハンドルなど他のコントロールがマウスを掴んでいる間は、クリック・ドラッグを処理しない
             if (e.isMouse && GUIUtility.hotControl != 0 && GUIUtility.hotControl != controlId) return;
 
@@ -369,6 +370,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             var component = root.GetComponent<ClickRecolor>();
             var edit = component != null ? component.FindEdit(ToolSession.CurrentEditId) : null;
             if (edit == null || !edit.gradientEnabled) return;
+            if (s_gradientDragging && GUIUtility.hotControl == 0) s_gradientDragging = false;
 
             var e = Event.current;
             using (new Handles.DrawingScope(component.transform.localToWorldMatrix))
@@ -378,7 +380,8 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 Vector3 size = edit.gradientBoxSize;
 
                 EditorGUI.BeginChangeCheck();
-                Handles.TransformHandle(ref position, ref rotation, ref size);
+                // 全体のギズモに加えて、各面のつまみでも伸縮できる（「箱の中」と同じ。ユーザー要望 2026-09-29）
+                DrawBoxWithFaceHandles(ref position, ref rotation, ref size, s_gradientBoxHandle, ref s_gradientDragging, ref s_gradientDragOrigin);
                 if (EditorGUI.EndChangeCheck())
                 {
                     if (GUIUtility.hotControl != 0 && !s_boxDrag.IsActive) s_boxDrag.Begin("Tocolo: グラデーションの箱を変更");
@@ -409,6 +412,179 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 DrawFace(-half.y, half, startColor);
                 DrawFace(half.y, half, endColor);
                 // 「箱の中だけ」は上下方向だけで切る（横は切らない）ので、側面は塗らない。上下の面は色 1／色 2 で常に塗られている
+            }
+        }
+
+        /// <summary>
+        /// 影響範囲「箱の中」の箱（RecolorEdit.box*）。グラデーションの箱と同じハンドルで動かせる（色は区別のため水色）。
+        /// ハンドルの操作は Undo 1 回にまとめ、連結なら連結の全編集に同じ箱を入れる
+        /// </summary>
+        private static void DrawSelectionBox()
+        {
+            if (!ToolSession.TryGetActiveRoot(out var root)) return;
+            var component = root.GetComponent<ClickRecolor>();
+            var edit = component != null ? component.FindEdit(ToolSession.CurrentEditId) : null;
+            if (edit == null || edit.mode != SelectionMode.Box) return;
+            // グラデーション ON のときは 2 つの箱が重なって見づらいので、選択の箱はギズモごと出さない（ユーザー要望 2026-09-29）
+            if (edit.gradientEnabled) return;
+
+            // 離したら、箱に触れるテクスチャのメンバーを増減してから Undo のまとめを締める（同じ 1 回の Undo に入れる）。
+            // 離しの検知は s_boxDrag ではなく自分のフラグで行う（s_boxDrag は先に描くグラデーションの箱の関数が締めてしまい、
+            // ここの分岐が通らなかった。実機 2026-09-29）
+            if (ToolSession.BoxDragging && GUIUtility.hotControl == 0)
+            {
+                SelectionBox.SyncMembers(component, edit);
+                if (s_boxDrag.IsActive) s_boxDrag.End();
+                ToolSession.BoxDragging = false; // 離した: パーツごとの統計をここで掛け直す
+                SceneView.RepaintAll();
+            }
+
+            var e = Event.current;
+            using (new Handles.DrawingScope(component.transform.localToWorldMatrix))
+            {
+                Vector3 position = edit.boxPosition;
+                Quaternion rotation = Quaternion.Normalize(edit.boxRotation);
+                Vector3 size = edit.boxSize;
+
+                EditorGUI.BeginChangeCheck();
+                // 箱全体の移動・回転・拡大縮小はグラデーションの箱と同じハンドル。加えて各面のつまみで、その面だけを軸ごとに引ける
+                // （比率は保たない。両方残す: ユーザー要望 2026-09-29）
+                bool dragging = ToolSession.BoxDragging;
+                DrawBoxWithFaceHandles(ref position, ref rotation, ref size, s_selectionBoxHandle, ref dragging, ref s_boxDragOrigin);
+                if (EditorGUI.EndChangeCheck())
+                {
+                    if (GUIUtility.hotControl != 0)
+                    {
+                        if (!s_boxDrag.IsActive) s_boxDrag.Begin("Tocolo: 選択の箱を変更");
+                        ToolSession.BoxDragging = dragging;
+                    }
+                    Undo.RecordObject(component, "Tocolo: 選択の箱を変更");
+                    EditGroups.ForEachInGroup(component, edit, m =>
+                    {
+                        m.boxPosition = position;
+                        m.boxRotation = rotation;
+                        m.boxSize = size;
+                    });
+                    EditorUtility.SetDirty(component);
+                }
+
+                if (e.type == EventType.Repaint) DrawSelectionBoxShape(position, rotation, size);
+            }
+        }
+
+        private static readonly Color SelectionBoxColor = new Color(0.25f, 0.75f, 1f, 1f);
+        /// <summary>選択の箱のドラッグ開始時の中心（対象ルートのローカル）。ドラッグ中の Handles.matrix の原点に使う</summary>
+        private static Vector3 s_boxDragOrigin;
+        /// <summary>グラデーションの箱の面のつまみと、そのドラッグ状態・開始時の中心</summary>
+        private static readonly UnityEditor.IMGUI.Controls.BoxBoundsHandle s_gradientBoxHandle =
+            new UnityEditor.IMGUI.Controls.BoxBoundsHandle
+            {
+                wireframeColor = Color.clear,
+                midpointHandleSizeFunction = p => HandleUtility.GetHandleSize(p) * 0.18f,
+                midpointHandleDrawFunction = DrawSelectionBoxKnob,
+            };
+        private static bool s_gradientDragging;
+        private static Vector3 s_gradientDragOrigin;
+
+        /// <summary>
+        /// 箱のギズモ（移動・回転・全体の拡大縮小）と各面のつまみ（その面だけ伸縮）を描き、position / rotation / size を更新する。
+        /// Handles.matrix（ルートのローカル）の中で呼ぶ。EditorGUI.BeginChangeCheck の内側で呼ぶこと。
+        /// 面のつまみ（1 軸スライダー）はドラッグ開始位置を Handles.matrix のローカルで覚えるので、ドラッグ中に matrix の原点（箱の中心）を
+        /// 動かすと基準がずれて約 2 倍動く（実機 2026-09-29）。dragging の間は原点を dragOrigin（掴んだときの中心）に固定し、
+        /// ずれはつまみ側の center に持たせる。大きさの符号（反転）は保つ
+        /// </summary>
+        private static void DrawBoxWithFaceHandles(
+            ref Vector3 position, ref Quaternion rotation, ref Vector3 size,
+            UnityEditor.IMGUI.Controls.BoxBoundsHandle handle, ref bool dragging, ref Vector3 dragOrigin)
+        {
+            Vector3 positionBefore = position;
+            Handles.TransformHandle(ref position, ref rotation, ref size);
+            Vector3 origin = dragging ? dragOrigin : position;
+            using (new Handles.DrawingScope(Handles.matrix * Matrix4x4.TRS(origin, rotation, Vector3.one)))
+            {
+                var fed = new Vector3(Mathf.Abs(size.x), Mathf.Abs(size.y), Mathf.Abs(size.z));
+                var fedCenter = Quaternion.Inverse(rotation) * (position - origin);
+                handle.center = fedCenter;
+                handle.size = fed;
+                handle.SetColor(SelectionBoxHandleColor);
+                handle.DrawHandle();
+                // 面を引いたときだけ反映する（全体のギズモの結果を上書きしない）。中心は箱のローカルなのでルートのローカルへ戻す
+                if (handle.center != fedCenter || handle.size != fed)
+                {
+                    position = origin + rotation * handle.center;
+                    size = new Vector3(
+                        Mathf.Sign(size.x == 0f ? 1f : size.x) * handle.size.x,
+                        Mathf.Sign(size.y == 0f ? 1f : size.y) * handle.size.y,
+                        Mathf.Sign(size.z == 0f ? 1f : size.z) * handle.size.z);
+                }
+            }
+            if (GUI.changed && GUIUtility.hotControl != 0 && !dragging)
+            {
+                dragOrigin = positionBefore; // このフレームの matrix はこの位置で描いた
+                dragging = true;
+            }
+        }
+        /// <summary>面のつまみの色。箱の水色の上でも見えるよう補色寄りの橙（ユーザー要望 2026-09-29）</summary>
+        private static readonly Color SelectionBoxHandleColor = new Color(1f, 0.6f, 0.1f, 1f);
+        /// <summary>面のつまみにマウスが乗った・掴んだときの色（明るい黄）</summary>
+        private static readonly Color SelectionBoxHandleHoverColor = new Color(1f, 1f, 0.2f, 1f);
+        /// <summary>選択の箱の各面のつまみ（軸ごとに伸縮）。ワイヤーは DrawSelectionBoxShape が描くので消す</summary>
+        private static readonly UnityEditor.IMGUI.Controls.BoxBoundsHandle s_selectionBoxHandle =
+            new UnityEditor.IMGUI.Controls.BoxBoundsHandle
+            {
+                wireframeColor = Color.clear,
+                // つまみは既定（0.03）の 6 倍の丸（ユーザー要望 2026-09-29）
+                midpointHandleSizeFunction = p => HandleUtility.GetHandleSize(p) * 0.18f,
+                midpointHandleDrawFunction = DrawSelectionBoxKnob,
+            };
+
+        /// <summary>
+        /// 面のつまみの描画。マウスが乗っている（nearestControl）か掴んでいる（hotControl）つまみは明るい色にして、
+        /// どれが反応するか分かるようにする（ユーザー要望 2026-09-29: 細かいところが掴みにくい）
+        /// </summary>
+        private static void DrawSelectionBoxKnob(int controlID, Vector3 position, Quaternion rotation, float size, EventType eventType)
+        {
+            if (eventType == EventType.Repaint)
+            {
+                bool active = GUIUtility.hotControl == controlID
+                    || (GUIUtility.hotControl == 0 && HandleUtility.nearestControl == controlID);
+                using (new Handles.DrawingScope(active ? SelectionBoxHandleHoverColor : Handles.color))
+                {
+                    Handles.SphereHandleCap(controlID, position, rotation, active ? size * 1.15f : size, eventType);
+                }
+                return;
+            }
+            Handles.SphereHandleCap(controlID, position, rotation, size, eventType);
+        }
+
+        /// <summary>選択の箱のワイヤーと、6 面の薄い塗り（水色）</summary>
+        private static void DrawSelectionBoxShape(Vector3 position, Quaternion rotation, Vector3 size)
+        {
+            using (new Handles.DrawingScope(SelectionBoxColor, Handles.matrix * Matrix4x4.TRS(position, rotation, Vector3.one)))
+            {
+                Handles.DrawWireCube(Vector3.zero, size);
+                var half = new Vector3(Mathf.Abs(size.x), Mathf.Abs(size.y), Mathf.Abs(size.z)) * 0.5f;
+                // 面の塗りはグラデーションの箱の半分から、25% 薄く、さらに 40% 薄く（ユーザー要望 2026-09-29）
+                var fill = new Color(SelectionBoxColor.r, SelectionBoxColor.g, SelectionBoxColor.b, BoxFaceAlpha * 0.5f * 0.75f * 0.6f);
+                var outline = new Color(SelectionBoxColor.r, SelectionBoxColor.g, SelectionBoxColor.b, 1f);
+                // 6 面: 各軸の ± の面
+                for (int axis = 0; axis < 3; axis++)
+                {
+                    for (int sign = -1; sign <= 1; sign += 2)
+                    {
+                        var verts = new Vector3[4];
+                        int a = (axis + 1) % 3, b = (axis + 2) % 3;
+                        for (int k = 0; k < 4; k++)
+                        {
+                            var v = Vector3.zero;
+                            v[axis] = sign * half[axis];
+                            v[a] = (k == 0 || k == 3 ? -1 : 1) * half[a];
+                            v[b] = (k < 2 ? -1 : 1) * half[b];
+                            verts[k] = v;
+                        }
+                        Handles.DrawSolidRectangleWithOutline(verts, fill, outline);
+                    }
+                }
             }
         }
 
@@ -816,7 +992,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         }
 
         /// <summary>candidate が編集の対象にできるテクスチャ資産なら true（TryGetSourceTexture(PickHit) と同じ規則）</summary>
-        private static bool TryGetSourceTexture(Texture2D candidate, out Texture2D texture)
+        internal static bool TryGetSourceTexture(Texture2D candidate, out Texture2D texture)
         {
             texture = candidate;
             if (texture == null) return false;
@@ -1021,6 +1197,13 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             ApplyPreset(edit, ToolSession.Preset);
             edit.padding = 8;
             component.AddEdit(edit);
+            // 「箱の中」で作った編集は、クリックしたパーツを囲む箱から始める（AddEdit の後: 箱の既定は編集のマスクから決める）。
+            // 「マテリアルをまたいで選ぶ」ON なら箱に触れる他テクスチャのメンバーも作る
+            if (edit.mode == SelectionMode.Box)
+            {
+                SelectionBox.ResetToDefault(component, edit);
+                SelectionBox.SyncMembers(component, edit);
+            }
             if (edit.mode == SelectionMode.Color && edit.scope == ColorScope.WholeAvatar) EditGroups.Link(component, edit);
 
             EditorUtility.SetDirty(component);
@@ -1057,6 +1240,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             if (texture == null) return null;
 
             List<(Mesh, int, Vector2, Vector2)> users = null;
+            List<Renderer> renderers = null;
             int prepared = 0;
             try
             {
@@ -1067,8 +1251,10 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                     if (edit == null || !edit.enabled || !edit.hasTarget || edit.sourceTexture != texture) continue;
 
                     // 利用者はプレビューと同じ集め方にする（マスクの鍵が揃い、プレビューが作ったマスクに当たる）
-                    users ??= RecolorPreview.CollectUsers(CollectPreviewRenderers(component.gameObject), texture);
-                    var job = RecolorPipeline.PrepareJob(edit, texture, (int)component.previewResolution, users);
+                    renderers ??= CollectPreviewRenderers(component.gameObject);
+                    users ??= RecolorPreview.CollectUsers(renderers, texture);
+                    var job = RecolorPipeline.PrepareJob(edit, texture, (int)component.previewResolution, users,
+                        context: MaskContext.For(component, renderers));
                     if (job?.mask == null) continue;
                     prepared++;
                     if (IsSelectedAt(job.mask, hit.uv)) return edit;
@@ -1158,6 +1344,10 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                     edit.feather = 0.15f;
                     edit.scope = ToolSession.ColorScopePreference;
                     break;
+                case RangePreset.Box:
+                    edit.mode = SelectionMode.Box;
+                    edit.feather = 0f; // 面のぼかしは既定 0（面でぱきっと切る。ユーザー要望 2026-09-29）
+                    break;
                 default:
                     edit.mode = SelectionMode.Island;
                     break;
@@ -1246,7 +1436,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         }
 
         /// <summary>見本色を texture の uv（Tiling/Offset 適用後、0〜1）から取る。規則は SampleSwatchColor(PickHit) と同じ</summary>
-        private static Color? SampleSwatchColor(Texture2D texture, Vector2 uv)
+        internal static Color? SampleSwatchColor(Texture2D texture, Vector2 uv)
         {
             if (texture == null) return null;
 

@@ -7,7 +7,7 @@ using UnityEngine;
 namespace Nekoare.ClickRecolor.Editor.SceneTool
 {
     /// <summary>ツールバーの「影響範囲」3 ボタンに対応するプリセット（島＝島モード、同じ色／似た色＝色モード。値は RecolorSceneTool.ApplyPreset）</summary>
-    internal enum RangePreset { Island = 0, SameColor = 1, SimilarColor = 2 }
+    internal enum RangePreset { Island = 0, SameColor = 1, SimilarColor = 2, Box = 3 }
 
     /// <summary>ツールのエディタ状態。コンポーネントには保存しない（ビルドに乗せない）</summary>
     internal static class ToolSession
@@ -34,8 +34,19 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             set => SessionState.SetInt(KeyColorScope, (int)value);
         }
 
-        /// <summary>プリセットから導かれる選択モード（島＝Island、同じ色／似た色＝Color）</summary>
-        public static SelectionMode Mode => Preset == RangePreset.Island ? SelectionMode.Island : SelectionMode.Color;
+        /// <summary>プリセットから導かれる選択モード（島＝Island、同じ色／似た色＝Color、箱の中＝Box）</summary>
+        public static SelectionMode Mode => Preset switch
+        {
+            RangePreset.Island => SelectionMode.Island,
+            RangePreset.Box => SelectionMode.Box,
+            _ => SelectionMode.Color,
+        };
+
+        /// <summary>
+        /// 選択の箱をドラッグ中か。「箱の中の色を揃える」（パーツごとの統計）は重いので、ドラッグ中は掛けず離したときに掛ける
+        /// （RecolorPipeline が見る。プレビューのハッシュにも入れて、離した瞬間に作り直す）
+        /// </summary>
+        public static bool BoxDragging { get; set; }
 
         /// <summary>最後にクリックした結果（Repaint で描く）。ドメインリロードで消えてよい</summary>
         public static PickHit? LastPick;

@@ -396,6 +396,24 @@ msgstr "同じ色: クリックした場所とほぼ同じ色だけを変えま�
 msgid "Help:Mode:SimilarColor"
 msgstr "似た色: クリックした場所に近い色を広めに変えます。グラデーションや影のある部分に向いています。"
 
+msgid "Scene:Panel:Mode:Box"
+msgstr "箱の中"
+
+msgid "Help:Mode:Box"
+msgstr "箱の中: Scene に出る箱の内側だけを変えます。パーツや UV の切れ目に関係なく、箱の面で色変えが切れます。箱はハンドルで動かせます。"
+
+msgid "Scene:Select:BoxFeather"
+msgstr "面のぼかし"
+
+msgid "Help:BoxFeather"
+msgstr "箱の面のところで色変えをなめらかに切る幅です。0 だと面でぱきっと切れます。"
+
+msgid "Scene:Select:BoxPerPartStats"
+msgstr "箱の中の色を揃える"
+
+msgid "Help:BoxPerPartStats"
+msgstr "オンにすると、箱に入るパーツ（UV のひとまとまり）ごとに明るさの分布を取り、それぞれを目標の色に揃えます（パーツを複数選んだときの「各点の色を揃える」と同じ）。オフでは箱の中全体で 1 つの分布を取るので、パーツどうしの明るさの差が保たれます。"
+
 msgid "Help:Threshold"
 msgstr "どれくらい近い色まで選ぶかです。大きくすると広く、小さくすると狭く選びます。"
 
@@ -424,7 +442,7 @@ msgid "Help:GradientInsideOnly"
 msgstr "オンにすると、箱の上端より上と下端より下は色変えせず元の色のままになり、箱の高さの範囲だけがグラデーションになります。横方向は箱で切りません。オフでは上下の外側も端の色で続きます。"
 
 msgid "Help:Padding"
-msgstr "パーツのまわりの、UV で使われていない部分まで色を広げる幅（ピクセル）です。つなぎ目に元の色の線が見えるときは上げてください。"
+msgstr "パーツのまわりの、UV で使われていない部分まで色を広げる幅（ピクセル）です。つなぎ目に元の色の線が見えるときは上げてください。マイナスにすると逆に選んだ範囲の縁を削ります。"
 
 msgid "Help:PreviewResolution"
 msgstr "Scene のプレビューで使う解像度の上限です。小さいほど軽く動きます。アップロードと書き出しは元の解像度で行います。"

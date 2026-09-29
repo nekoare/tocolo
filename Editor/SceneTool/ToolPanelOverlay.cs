@@ -94,6 +94,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 }
 
                 DropTargetIfUnusable();
+                SyncBoxMembersIfExcludedChanged();
                 if (!ToolSession.TryGetActiveRoot(out var root))
                 {
                     // 対象未設定: 案内と候補のボタン（ユーザー要望 2026-09-26: 候補は「操作」側からこちらへ戻す）
@@ -173,7 +174,16 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                     using (new EditorGUILayout.HorizontalScope())
                     {
                         bool cross = EditorGUILayout.ToggleLeft(Locales.Tr("Scene:Panel:CrossTexture"), ToolSession.CrossTextureEnabled);
-                        if (cross != ToolSession.CrossTextureEnabled) ToolSession.CrossTextureEnabled = cross;
+                        if (cross != ToolSession.CrossTextureEnabled)
+                        {
+                            ToolSession.CrossTextureEnabled = cross;
+                            // 「箱の中」の編集は、ON なら箱に触れる他テクスチャのメンバーを作り、OFF なら外して 1 テクスチャに戻す
+                            if (edit != null && edit.mode == SelectionMode.Box)
+                            {
+                                Undo.RecordObject(component, "Tocolo: マテリアルをまたいで選ぶ");
+                                SelectionBox.SyncMembers(component, edit);
+                            }
+                        }
                         HelpMark.Draw("Help:CrossTexture");
                     }
                     HelpMark.DrawBoxIfOpen("Help:CrossTexture");
@@ -300,6 +310,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             EditorGUILayout.HelpBox(string.Join("\n",
                 Locales.Tr("Help:Mode"),
                 Locales.Tr("Help:Mode:Island"),
+                Locales.Tr("Help:Mode:Box"),
                 Locales.Tr("Help:Mode:SameColor"),
                 Locales.Tr("Help:Mode:SimilarColor")), MessageType.Info);
         }
@@ -347,7 +358,9 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         private static readonly GradientSlider.Cache s_greenGradient = new GradientSlider.Cache(GradientSlider.GradientSize, "ClickRecolor.GreenGradient");
         private static readonly GradientSlider.Cache s_blueGradient = new GradientSlider.Cache(GradientSlider.GradientSize, "ClickRecolor.BlueGradient");
 
-        /// <summary>影響範囲（島／同じ色／似た色）のプリセット。パネル最上部に置く（ユーザー要望 2026-09-24）</summary>
+        private static readonly RangePreset[] ModeButtonOrder = { RangePreset.Island, RangePreset.Box, RangePreset.SameColor, RangePreset.SimilarColor };
+
+        /// <summary>影響範囲（島／箱の中／同じ色／似た色）のプリセット。パネル最上部に置く（ユーザー要望 2026-09-24）</summary>
         private static void DrawModeSection(GameObject root)
         {
             using (new EditorGUILayout.HorizontalScope())
@@ -357,10 +370,13 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 HelpMark.Draw("Help:Mode");
             }
             DrawModeHelpIfOpen();
-            int current = (int)ToolSession.Preset;
+            // ボタンの並びは パーツ・箱の中・同じ色・似た色（「箱の中」はパーツの右。ユーザー要望 2026-09-29）。enum の値とは別
+            int current = System.Array.IndexOf(ModeButtonOrder, ToolSession.Preset);
+            if (current < 0) current = 0;
             int selected = GUILayout.Toolbar(current, new[]
             {
                 Locales.Tr("Scene:Panel:Mode:Island"),
+                Locales.Tr("Scene:Panel:Mode:Box"),
                 Locales.Tr("Scene:Panel:Mode:SameColor"),
                 Locales.Tr("Scene:Panel:Mode:SimilarColor"),
             });
@@ -368,7 +384,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             // （設計 §5.3: ボタンはプリセット、調整は現在の編集に効く。色や暗部の明るさなどは保つ）
             if (selected != current)
             {
-                var preset = (RangePreset)selected;
+                var preset = ModeButtonOrder[selected];
                 ToolSession.Preset = preset;
                 var component = root.GetComponent<ClickRecolor>();
                 var edit = component != null ? component.FindEdit(ToolSession.CurrentEditId) : null;
@@ -384,6 +400,12 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                     }
                     // 島の連結（各メンバーが自分の種を持つ）はプリセットを連結の全編集に効かせる
                     EditGroups.ForEachInGroup(component, edit, e => RecolorSceneTool.ApplyPreset(e, preset));
+                    // 「箱の中」に切り替えたら、箱をクリックしたパーツを囲む位置に置き直す（Scene に箱が出る）
+                    if (preset == RangePreset.Box)
+                    {
+                        SelectionBox.ResetToDefault(component, edit);
+                        SelectionBox.SyncMembers(component, edit);
+                    }
                     // 覚えている範囲が「アバター全体」なら、作成時（CreateEditFromHit）と同じく連結し直す
                     // （島の連結なら現在の編集だけ残してから。SetScopeCore と同じ）
                     if (edit.mode == SelectionMode.Color && edit.scope == ColorScope.WholeAvatar)
@@ -628,7 +650,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         {
             EditorGUI.BeginChangeCheck();
             int padding = WithHelp("Help:Padding",
-                () => EditorGUILayout.IntSlider(Locales.Tr("Scene:Color:Padding"), edit.padding, 0, 32));
+                () => EditorGUILayout.IntSlider(Locales.Tr("Scene:Color:Padding"), edit.padding, -5, 32));
             if (EditorGUI.EndChangeCheck())
             {
                 BeginDragIfGrabbing("Tocolo: はみ出し幅を変更");
@@ -648,11 +670,26 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         {
             // モードはこのイベント内で変わらないので、部品の数は Layout と Repaint で揃う
             bool colorMode = edit.mode == SelectionMode.Color;
+            bool boxMode = edit.mode == SelectionMode.Box;
             float threshold = edit.threshold;
             float feather = edit.feather;
             ColorScope scope = edit.scope;
 
             EditorGUI.BeginChangeCheck();
+            if (boxMode)
+            {
+                // 箱の中: 面のぼかしだけ（箱の位置・大きさは Scene のハンドル）
+                feather = WithHelp("Help:BoxFeather",
+                    () => EditorGUILayout.Slider(Locales.Tr("Scene:Select:BoxFeather"), edit.feather, 0f, 1f));
+                bool perPart = WithHelp("Help:BoxPerPartStats",
+                    () => EditorGUILayout.ToggleLeft(Locales.Tr("Scene:Select:BoxPerPartStats"), edit.boxPerPartStats));
+                if (perPart != edit.boxPerPartStats)
+                {
+                    Undo.RecordObject(component, "Tocolo: パーツごとに色を揃えるかを変更");
+                    EditGroups.ForEachInGroup(component, edit, e => e.boxPerPartStats = perPart);
+                    EditorUtility.SetDirty(component);
+                }
+            }
             if (colorMode)
             {
                 threshold = WithHelp("Help:Threshold",
@@ -1083,6 +1120,46 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         }
 
         private static bool s_dropQueued;
+        private static int s_lastExcludedHash;
+        private static bool s_excludedSyncQueued;
+
+        /// <summary>
+        /// 除外リスト（オーバーレイ・Inspector どちらで変えても）が変わったら、「箱の中」の現在の編集の連結メンバーを次の更新で揃え直す
+        /// （除外した Renderer のテクスチャのメンバーが外れる／戻すと戻る。マスク自体は鍵に除外が入っているので自動で作り直る。ユーザー要望 2026-09-29）
+        /// </summary>
+        private static void SyncBoxMembersIfExcludedChanged()
+        {
+            if (!ToolSession.TryGetActiveRoot(out var root)) return;
+            var component = root.GetComponent<ClickRecolor>();
+            if (component == null) return;
+            int hash = 17;
+            if (component.excludedRenderers != null)
+            {
+                unchecked
+                {
+                    foreach (var renderer in component.excludedRenderers) hash = hash * 31 + (renderer != null ? renderer.GetInstanceID() : 0);
+                    hash = hash * 31 + component.excludedRenderers.Count;
+                }
+            }
+            if (hash == s_lastExcludedHash) return;
+            s_lastExcludedHash = hash;
+            if (s_excludedSyncQueued) return;
+            var edit = component.FindEdit(ToolSession.CurrentEditId);
+            if (edit == null || edit.mode != SelectionMode.Box) return;
+            s_excludedSyncQueued = true;
+            // OnGUI の途中でメンバー数（部品の数）を変えないよう次の更新で
+            EditorApplication.delayCall += () =>
+            {
+                s_excludedSyncQueued = false;
+                if (!RecolorSceneTool.IsActive || !ToolSession.TryGetActiveRoot(out var currentRoot)) return;
+                var currentComponent = currentRoot.GetComponent<ClickRecolor>();
+                var current = currentComponent != null ? currentComponent.FindEdit(ToolSession.CurrentEditId) : null;
+                if (current == null || current.mode != SelectionMode.Box) return;
+                Undo.RecordObject(currentComponent, "Tocolo: 除外リストの変更を反映");
+                SelectionBox.SyncMembers(currentComponent, current);
+                SceneView.RepaintAll();
+            };
+        }
 
         /// <summary>
         /// 対象が無効化・非表示（目のマーク）になっていたら次の更新で外す。外れた後は対象未設定と同じ流れになり、

@@ -165,6 +165,17 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
             return rt;
         }
 
+        /// <summary>
+        /// GetOrBuild と同じ条件で位置マップの中身を決める値（ルート・スロット・姿勢）の畳み込み。
+        /// 箱のマスク（BoxMaskBuilder）のキャッシュの鍵に使う（姿勢が変わったら作り直す）。描くスロットが無ければ 0
+        /// </summary>
+        internal static int ContextHash(Transform root, IReadOnlyList<Renderer> renderers, Texture2D texture)
+        {
+            if (root == null || renderers == null || texture == null) return 0;
+            var slots = CollectSlots(renderers, texture);
+            return slots.Count == 0 ? 0 : SlotsHash(root, slots);
+        }
+
         /// <summary>キャッシュした RT をすべて解放する（GetOrBuild が返した RT はこれ以降使えない）</summary>
         internal static void ClearCache()
         {
@@ -384,7 +395,7 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
         }
 
         /// <summary>slots を順に描く。同じ Renderer が続くスロットは焼いたメッシュを使い回す</summary>
-        private static void DrawSlots(Material material, IReadOnlyList<Slot> slots)
+        internal static void DrawSlots(Material material, IReadOnlyList<Slot> slots)
         {
             Renderer current = null;
             Mesh mesh = null;

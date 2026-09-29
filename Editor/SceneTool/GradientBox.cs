@@ -96,7 +96,8 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             // このテクスチャを使うスロットが無ければ位置マップも描けない
             if (users.Count == 0) return;
 
-            var job = RecolorPipeline.PrepareJob(edit, texture, (int)component.previewResolution, users);
+            var job = RecolorPipeline.PrepareJob(edit, texture, (int)component.previewResolution, users,
+                context: MaskContext.For(component, renderers));
             try
             {
                 var mask = job?.mask;

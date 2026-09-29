@@ -396,6 +396,24 @@ msgstr "Same color: recolors only colors that nearly match the clicked spot. Goo
 msgid "Help:Mode:SimilarColor"
 msgstr "Similar color: recolors a wider range of colors close to the clicked spot. Good for gradients and shaded areas."
 
+msgid "Scene:Panel:Mode:Box"
+msgstr "Inside box"
+
+msgid "Help:Mode:Box"
+msgstr "Inside box: recolors only what is inside the box shown in the Scene. The cut follows the box faces regardless of parts or UV seams. Move the box with its handles."
+
+msgid "Scene:Select:BoxFeather"
+msgstr "Face softness"
+
+msgid "Help:BoxFeather"
+msgstr "How softly the recolor fades out at the box faces. 0 gives a hard cut."
+
+msgid "Scene:Select:BoxPerPartStats"
+msgstr "Match colors inside box"
+
+msgid "Help:BoxPerPartStats"
+msgstr "When on, the brightness distribution is taken separately for each part (UV island) inside the box and each one is matched to the target color, like Match color per point with several parts selected. When off, one distribution is taken for the whole box, so brightness differences between parts are kept."
+
 msgid "Help:Threshold"
 msgstr "How close a color has to be to get selected. Higher selects more, lower selects less."
 
@@ -424,7 +442,7 @@ msgid "Help:GradientInsideOnly"
 msgstr "When on, everything above the top and below the bottom of the box is left as the original color, and only the box height becomes a gradient. Sideways the box does not cut anything. When off, the colors continue beyond both ends."
 
 msgid "Help:Padding"
-msgstr "How far (in pixels) the color spreads into unused texture space around the part. Raise it if a line of the original color shows along seams."
+msgstr "How far (in pixels) the color spreads into unused texture space around the part. Raise it if a line of the original color shows along seams. Negative values shrink the selection edge instead."
 
 msgid "Help:PreviewResolution"
 msgstr "Maximum resolution used for the Scene preview. Lower is faster. Upload and export always use the original resolution."

@@ -208,8 +208,19 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         /// <summary>edit の連結ごと削除する（単独なら edit だけ）</summary>
         internal static void RemoveGroup(ClickRecolor component, RecolorEdit edit)
         {
-            if (component == null || edit == null) return;
-            foreach (var m in Members(component, edit)) component.edits.Remove(m);
+            if (component == null || edit == null || component.edits == null) return;
+            // 参照が古くても（Undo で List が入れ替わった後など）消せるよう、id でも消す
+            var ids = new HashSet<string>();
+            foreach (var m in Members(component, edit))
+            {
+                component.edits.Remove(m);
+                if (!string.IsNullOrEmpty(m.id)) ids.Add(m.id);
+            }
+            if (!string.IsNullOrEmpty(edit.groupId))
+            {
+                component.edits.RemoveAll(e => e != null && e.groupId == edit.groupId);
+            }
+            component.edits.RemoveAll(e => e != null && ids.Contains(e.id));
         }
 
         /// <summary>
@@ -275,6 +286,10 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             member.gradientBoxRotation = anchor.gradientBoxRotation;
             member.gradientBoxSize = anchor.gradientBoxSize;
             member.gradientInsideOnly = anchor.gradientInsideOnly;
+            member.boxPosition = anchor.boxPosition;
+            member.boxRotation = anchor.boxRotation;
+            member.boxSize = anchor.boxSize;
+            member.boxPerPartStats = anchor.boxPerPartStats;
             return member;
         }
     }

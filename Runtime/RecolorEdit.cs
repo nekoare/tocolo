@@ -50,7 +50,8 @@ namespace Nekoare.ClickRecolor
         [Range(0f, 1f)] public float threshold = 0.15f;
         [Range(0f, 1f)] public float feather = 0.10f;
         [Range(0, 2)] public int cleanupRadius = 0;
-        [Range(0, 32)] public int padding = 8;
+        /// <summary>はみ出し幅（px）。正なら UV の空きへ広げ、負なら選択範囲を縮める（縁を |padding| px 削る。ユーザー要望 2026-09-29）</summary>
+        [Range(-5, 32)] public int padding = 8;
         /// <summary>
         /// 種ごとに色を揃えるか。true なら Ctrl＋クリックで足した種ごとに明るさの分布（統計）を取り、種ごとに変換する
         /// （各島がそれぞれ目標の明るさ範囲いっぱいに写る）。false なら選択全体で 1 つの分布を取る（島どうしの明るさの差が保たれる）。
@@ -90,6 +91,19 @@ namespace Nekoare.ClickRecolor
         public Vector3 gradientBoxSize = Vector3.one;
         /// <summary>true なら箱の外側（上下・横のどこでも）は t=0（新しい色のまま）。false なら箱の Y 方向だけで混ぜ、横の外側にも続く</summary>
         public bool gradientInsideOnly;
+
+        // ── 選択の箱（影響範囲「箱の中」。グラデーションの箱とは別）──
+        /// <summary>選択の箱の中心（対象ルートのローカル座標）</summary>
+        public Vector3 boxPosition;
+        /// <summary>選択の箱の回転（対象ルートのローカル）</summary>
+        public Quaternion boxRotation = Quaternion.identity;
+        /// <summary>選択の箱の大きさ（対象ルートのローカル）</summary>
+        public Vector3 boxSize = Vector3.one;
+        /// <summary>
+        /// 箱の中: true なら箱に入るパーツ（UV のまとまり）ごとに明るさの分布を取って、それぞれを目標の色に揃える（パーツ複数選択の「各点の色を揃える」と同じ）。
+        /// false（既定）なら箱の中全体で 1 つの分布（パーツどうしの明るさの差が残る）。true は箱のドラッグ中は掛けず、離したときに掛ける（重いため）
+        /// </summary>
+        public bool boxPerPartStats;
 
         public static string NewId() => Guid.NewGuid().ToString("N");
 

@@ -37,6 +37,8 @@ namespace Nekoare.ClickRecolor.Editor.Colors
 
         /// <summary>Editor/Shader/PositionFill.compute（位置マップの描かれていない画素を近傍の位置で埋める膨張）</summary>
         internal const string PositionFillGuid = "21d33dd65755493484f296e2a3f03e8b";
+        /// <summary>Editor/Shader/BoxMask.shader（影響範囲「箱の中」のマスク。UV 空間に描く）</summary>
+        internal const string BoxMaskGuid = "28e04ae44c244f389dabfca44561e714";
 
         /// <summary>Editor/Icons/click-recolor-tool.png（ツールバーのアイコン 16×16。シェーダーではないが固定 GUID の同梱アセットなのでここに置く）</summary>
         internal const string IconGuid = "ebc1a884da954d1cb9d18887a57d60fa";

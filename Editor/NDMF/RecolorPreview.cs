@@ -258,7 +258,7 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
                     var pending = new PendingTexture { texture = texture, plan = plan, key = key };
                     pendings.Add(pending);
                     pending.source = SourceTextureLoader.Acquire(texture, plan.size);
-                    pending.jobs = PrepareJobs(texture, plan, users);
+                    pending.jobs = PrepareJobs(texture, plan, users, originals);
                 }
 
                 // 描き直すテクスチャの連結の統計を共有する。キャッシュに当たったテクスチャのメンバーも、統計を取るためだけに PrepareJob する
@@ -283,7 +283,7 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
                         {
                             if (!RecolorPipeline.SharesGroupStats(edit) || !sharedGroups.Contains(edit.groupId)) continue;
                             if (edit.seedRenderer == null && RecolorPipeline.NeedsSeedRenderer(edit)) continue;
-                            var job = RecolorPipeline.PrepareJob(edit, texture, plan.size, usersOf[texture]);
+                            var job = RecolorPipeline.PrepareJob(edit, texture, plan.size, usersOf[texture], context: MaskContext.For(plan.root, originals));
                             if (job != null) allJobs.Add(job);
                         }
                     }
@@ -309,7 +309,7 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
                     results[texture] = entry.texture;
 
                     // 現在の編集がこのテクスチャに効いていれば、結果 RT にハイライトを掛けた別の RT を束縛する
-                    var highlighted = CreateHighlighted(highlight, texture, plans[texture], usersOf[texture], entry.texture);
+                    var highlighted = CreateHighlighted(highlight, texture, plans[texture], usersOf[texture], entry.texture, originals);
                     if (highlighted != null)
                     {
                         owned.Add(highlighted);
@@ -481,9 +481,11 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
         private static List<EditJob> PrepareJobs(
             Texture2D texture,
             TexturePlan plan,
-            IReadOnlyList<(Mesh mesh, int submesh, Vector2 uvScale, Vector2 uvOffset)> users)
+            IReadOnlyList<(Mesh mesh, int submesh, Vector2 uvScale, Vector2 uvOffset)> users,
+            IReadOnlyList<Renderer> renderers)
         {
             var jobs = new List<EditJob>();
+            var context = MaskContext.For(plan.root, renderers);
             foreach (var edit in plan.edits)
             {
                 if (edit.seedRenderer == null && RecolorPipeline.NeedsSeedRenderer(edit))
@@ -492,7 +494,7 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
                         $"編集「{edit.name}」でクリックした Renderer が見つかりません（削除された可能性があります）。この編集はプレビューに反映されません");
                     continue;
                 }
-                var job = RecolorPipeline.PrepareJob(edit, texture, plan.size, users);
+                var job = RecolorPipeline.PrepareJob(edit, texture, plan.size, users, context: context);
                 if (job == null)
                 {
                     WarnOnce(edit, "mask",
@@ -541,7 +543,8 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
             Texture2D texture,
             TexturePlan plan,
             IReadOnlyList<(Mesh mesh, int submesh, Vector2 uvScale, Vector2 uvOffset)> users,
-            RenderTexture result)
+            RenderTexture result,
+            IReadOnlyList<Renderer> renderers)
         {
             if (!highlight.enabled || highlight.editIds == null || result == null) return null;
 
@@ -555,7 +558,7 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
             }
             if (edit == null || (edit.seedRenderer == null && RecolorPipeline.NeedsSeedRenderer(edit))) return null;
 
-            var job = RecolorPipeline.PrepareJob(edit, texture, plan.size, users);
+            var job = RecolorPipeline.PrepareJob(edit, texture, plan.size, users, context: MaskContext.For(plan.root, renderers));
             if (job?.mask == null) return null;
             return SelectionHighlight.CreateHighlighted(result, job.mask);
         }
@@ -628,6 +631,12 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
                 int h = 17;
                 h = h * 31 + (int)component.previewResolution;
                 h = h * 31 + (component.previewEnabled ? 1 : 0);
+                // 除外リストは「箱の中」のマスク（位置を描く Renderer）を変えるので含める（ユーザー要望 2026-09-29）
+                if (component.excludedRenderers != null)
+                {
+                    h = h * 31 + component.excludedRenderers.Count;
+                    foreach (var renderer in component.excludedRenderers) h = h * 31 + (renderer != null ? renderer.GetInstanceID() : 0);
+                }
                 var edits = component.edits;
                 if (edits == null) return h;
                 h = h * 31 + edits.Count;
@@ -668,6 +677,16 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
                 h = h * 31 + edit.strength.GetHashCode();
                 h = h * 31 + edit.shadingStretch.GetHashCode();
                 h = h * 31 + (edit.gradientEnabled ? 1 : 0);
+                // 「箱の中」は箱で範囲が決まる（他のモードでは箱を変えても結果が変わらないので含めない）
+                if (edit.mode == SelectionMode.Box)
+                {
+                    h = h * 31 + edit.boxPosition.GetHashCode();
+                    h = h * 31 + edit.boxRotation.GetHashCode();
+                    h = h * 31 + edit.boxSize.GetHashCode();
+                    // ドラッグ中はパーツごとの統計とスーパーサンプリングを掛けないので、離した瞬間に作り直せるようドラッグ状態も含める
+                    h = h * 31 + (edit.boxPerPartStats ? 1 : 0);
+                    h = h * 31 + (SceneTool.ToolSession.BoxDragging ? 1 : 0);
+                }
                 // グラデーション OFF のときは終了色・箱を変えても結果が変わらないので含めない（無駄に作り直さない）
                 if (edit.gradientEnabled)
                 {

@@ -25,6 +25,48 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
         public IReadOnlyList<Renderer> renderers;
     }
 
+    /// <summary>
+    /// マスク作りに Scene の情報が要るモード（影響範囲「箱の中」）のための文脈。
+    /// root は対象ルート（ClickRecolor の GameObject）、renderers は位置マップを描く Renderer、excluded は除外リスト（位置マップに描かない）。
+    /// PrepareJob に渡さなければ「箱の中」の編集はマスクを作れない（null）
+    /// </summary>
+    internal sealed class MaskContext
+    {
+        public Transform root;
+        public IReadOnlyList<Renderer> renderers;
+        public IReadOnlyList<Renderer> excluded;
+
+        /// <summary>root の ClickRecolor の除外リストを excluded にした文脈。root が null なら null</summary>
+        public static MaskContext For(Transform root, IReadOnlyList<Renderer> renderers)
+        {
+            if (root == null) return null;
+            var component = root.GetComponent<ClickRecolor>();
+            return new MaskContext { root = root, renderers = renderers, excluded = component != null ? component.excludedRenderers : null };
+        }
+
+        public static MaskContext For(ClickRecolor component, IReadOnlyList<Renderer> renderers) =>
+            component == null ? null : new MaskContext { root = component.transform, renderers = renderers, excluded = component.excludedRenderers };
+
+        /// <summary>除外リストを外した Renderer（除外が無ければ renderers そのもの）</summary>
+        public IReadOnlyList<Renderer> RenderersWithoutExcluded()
+        {
+            if (renderers == null) return null;
+            if (excluded == null || excluded.Count == 0) return renderers;
+            var result = new List<Renderer>(renderers.Count);
+            foreach (var renderer in renderers)
+            {
+                if (renderer == null) continue;
+                bool isExcluded = false;
+                foreach (var ex in excluded)
+                {
+                    if (ex == renderer) { isExcluded = true; break; }
+                }
+                if (!isExcluded) result.Add(renderer);
+            }
+            return result;
+        }
+    }
+
     /// <summary>1 編集ぶんの準備済みデータ</summary>
     internal sealed class EditJob
     {
@@ -145,7 +187,8 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
             Texture2D sourceAsset,
             int size,
             IReadOnlyList<(Mesh mesh, int submesh, Vector2 uvScale, Vector2 uvOffset)> users,
-            bool fromExport = false)
+            bool fromExport = false,
+            MaskContext context = null)
         {
             if (edit == null || sourceAsset == null) return null;
             // 共有の種色で選ぶ編集（アバター全体の連結）は種のメッシュを使わないので、種の Renderer が無くてもよい
@@ -155,7 +198,10 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
             int usersHash = UsersHash(seedMesh, users);
             var seeds = CollectSeeds(edit, seedMesh);
             // 追加の種のメッシュの形が変わったら別の鍵にする（主種のメッシュは usersHash に入っている）
-            var key = new MaskCache.Key(edit, sourceAsset, size, FoldExtraSeedMeshes(usersHash, seeds), fromExport);
+            int foldedHash = FoldExtraSeedMeshes(usersHash, seeds);
+            // 「箱の中」は箱と位置マップ（姿勢・除外リスト）で範囲が決まるので鍵に畳み込む
+            if (edit.mode == SelectionMode.Box) foldedHash = FoldBox(foldedHash, edit, sourceAsset, context);
+            var key = new MaskCache.Key(edit, sourceAsset, size, foldedHash, fromExport);
             if (MaskCache.TryGet(key, out var cachedMask, out var cachedParts))
             {
                 return NewJob(edit, cachedMask, cachedParts);
@@ -176,6 +222,29 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
                     ? CoverageMask.GetOrBuild(sourceAsset, users, source.width, source.height, out _)
                     : null;
 
+                if (edit.mode == SelectionMode.Box)
+                {
+                    // 箱の中: 種は使わない（クリック位置はテクスチャの特定と「元の色」のためだけ）。
+                    // 「パーツごとに色を揃える」なら箱マスクをパーツ（チャート）ごとに分けて、パーツ複数選択と同じく部分ごとの統計にする
+                    mask = BuildBoxMask(edit, sourceAsset, source, context, coverage);
+                    if (mask == null) return null;
+                    // パーツごとの統計は重いので、箱のドラッグ中は掛けない（離したときに掛ける。ユーザー要望 2026-09-29）
+                    if (edit.boxPerPartStats && !SceneTool.ToolSession.BoxDragging)
+                    {
+                        var partMasks = SplitBoxMaskByChart(mask, users, source, coverage, edit);
+                        if (partMasks.Count > 1)
+                        {
+                            seedMasks.AddRange(partMasks);
+                            MaskTextures.Destroy(mask);
+                            mask = null;
+                        }
+                        else
+                        {
+                            foreach (var partMask in partMasks) MaskTextures.Destroy(partMask);
+                        }
+                    }
+                }
+                else
                 for (int i = 0; i < seeds.Count; i++)
                 {
                     var seed = seeds[i];
@@ -391,6 +460,98 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
         }
 
         /// <summary>usersHash に追加の種（seeds[1..]）のメッシュ（InstanceID と形）を畳み込む。マスクの鍵に使う</summary>
+        /// <summary>「箱の中」の鍵: 箱の位置・回転・大きさ・ぼかしと、位置マップの中身を決める値（姿勢・除外後の Renderer）</summary>
+        private static int FoldBox(int hash, RecolorEdit edit, Texture2D sourceAsset, MaskContext context)
+        {
+            unchecked
+            {
+                int h = hash;
+                h = h * 31 + edit.boxPosition.GetHashCode();
+                h = h * 31 + edit.boxRotation.GetHashCode();
+                h = h * 31 + edit.boxSize.GetHashCode();
+                h = h * 31 + (edit.boxPerPartStats && !SceneTool.ToolSession.BoxDragging ? 1 : 0);
+                h = h * 31 + (SceneTool.ToolSession.BoxDragging ? 1 : 0); // ドラッグ中は等倍描画なので別の鍵
+                h = h * 31 + (context != null ? PositionMap.ContextHash(context.root, context.RenderersWithoutExcluded(), sourceAsset) : 0);
+                return h;
+            }
+        }
+
+        /// <summary>
+        /// 「箱の中」のマスク。除外リストの Renderer を外したスロットを UV 空間に描いて箱の内側を 1 にし、
+        /// 島モードと同じくどのチャートにも属さない画素へだけ「はみ出し幅」ぶん広げて縁をならす。
+        /// 文脈が無い・描くスロットが無い・シェーダーが無ければ null
+        /// </summary>
+        private static RenderTexture BuildBoxMask(
+            RecolorEdit edit, Texture2D sourceAsset, RenderTexture source, MaskContext context, RenderTexture coverage)
+        {
+            if (context == null || context.root == null) return null;
+            var renderers = context.RenderersWithoutExcluded();
+            if (renderers == null || renderers.Count == 0) return null;
+            var slots = PositionMap.CollectSlots(renderers, sourceAsset);
+            if (slots.Count == 0) return null;
+            // スーパーサンプリングは箱のドラッグ中は掛けず、離したときに掛ける（「箱の中の色を揃える」と同じ。ユーザー要望 2026-09-29）
+            var mask = BoxMaskBuilder.Build(
+                context.root, slots, source.width, source.height, edit.boxPosition, edit.boxRotation, edit.boxSize, edit.feather,
+                supersample: !SceneTool.ToolSession.BoxDragging);
+            if (mask == null) return null;
+            if (coverage != null)
+            {
+                // GPU の通常描画は三角形の縁の画素（中心が三角形の外）を塗り残すので、まずパーツの内側（被覆あり）へ 1 画素広げて縁を埋める
+                // （実機 2026-09-29: UV の縁が元の色の線として残った）。その後は島モードと同じく空きへはみ出し幅ぶん広げる
+                Morphology.DilateInto(mask, coverage, 1, invertAllowed: false);
+                if (edit.padding > 0) Morphology.DilateInto(mask, coverage, edit.padding, invertAllowed: true);
+                else if (edit.padding < 0) Morphology.Erode(mask, -edit.padding); // 負のはみ出し幅: 縁を削る
+                Morphology.Blur1(mask, coverage, invertAllowed: true);
+            }
+            return mask;
+        }
+
+        /// <summary>
+        /// 箱マスク boxMask をパーツ（UV のチャート）ごとに分ける。箱マスクを読み戻し、テクスチャの利用者の各チャートについて
+        /// 三角形の UV 重心の画素が 0.5 を超えるものを「箱に入るパーツ」とし、そのパーツの島マスク（はみ出し幅つき）に箱マスクを掛けたものを部分にする。
+        /// 返す RT は呼び出し側の所有。読み取り不可のメッシュのパーツは飛ばす
+        /// </summary>
+        private static List<RenderTexture> SplitBoxMaskByChart(
+            RenderTexture boxMask,
+            IReadOnlyList<(Mesh mesh, int submesh, Vector2 uvScale, Vector2 uvOffset)> users,
+            RenderTexture source, RenderTexture coverage, RecolorEdit edit)
+        {
+            var parts = new List<RenderTexture>();
+            if (boxMask == null || users == null) return parts;
+            var pixels = FloodFill.ReadR8(boxMask);
+            int width = boxMask.width, height = boxMask.height;
+            var seen = new HashSet<(int mesh, int submesh, int chart)>();
+            foreach (var user in users)
+            {
+                if (user.mesh == null) continue;
+                var table = UvChartDetector.GetOrBuild(user.mesh, user.submesh);
+                if (table == null) continue;
+                var uv = user.mesh.uv;
+                var triangles = user.mesh.GetTriangles(user.submesh);
+                var scale = user.uvScale == Vector2.zero ? Vector2.one : user.uvScale;
+                for (int t = 0; t + 2 < triangles.Length; t += 3)
+                {
+                    int local = t / 3;
+                    if (local >= table.chartOfTriangle.Length) break;
+                    var key = (user.mesh.GetInstanceID(), user.submesh, table.chartOfTriangle[local]);
+                    if (seen.Contains(key)) continue;
+                    var centroid = (uv[triangles[t]] + uv[triangles[t + 1]] + uv[triangles[t + 2]]) / 3f;
+                    var coord = Vector2.Scale(centroid, scale) + user.uvOffset;
+                    coord = new Vector2(coord.x - Mathf.Floor(coord.x), coord.y - Mathf.Floor(coord.y));
+                    int px = Mathf.Clamp(Mathf.FloorToInt(coord.x * width), 0, width - 1);
+                    int py = Mathf.Clamp(Mathf.FloorToInt(coord.y * height), 0, height - 1);
+                    if (pixels[py * width + px] <= 127) continue;
+                    seen.Add(key);
+                    var seed = new SeedSpec(user.mesh, user.submesh, local, coord);
+                    var islandMask = BuildIslandMask(seed, source, user.uvScale, user.uvOffset, coverage, edit.padding, 0);
+                    if (islandMask == null) continue;
+                    Morphology.Multiply(islandMask, boxMask);
+                    parts.Add(islandMask);
+                }
+            }
+            return parts;
+        }
+
         private static int FoldExtraSeedMeshes(int usersHash, List<SeedSpec> seeds)
         {
             unchecked
