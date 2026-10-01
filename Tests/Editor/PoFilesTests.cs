@@ -60,7 +60,7 @@ namespace Nekoare.ClickRecolor.Tests
         public void msgstr_の中にエスケープされていない二重引用符が無い()
         {
             // PO では文中の " は \" にする必要がある。MsgStrRegex は貪欲一致なので、ここで別に検査する
-            foreach (var file in new[] { "ja-JP.po", "en-US.po" })
+            foreach (var file in new[] { "ja-JP.po", "en-US.po", "ko-KR.po" })
             {
                 foreach (var (id, text) in ReadEntries(Path.Combine(Dir, file)))
                 {
@@ -74,9 +74,11 @@ namespace Nekoare.ClickRecolor.Tests
         {
             var ja = ReadMsgIds(Path.Combine(Dir, "ja-JP.po"));
             var en = ReadMsgIds(Path.Combine(Dir, "en-US.po"));
+            var ko = ReadMsgIds(Path.Combine(Dir, "ko-KR.po"));
 
             Assert.That(ja, Is.Not.Empty);
             Assert.That(en, Is.EquivalentTo(ja));
+            Assert.That(ko, Is.EquivalentTo(ja), "ko-KR.po の msgid が ja と一致しません");
         }
 
         [Test]
@@ -84,10 +86,16 @@ namespace Nekoare.ClickRecolor.Tests
         {
             var ja = ReadEntries(Path.Combine(Dir, "ja-JP.po"));
             var en = ReadEntries(Path.Combine(Dir, "en-US.po"));
+            var ko = ReadEntries(Path.Combine(Dir, "ko-KR.po"));
 
             Assert.That(ja, Is.Not.Empty);
             foreach (var pair in ja)
             {
+                Assert.That(ko.ContainsKey(pair.Key), Is.True, $"ko-KR.po に msgid \"{pair.Key}\" がありません");
+                Assert.That(
+                    PlaceholderNumbers(ko[pair.Key]),
+                    Is.EquivalentTo(PlaceholderNumbers(pair.Value)),
+                    $"msgid \"{pair.Key}\" のプレースホルダ番号が ja と ko で一致しません");
                 Assert.That(en.ContainsKey(pair.Key), Is.True, $"en-US.po に msgid \"{pair.Key}\" がありません");
                 Assert.That(
                     PlaceholderNumbers(en[pair.Key]),
@@ -104,6 +112,8 @@ namespace Nekoare.ClickRecolor.Tests
 
             Assert.That(jaMeta, Does.Contain("guid: " + Nekoare.ClickRecolor.Editor.Localization.Locales.JaGuid));
             Assert.That(enMeta, Does.Contain("guid: " + Nekoare.ClickRecolor.Editor.Localization.Locales.EnGuid));
+            var koMeta = File.ReadAllText(Path.Combine(Dir, "ko-KR.po.meta"));
+            Assert.That(koMeta, Does.Contain("guid: " + Nekoare.ClickRecolor.Editor.Localization.Locales.KoGuid));
         }
 
         [Test]
@@ -115,6 +125,9 @@ namespace Nekoare.ClickRecolor.Tests
             Assert.That(
                 AssetDatabase.GUIDToAssetPath(Nekoare.ClickRecolor.Editor.Localization.Locales.EnGuid),
                 Does.EndWith("Editor/Localization/en-US.po"));
+            Assert.That(
+                AssetDatabase.GUIDToAssetPath(Nekoare.ClickRecolor.Editor.Localization.Locales.KoGuid),
+                Does.EndWith("Editor/Localization/ko-KR.po"));
         }
 
         [Test]

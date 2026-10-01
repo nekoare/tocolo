@@ -62,8 +62,6 @@ namespace Nekoare.ClickRecolor.Editor.Inspector
             serializedObject.Update();
             var component = (ClickRecolor)target;
 
-            Locales.DrawLanguagePicker();
-
             // ツールが有効でも対象（ルート）がこの GameObject でなければ「開始」を出す（押すと対象を乗り換える）
             if (RecolorSceneTool.IsActive && ToolSession.TryGetActiveRoot(out var root) && root == component.gameObject)
             {

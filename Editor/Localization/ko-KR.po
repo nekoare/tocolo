@@ -1,0 +1,529 @@
+msgid ""
+msgstr ""
+"Language: ko-KR\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+
+msgid "Inspector:Title"
+msgstr "Tocolo"
+
+msgid "Inspector:Description"
+msgstr "Scene에서 클릭한 위치의 메인 텍스처 색을 음영을 유지한 채 비파괴로 바꿔요."
+
+msgid "Inspector:StartTool"
+msgstr "Scene에서 색 바꾸기"
+
+msgid "Inspector:StopTool"
+msgstr "Scene 편집 종료"
+
+msgid "Inspector:EditCount"
+msgstr "편집: {0}개"
+
+msgid "Inspector:UnreadableMesh"
+msgstr "Read/Write가 비활성화된 메시가 있어요({0}). 메시 임포트 설정에서 Read/Write를 활성화해 주세요"
+
+msgid "Scene:Panel:Unreadable"
+msgstr "'{0}'은(는) 메시의 Read/Write가 비활성화되어 있어 선택할 수 없어요. 아래 버튼으로 활성화할 수 있어요."
+
+msgid "Scene:Panel:UnreadableLocked"
+msgstr "'{0}'은(는) 메시의 Read/Write가 비활성화되어 있어 선택할 수 없어요. 변경할 수 없는 위치의 메시이므로 원본 FBX의 임포트 설정에서 Read/Write를 활성화해 주세요."
+
+msgid "Scene:Panel:UnreadableFix"
+msgstr "Read/Write 활성화"
+
+msgid "Dialog:ReadWriteTitle"
+msgstr "Read/Write 활성화"
+
+msgid "Dialog:ReadWriteConfirm"
+msgstr "다음 메시의 임포트 설정에서 Read/Write를 활성화해요."
+
+msgid "Dialog:ReadWriteNote"
+msgstr "같은 FBX를 사용하는 다른 아바타에도 반영돼요. 업로드한 아바타의 메모리가 조금 늘어나요."
+
+msgid "Inspector:PersistentNotice"
+msgstr "씬에 배치한 아바타에서 사용해 주세요(Project의 Prefab에서는 동작하지 않아요)"
+
+msgid "Inspector:PlayModeNotice"
+msgstr "Play 모드 중에는 사용할 수 없어요(Play를 멈춘 뒤 시작해 주세요)"
+
+msgid "Scene:Panel:PrefabModeNotice"
+msgstr "Prefab 편집 모드 중에는 미리보기가 표시되지 않아요. 씬으로 돌아가서(Prefab 편집을 닫고) 사용해 주세요"
+
+msgid "Inspector:ApplyOnBuildHint"
+msgstr "업로드 시 메인 텍스처에 반영돼요"
+
+msgid "Inspector:BakeCompression"
+msgstr "생성 텍스처 압축(PC)"
+
+msgid "Inspector:BakeCompression:HighQuality"
+msgstr "고화질(BC7)"
+
+msgid "Inspector:BakeCompression:SameAsOriginal"
+msgstr "원본과 동일"
+
+msgid "Inspector:BakeCompression:Uncompressed"
+msgstr "비압축(비권장)"
+
+msgid "Inspector:BakeCompressionAndroid"
+msgstr "생성 텍스처 압축(Quest)"
+
+msgid "Inspector:BakeCompressionAndroid:HighQuality"
+msgstr "고화질(ASTC 4x4)"
+
+msgid "Inspector:BakeCompressionAndroid:Normal"
+msgstr "표준(ASTC 6x6)"
+
+msgid "Help:BakeCompressionAndroid"
+msgstr "Android(Quest)용 업로드에서 생성하는 텍스처와, 내보낸 PNG의 Android용 임포트 설정에 쓰는 압축 형식이에요. 기본값인 고화질(ASTC 4x4)은 BC7과 같은 용량이고 그라데이션이 깔끔하게 남아요. Quest 용량을 우선한다면 표준(ASTC 6x6, 용량은 약 절반)으로 설정해 주세요. '원본과 동일'에서 원본이 PC용 형식(BC 계열)이면 ASTC 6x6이 돼요."
+
+msgid "Help:BakeCompression"
+msgstr "PC용 업로드에서 생성하는 텍스처와, 내보낸 PNG의 임포트 설정에 쓰는 압축 형식이에요. 원본 텍스처가 BC1(DXT1)이면 그라데이션이나 비슷한 계열 색의 변화가 블록 모양으로 뭉개질 수 있어서, 기본값은 고화질(BC7, Android는 ASTC 4x4)이에요. 용량은 BC1의 약 2배가 돼요. 용량을 우선한다면 '원본과 동일'로 설정해 주세요."
+
+msgid "Error:LowQualityFormat"
+msgstr "텍스처 '{0}'은(는) 원래 압축 형식({1}) 그대로 베이크했어요. 그라데이션이 블록 모양으로 보이면 컴포넌트의 '생성 텍스처 압축'을 '고화질'로 설정해 주세요(PC와 Quest를 따로 선택할 수 있어요)"
+
+msgid "Inspector:PreviewResolution"
+msgstr "미리보기 해상도"
+
+msgid "Inspector:PreviewResolution:Full"
+msgstr "원본 해상도"
+
+msgid "Inspector:PreviewEnabled"
+msgstr "미리보기 표시"
+
+msgid "Inspector:ApplyOnBuild"
+msgstr "빌드 시 적용"
+
+msgid "Inspector:Export:PerTexture"
+msgstr "텍스처별 내보내기"
+
+msgid "Inspector:ApplyOnBuildHint:Free"
+msgstr "유료판을 설치하면 업로드 시 메인 텍스처에 반영돼요"
+
+msgid "Inspector:Edits"
+msgstr "편집 목록"
+
+msgid "Inspector:Edit:SelectInScene"
+msgstr "Scene에서 선택"
+
+msgid "Inspector:Edit:DeleteAll"
+msgstr "모두 삭제"
+
+msgid "Inspector:Edit:DeleteMissing"
+msgstr "찾을 수 없는 편집 삭제"
+
+msgid "Inspector:Edit:DeleteMissingCount"
+msgstr "찾을 수 없는 편집 삭제({0})"
+
+msgid "Inspector:Edit:MissingTooltip"
+msgstr "클릭한 파츠(Renderer)를 찾을 수 없어요. 삭제되었을 수 있어요. 이 편집은 반영되지 않아요."
+
+msgid "Inspector:Edit:Mode:Box"
+msgstr "박스"
+
+msgid "Inspector:Edit:DeleteAllConfirm"
+msgstr "모든 편집을 삭제할까요?"
+
+msgid "Inspector:Edit:Cancel"
+msgstr "취소"
+
+msgid "Inspector:Edit:NoTarget"
+msgstr "색 미설정"
+
+msgid "Inspector:Edit:Mode:Island"
+msgstr "파츠"
+
+msgid "Inspector:Edit:Mode:Color"
+msgstr "색"
+
+msgid "Inspector:Edit:GroupCount"
+msgstr "(텍스처 {0}개)"
+
+msgid "Inspector:Export"
+msgstr "내보내기"
+
+msgid "Inspector:Export:Main"
+msgstr "메인에 베이크"
+
+msgid "Inspector:Export:ReplaceMaterial"
+msgstr "머티리얼 복제 후 교체"
+
+msgid "Inspector:Export:Overwrite"
+msgstr "{0}이(가) 이미 있어요. 덮어쓸까요?"
+
+msgid "Inspector:Export:OverwriteOk"
+msgstr "덮어쓰기"
+
+msgid "Inspector:Export:Done"
+msgstr "{0}을(를) 내보냈어요"
+
+msgid "Inspector:Export:All"
+msgstr "모든 텍스처"
+
+msgid "Inspector:Export:NoEdits"
+msgstr "내보낼 편집이 없어요"
+
+msgid "Inspector:Export:Second"
+msgstr "2nd에 베이크"
+
+msgid "Inspector:Export:NotLilToon"
+msgstr "lilToon 머티리얼이 아니에요"
+
+msgid "Inspector:Export:SecondBusy"
+msgstr "2nd와 3rd가 사용 중이라 내보낼 수 없어요"
+
+msgid "Inspector:Export:UseThird"
+msgstr "2nd가 사용 중이에요. 3rd로 내보낼까요?"
+
+msgid "Inspector:Export:Mask"
+msgstr "마스크 내보내기"
+
+msgid "Inspector:Export:CropSecond"
+msgstr "선택 범위만 잘라내기(2nd)"
+
+msgid "Inspector:Export:Failed"
+msgstr "내보내지 못했어요"
+
+msgid "Inspector:Export:SkipConfirm"
+msgstr "다음 머티리얼에는 반영되지 않아요(편집은 비활성화돼요):\n{0}\n계속할까요?"
+
+msgid "Inspector:Export:ProOnly"
+msgstr "내보내기와 업로드 반영은 유료판에서 사용할 수 있어요"
+
+msgid "Scene:Panel:Target"
+msgstr "대상: {0}"
+
+msgid "Scene:Panel:PickTarget"
+msgstr "대상을 선택하거나 Scene에서 모델을 클릭해 주세요"
+
+msgid "Scene:Panel:ChangeTarget"
+msgstr "대상 아바타 전환"
+
+msgid "Scene:Panel:ExcludeList"
+msgstr "제외 목록"
+
+msgid "Scene:Panel:ExcludeListCount"
+msgstr "제외 목록 ({0})"
+
+msgid "Scene:Exclude:DropHere"
+msgstr "Hierarchy에서 GameObject를 여기에 드롭(선택하지 않을 파츠로 등록, Renderer 단위)"
+
+msgid "Scene:Exclude:Empty"
+msgstr "제외 항목이 없어요"
+
+msgid "Scene:Exclude:ClearAll"
+msgstr "모두 해제"
+
+msgid "Scene:Exclude:NotInTarget"
+msgstr "대상 아바타 밖의 GameObject는 제외할 수 없어요"
+
+msgid "Scene:Exclude:NoRenderer"
+msgstr "드롭한 GameObject에 Renderer가 없어요"
+
+msgid "Inspector:ExcludedRenderers"
+msgstr "선택하지 않을 Renderer"
+
+msgid "Help:ExcludeList"
+msgstr "여기에 등록한 Renderer(GameObject)는 Scene에서 클릭하거나 영역 선택으로 둘러싸도 선택되지 않아요. 실수로 선택하고 싶지 않은 파츠를 넣어 두는 용도이며, 겉모습에는 영향을 주지 않아요(공유 텍스처에 적용된 편집은 그대로 보여요)."
+
+msgid "Scene:Panel:CrossTexture"
+msgstr "다른 머티리얼도 선택"
+
+msgid "Help:CrossTexture"
+msgstr "켜면 Ctrl+클릭이나 드래그 선택으로 다른 머티리얼(텍스처)의 파츠도 같은 편집에 추가할 수 있어요. 텍스처별 편집이 자동으로 연결되어 색과 설정이 함께 적용돼요."
+
+msgid "Scene:Panel:SelectHidden"
+msgstr "가려진 부분도 선택"
+
+msgid "Help:SelectHidden"
+msgstr "켜면 드래그 선택 시 다른 메시 뒤에 가려진 파츠도 드래그 범위 안에 있으면 선택해요. 끄면 Scene에서 보이는 면만 선택해요. Ctrl+클릭에는 적용되지 않아요."
+
+msgid "Scene:Panel:CrossTextureOff"
+msgstr "'다른 머티리얼도 선택'이 꺼져 있어서 다른 텍스처의 파츠는 추가하지 않아요"
+
+msgid "Scene:Panel:CrossTextureOffRect"
+msgstr "다른 텍스처의 파츠({0}개)는 추가하지 않았어요('다른 머티리얼도 선택'이 꺼져 있음)"
+
+msgid "Scene:Panel:HairToolNotice"
+msgstr "이 파츠는 Chimera Hair Master의 대상이에요. 업로드 시 Chimera Hair Master의 가공이 이 색 변경 위에 적용되므로, 먼저 Chimera Hair Master에서 내보낸 뒤 색을 바꿔 주세요"
+
+msgid "Scene:Panel:LayerCovers"
+msgstr "이 위치는 lilToon 메인 컬러 {0}이(가) 겹쳐 있어서 색이 잘 바뀌지 않을 수 있어요. {0}의 색이나 텍스처는 lilToon 머티리얼에서 바꿀 수 있어요."
+
+msgid "Scene:Panel:LayerMixes"
+msgstr "이 위치는 lilToon 메인 컬러 {0}의 색이 섞여서 원하는 색과 달라질 수 있어요."
+
+msgid "Scene:Panel:ShowRange"
+msgstr "범위 표시"
+
+msgid "Scene:Panel:UseSelection"
+msgstr "선택 중: {0}"
+
+msgid "Scene:Panel:Mode"
+msgstr "영향 범위"
+
+msgid "Scene:Panel:Mode:Island"
+msgstr "파츠"
+
+msgid "Scene:Panel:Mode:SameColor"
+msgstr "같은 색"
+
+msgid "Scene:Panel:Mode:SimilarColor"
+msgstr "비슷한 색"
+
+msgid "Scene:Panel:EscHint"
+msgstr "종료(Esc 키로도 가능)"
+
+msgid "Scene:Panel:ShiftHint"
+msgstr "Shift+클릭으로 새 편집"
+
+msgid "Scene:Panel:CtrlHint"
+msgstr "Ctrl+클릭으로 파츠 추가/제거"
+
+msgid "Scene:Panel:CtrlHint:Select"
+msgstr "Ctrl+클릭으로 파츠 선택"
+
+msgid "Scene:Panel:RectHint"
+msgstr "Ctrl+드래그로 범위 내 파츠 일괄 추가"
+
+msgid "Scene:Panel:RectHint:Select"
+msgstr "Ctrl+드래그로 범위 내 파츠 일괄 선택"
+
+msgid "Scene:Panel:PerSeedStats"
+msgstr "각 점의 색 맞추기"
+
+msgid "Scene:Panel:CtrlOtherTexture"
+msgstr "'아바타 전체' 편집에는 다른 텍스처의 파츠를 추가할 수 없어요"
+
+msgid "Scene:Panel:CtrlGroupNotice"
+msgstr "'아바타 전체' 편집에는 파츠를 추가할 수 없어요"
+
+msgid "Scene:Panel:RectColorModeNotice"
+msgstr "영역 선택은 파츠 모드에서 사용할 수 있어요"
+
+msgid "Scene:Panel:NoPick"
+msgstr "색을 바꾸고 싶은 곳을 클릭해 주세요"
+
+msgid "Scene:Panel:GroupScope"
+msgstr "범위"
+
+msgid "Scene:Panel:GroupColor"
+msgstr "색"
+
+msgid "Scene:Color:Original"
+msgstr "원래 색"
+
+msgid "Scene:Color:ResetButton"
+msgstr "초기화"
+
+msgid "Scene:Color:ResetToOriginal"
+msgstr "클릭하면 원래 색으로 되돌려요"
+
+msgid "Scene:Color:Target"
+msgstr "색 1"
+
+msgid "Scene:Color:Eyedropper"
+msgstr "스포이트: Scene의 모델을 클릭해서 그 위치의 원래 색을 가져와요(Esc로 취소)"
+
+msgid "Scene:Color:EyedropperShort"
+msgstr "스포이트"
+
+msgid "Scene:Color:EyedropperHint"
+msgstr "스포이트 중: 모델을 클릭하면 그 위치의 원래 색이 들어가요\n(Esc로 취소)"
+
+msgid "Scene:Color:Hue"
+msgstr "색상"
+
+msgid "Scene:Color:Sat"
+msgstr "채도"
+
+msgid "Scene:Color:Val"
+msgstr "밝기"
+
+msgid "Scene:Color:Red"
+msgstr "R"
+
+msgid "Scene:Color:Green"
+msgstr "G"
+
+msgid "Scene:Color:Blue"
+msgstr "B"
+
+msgid "Scene:Color:Recent"
+msgstr "최근 사용한 색"
+
+msgid "Scene:Select:Threshold"
+msgstr "임계값"
+
+msgid "Scene:Select:Feather"
+msgstr "흐림"
+
+msgid "Scene:Select:Scope"
+msgstr "범위"
+
+msgid "Scene:Select:Scope:Contiguous"
+msgstr "이어진 범위"
+
+msgid "Scene:Select:Scope:Island"
+msgstr "파츠 안"
+
+msgid "Scene:Select:Scope:Whole"
+msgstr "텍스처 전체"
+
+msgid "Scene:Select:Scope:WholeAvatar"
+msgstr "아바타 전체(무거울 수 있음)"
+
+msgid "Scene:Select:Cleanup"
+msgstr "잡티 제거"
+
+msgid "Scene:Color:AutoDarkEnd"
+msgstr "음영 어둡기 자동 조정"
+
+msgid "Scene:Color:DarkEnd"
+msgstr "음영 어둡기"
+
+msgid "Scene:Color:ShadingStretch"
+msgstr "음영 강조"
+
+msgid "Scene:Color:Strength"
+msgstr "불투명도"
+
+msgid "Scene:Color:ShadingFor2"
+msgstr "(색 2)"
+
+msgid "Scene:Color:Gradient"
+msgstr "그라데이션"
+
+msgid "Scene:Color:GradientInsideOnly"
+msgstr "박스 안에만"
+
+msgid "Scene:Color:GradientPreview"
+msgstr "색 1 → 색 2"
+
+msgid "Scene:Color:EditTarget:Start"
+msgstr "색 1"
+
+msgid "Scene:Color:EditTarget:End"
+msgstr "색 2"
+
+msgid "Scene:Color:Padding"
+msgstr "여백 확장"
+
+msgid "Scene:Color:DeleteEdit"
+msgstr "이 편집 삭제"
+
+msgid "Scene:Label:Format"
+msgstr "{0} / {1} / {2}"
+
+msgid "Help:ShowRange"
+msgstr "현재 편집으로 색이 바뀌는 범위를 Scene에 줄무늬로 겹쳐 표시해요. 업로드 결과에는 영향을 주지 않아요."
+
+msgid "Help:PerSeedStats"
+msgstr "켜면 Ctrl+클릭으로 추가한 점마다 밝기 분포를 구해서 각각을 목표 색에 맞춰요. 끄면 전체에서 하나의 분포를 구하므로 점끼리의 밝기 차이가 유지돼요. 머티리얼을 넘어 연결된 경우에도 마찬가지예요."
+
+msgid "Help:Mode"
+msgstr "클릭했을 때 어디까지를 색 변경 대상으로 할지 정해요. 선택 중인 편집에도 바로 반영돼요."
+
+msgid "Help:Mode:Island"
+msgstr "파츠: 클릭한 파츠(UV 덩어리 하나)를 통째로 바꿔요."
+
+msgid "Help:Mode:SameColor"
+msgstr "같은 색: 클릭한 위치와 거의 같은 색만 바꿔요. 무늬나 선을 선택할 때 좋아요."
+
+msgid "Help:Mode:SimilarColor"
+msgstr "비슷한 색: 클릭한 위치와 가까운 색을 넓게 바꿔요. 그라데이션이나 그림자가 있는 부분에 좋아요."
+
+msgid "Scene:Panel:Mode:Box"
+msgstr "박스 안"
+
+msgid "Help:Mode:Box"
+msgstr "박스 안: Scene에 표시되는 박스의 안쪽만 바꿔요. 파츠나 UV 경계와 상관없이 박스의 면에서 색 변경이 끊겨요. 박스는 핸들로 움직일 수 있어요."
+
+msgid "Scene:Select:BoxFeather"
+msgstr "면 흐림"
+
+msgid "Help:BoxFeather"
+msgstr "박스 면에서 색 변경을 부드럽게 끊는 폭이에요. 0이면 면에서 딱 끊겨요."
+
+msgid "Scene:Select:BoxPerPartStats"
+msgstr "박스 안 색 맞추기"
+
+msgid "Help:BoxPerPartStats"
+msgstr "켜면 박스에 들어가는 파츠(UV 덩어리)마다 밝기 분포를 구해서 각각을 목표 색에 맞춰요(파츠를 여러 개 선택했을 때의 '각 점의 색 맞추기'와 같아요). 끄면 박스 안 전체에서 하나의 분포를 구하므로 파츠끼리의 밝기 차이가 유지돼요."
+
+msgid "Help:Threshold"
+msgstr "얼마나 가까운 색까지 선택할지예요. 크게 하면 넓게, 작게 하면 좁게 선택해요."
+
+msgid "Help:Feather"
+msgstr "선택한 범위의 경계를 부드럽게 하는 폭이에요. 크게 하면 경계가 자연스럽게 섞여요."
+
+msgid "Help:Scope"
+msgstr "색을 찾을 범위를 지정해요.\n이어진 범위: 클릭한 위치에서 끊기지 않고 이어진 부분만\n파츠 안: 클릭한 파츠 안에서만\n텍스처 전체: 같은 텍스처의 모든 곳\n아바타 전체: 아바타의 모든 텍스처(무거울 수 있어요)"
+
+msgid "Help:Cleanup"
+msgstr "텍스처의 칠 때문에 선택 범위에 섞이는 작은 점(잡티 같은 노이즈)을 제거해요. 크게 할수록 더 큰 점까지 지워져요."
+
+msgid "Help:DarkEnd"
+msgstr "그늘지는 부분을 얼마나 어둡게 할지예요. 오른쪽일수록 그늘이 어둡고, 왼쪽일수록 밝아져요. 흰색 등 밝은 색에서 그늘이 회색빛으로 보일 때는 왼쪽으로 옮겨 주세요."
+
+msgid "Help:ShadingStretch"
+msgstr "원래 음영이 약한 부분(새하얗거나 새까만 머리카락 등)은 그대로 색을 바꾸면 음영이 약한 채로 떠 보여요. 값을 올리면 목표 밝기 범위 전체로 음영을 넓혀요(너무 올리면 원래 노이즈도 눈에 띄어요). '각 점의 색 맞추기'와 함께 쓰면 여러 파츠를 같은 톤, 같은 음영으로 맞출 수 있어요."
+
+msgid "Scene:Color:FlattenBase"
+msgstr "원래 그라데이션 상쇄(실험적)"
+
+msgid "Scene:Color:FlattenStrength"
+msgstr "상쇄 강도"
+
+msgid "Help:FlattenBase"
+msgstr "원래 색이 뿌리 쪽과 끝 쪽에서 밝기가 다른 그라데이션일 때, 그 명암 차이를 상쇄해 전체를 목표 색에 맞춰요. 선택 범위를 위아래(그라데이션이 켜져 있으면 박스 방향)의 띠로 나눠 띠마다 밝기를 맞추므로 띠 안의 음영은 남아요. 위에서 비치는 빛 같은 큰 명암도 약해지니 강도로 조절해 주세요."
+
+msgid "Help:Strength"
+msgstr "색 변경의 불투명도예요. 1이면 지정한 색이 완전히 적용되고, 낮출수록 원래 색이 남아요."
+
+msgid "Help:Gradient"
+msgstr "켜면 Scene에 박스가 나타나요. 박스의 아래쪽 끝에서 위쪽 끝으로 '색 1'에서 '색 2'로 변해요. 박스를 움직여 방향과 범위를 정해 주세요"
+
+msgid "Help:GradientInsideOnly"
+msgstr "켜면 박스의 위쪽 끝보다 위와 아래쪽 끝보다 아래는 색을 바꾸지 않고 원래 색으로 남기며, 박스 높이 범위만 그라데이션이 돼요. 가로 방향은 박스로 자르지 않아요. 끄면 위아래 바깥쪽도 끝의 색으로 이어져요."
+
+msgid "Help:Padding"
+msgstr "파츠 주변의 UV에서 쓰이지 않는 부분까지 색을 넓히는 폭(픽셀)이에요. 이음매에 원래 색의 선이 보이면 올려 주세요. 마이너스로 하면 반대로 선택 범위의 가장자리를 깎아요."
+
+msgid "Help:PreviewResolution"
+msgstr "Scene 미리보기에 쓰는 해상도의 상한이에요. 작을수록 가볍게 동작해요. 업로드와 내보내기는 원본 해상도로 해요."
+
+msgid "Help:ApplyOnBuild"
+msgstr "켜면 업로드(빌드) 시 색 변경을 메인 텍스처에 베이크해요(유료판). 원본 텍스처와 머티리얼은 변경하지 않아요. 체험판에서는 반영되지 않고 보고 창에 안내가 표시돼요."
+
+msgid "Help:Export:Main"
+msgstr "색 변경을 베이크한 새 텍스처(원본 이름_recolor.png)를 원본 옆에 저장해요. '머티리얼 복제 후 교체'가 켜져 있으면 복제한 머티리얼로 교체해요. 내보낸 편집은 자동으로 꺼져요. Ctrl+Z로 되돌릴 수 있어요."
+
+msgid "Help:Export:Second"
+msgstr "lilToon의 2nd(사용 중이면 3rd) 레이어에 색을 바꾼 부분만 올려요. 원래 메인 텍스처는 그대로 남으므로 레이어를 끄면 원래대로 돌아가요. 내보낸 편집은 꺼져요. 3rd도 사용 중이면 경고가 표시돼요. Ctrl+Z로 되돌릴 수 있어요."
+
+msgid "Help:Export:Mask"
+msgstr "선택한 범위를 흑백 이미지(원본 이름_recolormask.png)로 저장해요. 다른 도구에서 마스크로 쓸 수 있어요. 머티리얼과 편집은 바뀌지 않아요."
+
+msgid "Help:Export:CropSecond"
+msgstr "2nd로 내보내는 이미지를 선택한 범위 주변만 잘라 작게 만들어요. 레이어 위치는 자동으로 맞춰요."
+
+msgid "Error:SeedRendererMissing"
+msgstr "편집 '{0}'에서 클릭한 Renderer를 찾을 수 없어서 이 편집은 반영하지 않아요(삭제되었을 수 있어요)"
+
+msgid "Error:TextureUnused"
+msgstr "텍스처 '{0}'은(는) 아바타 안의 어떤 머티리얼에서도 사용되지 않아서 반영하지 않아요"
+
+msgid "Error:ComputeUnavailable"
+msgstr "이 환경에서는 색 변환(compute shader)을 사용할 수 없어서 업로드 시 색을 반영할 수 없어요"
+
+msgid "Error:MaskFailed"
+msgstr "편집 '{0}'의 선택 범위를 만들 수 없어서 이 편집은 반영하지 않아요(메시의 Read/Write 비활성화, GPU 사용 불가 등)"
+
+msgid "Error:ApplyFailed"
+msgstr "텍스처 '{0}'에 색 변경을 적용할 수 없어서 반영하지 않아요"
+
+msgid "Error:FreeEdition"
+msgstr "체험판이라 업로드에는 반영되지 않아요(유료판에서 반영할 수 있어요)"
+
+msgid "Error:OriginalTextureStillReferenced"
+msgstr "원본 텍스처 '{0}'이(가) 아직 참조되고 있어서 원본과 생성된 텍스처가 모두 업로드에 포함돼요(머티리얼 '{1}')"

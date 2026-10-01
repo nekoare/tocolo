@@ -10,6 +10,7 @@ namespace Nekoare.ClickRecolor.Editor.Localization
     {
         internal const string JaGuid = "32ffdde2d05f45fc8732da60ebfbcf68"; // ja-JP.po
         internal const string EnGuid = "d8bf42f49e1449eca4d21f146f37d6ce"; // en-US.po
+        internal const string KoGuid = "763904a918ac4359bbc9f6c8ea2f8ec6"; // ko-KR.po（ユーザー要望 2026-10-02）
 
         // 静的初期化時に 1 回ロードし、以後は NDMF の Localizer.ReloadLocalizations() でしか更新されない。
         // InitializeOnLoad や NDMF Plugin の静的初期化から Tr を呼ばないこと。
@@ -18,7 +19,7 @@ namespace Nekoare.ClickRecolor.Editor.Localization
             "ja-JP",
             () =>
             {
-                var assets = new[] { JaGuid, EnGuid }
+                var assets = new[] { JaGuid, EnGuid, KoGuid }
                     .Select(AssetDatabase.GUIDToAssetPath)
                     .Where(p => !string.IsNullOrEmpty(p))
                     .Select(AssetDatabase.LoadAssetAtPath<LocalizationAsset>)
@@ -40,6 +41,7 @@ namespace Nekoare.ClickRecolor.Editor.Localization
         {
             ("ja-jp", "日本語"),
             ("en-us", "English"),
+            ("ko-kr", "한국어"),
         };
 
         /// <summary>

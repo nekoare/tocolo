@@ -53,6 +53,8 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             }
             try
             {
+                // 言語の切り替え（Inspector から移した。ユーザー要望 2026-10-02）。NDMF の言語設定と共通
+                Locales.DrawLanguagePicker();
                 if (ToolSession.IsInPrefabMode)
                 {
                     // Prefab 編集モード中は操作できないので、終了ボタンだけ
