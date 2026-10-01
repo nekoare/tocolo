@@ -73,6 +73,13 @@ namespace Nekoare.ClickRecolor
         /// 選択内の [p05, p95] を目標の明るさ範囲いっぱいへリマップする。色 1・色 2 で共通
         /// </summary>
         [Range(0f, 1f)] public float shadingStretch;
+        /// <summary>
+        /// 元のグラデーションを打ち消す（実験的。ユーザー要望 2026-09-29）: 選択範囲を上下（グラデーション ON なら箱の向き）の帯に分け、
+        /// 帯ごとの明るさの幅で目標へ写す。根元〜毛先の明暗差が消え、帯の中の陰影は残る
+        /// </summary>
+        public bool flattenBase;
+        /// <summary>打ち消す強さ（0 = 従来の全体 1 つの分布、1 = 帯ごとに完全に揃える）</summary>
+        [Range(0f, 1f)] public float flattenStrength = 1f;
 
         // ── グラデーション（Scene の箱の Y 軸に沿って「新しい色」→「終了色」）──
         /// <summary>true なら箱の下端（t=0）で targetColor、上端（t=1）で gradientColor になるよう目標色を混ぜる（両端の外は端の色）</summary>

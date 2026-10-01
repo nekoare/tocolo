@@ -246,6 +246,12 @@ msgstr "別のテクスチャのパーツ（{0} 個）は足しませんでし�
 msgid "Scene:Panel:HairToolNotice"
 msgstr "このパーツはキメラヘアマスターの対象です。アップロード時はキメラヘアマスターの加工がこの色変えの上に掛かるため、先にキメラヘアマスターでエクスポートしてから色を変えてください"
 
+msgid "Scene:Panel:LayerCovers"
+msgstr "この場所は lilToon のメインカラー {0} が重なっているため、色が変わりにくいかもしれません。{0} の色やテクスチャは lilToon のマテリアルで変えられます。"
+
+msgid "Scene:Panel:LayerMixes"
+msgstr "この場所は lilToon のメインカラー {0} の色が混ざるため、狙った色からずれることがあります。"
+
 msgid "Scene:Panel:ShowRange"
 msgstr "範囲を表示"
 
@@ -461,6 +467,15 @@ msgstr "陰になる部分をどれだけ暗くするかです。右ほど陰が
 
 msgid "Help:ShadingStretch"
 msgstr "元の陰影が弱い部分（真っ白・真っ黒に近い髪など）は、そのままだと色を変えても陰影が弱いまま浮いて見えます。数値を上げると目標の明るさ範囲いっぱいに陰影を広げます（上げすぎると元のノイズも目立ちます）。「各点の色を揃える」と組み合わせて、複数のパーツを同じトーン・同じ陰影に揃えられます。"
+
+msgid "Scene:Color:FlattenBase"
+msgstr "元のグラデーションを打ち消す（実験的）"
+
+msgid "Scene:Color:FlattenStrength"
+msgstr "打ち消す強さ"
+
+msgid "Help:FlattenBase"
+msgstr "元の色が根元と毛先で明るさの違うグラデーションになっているとき、その明暗差を打ち消して全体を目標の色に揃えます。選んだ範囲を上下（グラデーションが ON なら箱の向き）の帯に分けて帯ごとに明るさを合わせるので、帯の中の陰影は残ります。上から当たる光のような大きな明暗も弱まるので、強さで加減してください。"
 
 msgid "Help:Strength"
 msgstr "色変えの不透明度です。１で完全に指定した色になり、下げるほど元の色が残ります。"

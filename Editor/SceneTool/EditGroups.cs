@@ -290,6 +290,8 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             member.hueRetain = anchor.hueRetain;
             member.strength = anchor.strength;
             member.shadingStretch = anchor.shadingStretch;
+            member.flattenBase = anchor.flattenBase;
+            member.flattenStrength = anchor.flattenStrength;
             member.gradientEnabled = anchor.gradientEnabled;
             member.gradientColor = anchor.gradientColor;
             member.gradientDarkEndRatio = anchor.gradientDarkEndRatio;

@@ -77,6 +77,8 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
             public RenderTexture mask;
             /// <summary>この部分の内側の統計（元テクスチャ基準）</summary>
             public Stats stats;
+            /// <summary>「元のグラデーションを打ち消す」の帯ごとの統計（OFF・作れないときは null）</summary>
+            public BandStats bands;
         }
 
         public RecolorEdit edit;
@@ -133,6 +135,12 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
         private static readonly int LP95Id = Shader.PropertyToID("_LP95");
         private static readonly int HDominantId = Shader.PropertyToID("_HDominant");
         private static readonly int ShadingStretchId = Shader.PropertyToID("_ShadingStretch");
+        private static readonly int FlattenBandsId = Shader.PropertyToID("FlattenBands");
+        private static readonly int FlattenStrengthId = Shader.PropertyToID("FlattenStrength");
+        private static readonly int FlattenAxisId = Shader.PropertyToID("FlattenAxis");
+        private static readonly int FlattenMinId = Shader.PropertyToID("FlattenMin");
+        private static readonly int FlattenMaxId = Shader.PropertyToID("FlattenMax");
+        private static readonly int FlattenStatsId = Shader.PropertyToID("_FlattenStats");
         private static readonly int PosMapId = Shader.PropertyToID("PosMap");
         private static readonly int WeightOutId = Shader.PropertyToID("WeightOut");
         private static int s_kernelWeight;
@@ -201,6 +209,8 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
             int foldedHash = FoldExtraSeedMeshes(usersHash, seeds);
             // 「箱の中」は箱と位置マップ（姿勢・除外リスト）で範囲が決まるので鍵に畳み込む
             if (edit.mode == SelectionMode.Box) foldedHash = FoldBox(foldedHash, edit, sourceAsset, context);
+            // 「元のグラデーションを打ち消す」は帯の統計を部分に持つので、向きと位置（姿勢）を鍵に畳み込む
+            if (edit.flattenBase) foldedHash = FoldFlatten(foldedHash, edit, sourceAsset, context);
             var key = new MaskCache.Key(edit, sourceAsset, size, foldedHash, fromExport);
             if (MaskCache.TryGet(key, out var cachedMask, out var cachedParts))
             {
@@ -306,6 +316,8 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
                     parts = new List<EditJob.Part> { new EditJob.Part { mask = mask, stats = SelectionStats.Compute(source, mask) } };
                 }
 
+                if (edit.flattenBase) AttachBandStats(edit, sourceAsset, source, context, parts);
+
                 MaskCache.Add(key, mask, parts);
                 var job = NewJob(edit, mask, parts);
                 // 所有権はキャッシュへ移った
@@ -378,7 +390,7 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
                 {
                     var source = job.ShiftParts;
                     var parts = new List<EditJob.Part>(source.Count);
-                    foreach (var part in source) parts.Add(new EditJob.Part { mask = part.mask, stats = merged });
+                    foreach (var part in source) parts.Add(new EditJob.Part { mask = part.mask, stats = merged, bands = part.bands });
                     job.parts = parts;
                     job.stats = merged;
                 }
@@ -467,6 +479,37 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
         }
 
         /// <summary>usersHash に追加の種（seeds[1..]）のメッシュ（InstanceID と形）を畳み込む。マスクの鍵に使う</summary>
+        private static int FoldFlatten(int hash, RecolorEdit edit, Texture2D sourceAsset, MaskContext context)
+        {
+            unchecked
+            {
+                int h = hash * 31 + 7919;
+                h = h * 31 + BandStats.AxisOf(edit).GetHashCode();
+                h = h * 31 + (context != null ? PositionMap.ContextHash(context.root, context.renderers, sourceAsset) : 0);
+                return h;
+            }
+        }
+
+        /// <summary>
+        /// 部分ごとに帯の統計（BandStats）を取って parts に入れる。位置マップが描けない（文脈が無い・compute が無い）ときは入れない
+        /// （その場合は従来どおり全体 1 つの分布で写す）
+        /// </summary>
+        private static void AttachBandStats(
+            RecolorEdit edit, Texture2D sourceAsset, RenderTexture source, MaskContext context, List<EditJob.Part> parts)
+        {
+            if (context == null || context.root == null || context.renderers == null) return;
+            int fill = Mathf.Min(edit.padding + 2, PositionMap.MaxFillIterations);
+            var positionMap = PositionMap.GetOrBuild(context.root, context.renderers, sourceAsset, source.width, source.height, fill);
+            if (positionMap == null) return;
+            var axis = BandStats.AxisOf(edit);
+            for (int i = 0; i < parts.Count; i++)
+            {
+                var part = parts[i];
+                part.bands = BandStats.Compute(source, part.mask, positionMap, axis);
+                parts[i] = part;
+            }
+        }
+
         /// <summary>「箱の中」の鍵: 箱の位置・回転・大きさ・ぼかしと、位置マップの中身を決める値（姿勢・除外後の Renderer）</summary>
         private static int FoldBox(int hash, RecolorEdit edit, Texture2D sourceAsset, MaskContext context)
         {
@@ -729,7 +772,7 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
             if (work == null) return null;
             // グラデーションの編集があるときだけ位置マップを取る（作業 RT と同じ大きさ。PositionMap のキャッシュ所有なので解放しない）
             RenderTexture positionMap = null;
-            if (input.root != null && input.renderers != null && HasGradient(input.jobs))
+            if (input.root != null && input.renderers != null && (HasGradient(input.jobs) || HasFlatten(input.jobs)))
             {
                 // はみ出し幅（パディング）の画素まで位置を埋める（最大のはみ出し幅＋2 回の膨張）
                 positionMap = PositionMap.GetOrBuild(
@@ -753,6 +796,18 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
         }
 
         /// <summary>jobs にグラデーション ON の編集が 1 つでもあるか</summary>
+        /// <summary>帯の統計を持つ部分がある（「元のグラデーションを打ち消す」で位置マップが要る）か</summary>
+        private static bool HasFlatten(IReadOnlyList<EditJob> jobs)
+        {
+            if (jobs == null) return false;
+            foreach (var job in jobs)
+            {
+                if (job?.edit == null || !job.edit.flattenBase) continue;
+                foreach (var part in job.ShiftParts) if (part.bands != null) return true;
+            }
+            return false;
+        }
+
         private static bool HasGradient(IReadOnlyList<EditJob> jobs)
         {
             if (jobs == null) return false;
@@ -801,7 +856,13 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
                         // 後の部分が前の部分を上書きしてよい（種ごとのマスクは通常重ならない）
                         foreach (var part in job.ShiftParts)
                         {
-                            Shift(current, part.mask, spare, ShiftParams.FromEdit(job.edit, part.stats), positionMap);
+                            var p = ShiftParams.FromEdit(job.edit, part.stats);
+                            if (job.edit.flattenBase)
+                            {
+                                p.bands = part.bands;
+                                p.flattenStrength = job.edit.flattenStrength;
+                            }
+                            Shift(current, part.mask, spare, p, positionMap);
                             (current, spare) = (spare, current);
                         }
                     }
@@ -876,7 +937,17 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
 
             // 位置マップはグラデーションを使わないときも何か束縛しておく（未設定のテクスチャがあると Dispatch がエラーになる）
             bool gradient = p.useGradient && positionMap != null;
-            var pos = gradient ? positionMap : Texture2D.blackTexture;
+            bool flatten = p.bands != null && p.bands.values != null && positionMap != null;
+            var pos = gradient || flatten ? positionMap : Texture2D.blackTexture;
+            shader.SetInt(FlattenBandsId, flatten ? BandStats.Count : 0);
+            if (flatten)
+            {
+                shader.SetFloat(FlattenStrengthId, p.flattenStrength);
+                shader.SetVector(FlattenAxisId, p.bands.axis);
+                shader.SetFloat(FlattenMinId, p.bands.min);
+                shader.SetFloat(FlattenMaxId, p.bands.max);
+                shader.SetVectorArray(FlattenStatsId, p.bands.values);
+            }
             shader.SetTexture(s_kernelShift, PosMapId, pos);
             shader.SetInt(PosWidthId, pos.width);
             shader.SetInt(PosHeightId, pos.height);
@@ -935,7 +1006,7 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
         /// <summary>Run と同じ条件で位置マップを取る（グラデーション ON の編集が無ければ null）。PositionMap のキャッシュ所有なので解放しない</summary>
         internal static RenderTexture GetPositionMapIfNeeded(PipelineInput input, int width, int height)
         {
-            if (input == null || input.root == null || input.renderers == null || !HasGradient(input.jobs)) return null;
+            if (input == null || input.root == null || input.renderers == null || !(HasGradient(input.jobs) || HasFlatten(input.jobs))) return null;
             return PositionMap.GetOrBuild(input.root, input.renderers, input.sourceAsset, width, height, FillIterations(input.jobs));
         }
 

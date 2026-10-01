@@ -435,6 +435,13 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             // 「色未設定」と「同じ UV の双子」の案内は 2026-09-24 に撤去（ユーザー判断: 不要）。双子判定自体は残している
             // 髪ツール（キメラヘアマスター）の対象パーツなら、先にそちらで書き出すよう警告（ユーザー要望 2026-09-25）
             if (ToolSession.CurrentEditIsHairToolTarget) EditorGUILayout.HelpBox(Locales.Tr("Scene:Panel:HairToolNotice"), MessageType.Warning);
+            // クリックした場所に lilToon の 2nd／3rd が重なっているときの案内（その編集を選んでいる間だけ）
+            var layerNotice = ToolSession.LayerNotice;
+            if (layerNotice.kind != Picking.LilToonLayerOverlap.Kind.None && ToolSession.LayerNoticeEditId == edit.id)
+            {
+                string key = layerNotice.kind == Picking.LilToonLayerOverlap.Kind.Covers ? "Scene:Panel:LayerCovers" : "Scene:Panel:LayerMixes";
+                EditorGUILayout.HelpBox(Locales.Tr(key, layerNotice.layers), MessageType.Info);
+            }
             // Ctrl＋クリックで種を足せなかった理由など（数秒で消える）
             string notice = ToolSession.TransientNotice;
             if (notice != null)
@@ -557,6 +564,33 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                     }
                 });
                 EditorUtility.SetDirty(component);
+            }
+
+            // 元のグラデーションを打ち消す（実験的。ユーザー要望 2026-09-29）。トグルを押したイベントで部品の数が変わらないよう押す前の値で出し分ける
+            bool wasFlatten = edit.flattenBase;
+            using (new EditorGUI.DisabledScope(!edit.hasTarget))
+            {
+                bool flatten = WithHelp("Help:FlattenBase",
+                    () => EditorGUILayout.ToggleLeft(Locales.Tr("Scene:Color:FlattenBase"), wasFlatten));
+                float flattenStrength = edit.flattenStrength;
+                if (wasFlatten)
+                {
+                    float previousWidth = EditorGUIUtility.labelWidth;
+                    EditorGUIUtility.labelWidth = 105f;
+                    flattenStrength = EditorGUILayout.Slider(Locales.Tr("Scene:Color:FlattenStrength"), edit.flattenStrength, 0f, 1f);
+                    EditorGUIUtility.labelWidth = previousWidth;
+                }
+                if (flatten != wasFlatten || !Mathf.Approximately(flattenStrength, edit.flattenStrength))
+                {
+                    BeginDragIfGrabbing("Tocolo: 元のグラデーションを打ち消す");
+                    Undo.RecordObject(component, "Tocolo: 元のグラデーションを打ち消す");
+                    EditGroups.ForEachInGroup(component, edit, e =>
+                    {
+                        e.flattenBase = flatten;
+                        e.flattenStrength = flattenStrength;
+                    });
+                    EditorUtility.SetDirty(component);
+                }
             }
 
             // グラデーションの項目は暗めの赤の枠でまとめる（ユーザー要望 2026-09-25）。上の不透明度スライダーと詰まらないよう少し空ける

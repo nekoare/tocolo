@@ -676,6 +676,8 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
                 h = h * 31 + edit.hueRetain.GetHashCode();
                 h = h * 31 + edit.strength.GetHashCode();
                 h = h * 31 + edit.shadingStretch.GetHashCode();
+                h = h * 31 + (edit.flattenBase ? 1 : 0);
+                if (edit.flattenBase) h = h * 31 + edit.flattenStrength.GetHashCode();
                 h = h * 31 + (edit.gradientEnabled ? 1 : 0);
                 // 「箱の中」は箱で範囲が決まる（他のモードでは箱を変えても結果が変わらないので含めない）
                 if (edit.mode == SelectionMode.Box)

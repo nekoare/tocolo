@@ -21,6 +21,10 @@ namespace Nekoare.ClickRecolor.Editor.Colors
         public float hDominant;
         /// <summary>陰影の強調（L のリマップ側の重みの下限）。compute の _ShadingStretch。色 1・色 2 で共通</summary>
         public float shadingStretch;
+        /// <summary>「元のグラデーションを打ち消す」の帯の統計（null なら使わない）。GPU だけが使う（CPU 版は未対応・実験的）</summary>
+        public BandStats bands;
+        /// <summary>打ち消す強さ（全体の統計と帯の統計を混ぜる割合）</summary>
+        public float flattenStrength;
 
         // ── グラデーション（compute の UseGradient / WorldToBox / BoxSize / TargetOklab2）──
         /// <summary>true なら画素の位置（対象ルートのローカル）で目標色を混ぜる。位置マップが無ければ呼び出し側で false にする</summary>

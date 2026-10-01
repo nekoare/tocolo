@@ -246,6 +246,12 @@ msgstr "{0} part(s) on other textures were not added ('Select across materials' 
 msgid "Scene:Panel:HairToolNotice"
 msgstr "This part is handled by Chimera Hair Master. On upload its processing is applied on top of this recolor, so export from Chimera Hair Master first, then recolor."
 
+msgid "Scene:Panel:LayerCovers"
+msgstr "lilToon Main Color {0} overlaps this spot, so the color change may be hard to see. You can change the {0} color or texture in the lilToon material."
+
+msgid "Scene:Panel:LayerMixes"
+msgstr "lilToon Main Color {0} is blended over this spot, so the result may differ from the target color."
+
 msgid "Scene:Panel:ShowRange"
 msgstr "Show selection"
 
@@ -461,6 +467,15 @@ msgstr "How dark the shaded areas become. Right makes shadows darker, left makes
 
 msgid "Help:ShadingStretch"
 msgstr "Areas with weak original shading (such as nearly pure white or black hair) keep weak shading after recoloring and can look flat. Raising the value stretches the shading to fill the whole target brightness range (too high also makes the original noise more visible). Combine it with 'Match color per point' to give multiple parts the same tone and the same shading."
+
+msgid "Scene:Color:FlattenBase"
+msgstr "Cancel original gradient (experimental)"
+
+msgid "Scene:Color:FlattenStrength"
+msgstr "Strength"
+
+msgid "Help:FlattenBase"
+msgstr "When the original color has a light-dark gradient from roots to tips, this cancels that difference so the whole area matches the target color. The selection is split into bands along the up axis (or the gradient box direction when Gradient is on) and each band is matched separately, so shading inside each band is kept. Large-scale light from above is also reduced, so adjust the strength."
 
 msgid "Help:Strength"
 msgstr "Opacity of the recolor. At 1 the chosen color is applied fully; lower values keep more of the original color."

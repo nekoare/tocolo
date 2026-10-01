@@ -54,6 +54,13 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         /// </summary>
         public static Renderer UnreadableRenderer { get; set; }
 
+        /// <summary>
+        /// 最後のクリックの場所に lilToon の 2nd／3rd が重なっていたときの案内（LilToonLayerOverlap）。
+        /// 出すのは LayerNoticeEditId の編集を選んでいる間だけ（別の編集に切り替えたら出さない）
+        /// </summary>
+        public static Picking.LilToonLayerOverlap.Result LayerNotice { get; set; }
+        public static string LayerNoticeEditId { get; set; }
+
         /// <summary>最後にクリックした結果（Repaint で描く）。ドメインリロードで消えてよい</summary>
         public static PickHit? LastPick;
 
@@ -270,6 +277,8 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             LastPick = null;
             LastPickColor = null;
             UnreadableRenderer = null;
+            LayerNotice = default;
+            LayerNoticeEditId = null;
             HoverPick = null;
             EyedropperActive = false;
             HideHighlight();

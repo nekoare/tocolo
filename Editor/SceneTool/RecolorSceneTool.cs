@@ -885,6 +885,9 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 ToolSession.LastPick = hit;
                 // 見本色はクリック時に 1 回だけ取る（Repaint ごとに GetPixel しない）
                 ToolSession.LastPickColor = SampleSwatchColor(hit);
+                // lilToon の 2nd／3rd が上に重なっているか（色が変わって見えにくい場所の案内。ユーザー判断 2026-10-01）
+                ToolSession.LayerNotice = LilToonLayerOverlap.Check(hit.material, hit.uv0, hit.uv);
+                ToolSession.LayerNoticeEditId = null;
 
                 // Ctrl＋クリック: 現在の編集があればその種を足す／外す。無ければ通常のクリックとして扱う
                 if (toggleSeed)
@@ -894,6 +897,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                     if (edit != null)
                     {
                         ResolveSeedToggle(current, edit, hit, ToolSession.LastPickColor);
+                        ToolSession.LayerNoticeEditId = ToolSession.CurrentEditId;
                         return;
                     }
                 }
@@ -905,12 +909,15 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                     // コンポーネントが無ければ既存の編集も無く、新しい編集を作るので、ここで付けてよい
                     var component = TargetResolver.GetOrAddComponent(root);
                     if (component != null) ResolveEdit(component, hit, ToolSession.LastPickColor, forceNew);
+                    ToolSession.LayerNoticeEditId = ToolSession.CurrentEditId;
                 }
             }
             else
             {
                 ToolSession.LastPick = null;
                 ToolSession.LastPickColor = null;
+                ToolSession.LayerNotice = default;
+                ToolSession.LayerNoticeEditId = null;
             }
         }
 
