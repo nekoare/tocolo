@@ -117,6 +117,12 @@ msgstr "見つからない編集を削除（{0}）"
 msgid "Inspector:Edit:MissingTooltip"
 msgstr "クリックしたパーツ（Renderer）が見つかりません。削除された可能性があります。この編集は反映されません。"
 
+msgid "Inspector:Edit:TextureUnusedTooltip"
+msgstr "この編集のテクスチャ（{0}）を、アバター内のどのマテリアルも使っていないため反映されません。マテリアルを差し替えた場合は、元のテクスチャを使うマテリアルに戻すと再び効きます。"
+
+msgid "Inspector:Edit:TextureMissingTooltip"
+msgstr "この編集のテクスチャが見つかりません（削除された可能性があります）。この編集は反映されません。"
+
 msgid "Inspector:Edit:Mode:Box"
 msgstr "箱"
 

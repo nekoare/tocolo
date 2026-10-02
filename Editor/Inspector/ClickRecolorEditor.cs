@@ -83,6 +83,7 @@ namespace Nekoare.ClickRecolor.Editor.Inspector
                 if (prefabMode && !persistent) EditorGUILayout.HelpBox(Locales.Tr("Scene:Panel:PrefabModeNotice"), MessageType.Warning);
             }
 
+            _usedTextures = Picking.MaterialTextureResolver.CollectMainTextures(component.gameObject);
             _editList.DoLayoutList();
             using (new EditorGUILayout.HorizontalScope())
             {
@@ -363,7 +364,17 @@ namespace Nekoare.ClickRecolor.Editor.Inspector
             }
 
             // クリックしたパーツが見つからない編集（連結ならどれか 1 つでも）は、名前の前に警告の印を出す（ユーザー要望 2026-09-29）
-            if (RowHasMissingSeed(index, groupIndices))
+            // テクスチャがアバター内のどのマテリアルにも使われていない編集（マテリアル差し替え・テクスチャ削除）も同じ印で知らせる。
+            // こちらは元に戻せば効くので、「見つからない編集を削除」の対象にはしない（ユーザー判断 2026-10-03）
+            string warnTooltip = null;
+            if (RowHasMissingSeed(index, groupIndices)) warnTooltip = Locales.Tr("Inspector:Edit:MissingTooltip");
+            else
+            {
+                var unused = RowUnusedTexture(index, groupIndices, out bool textureDeleted);
+                if (textureDeleted) warnTooltip = Locales.Tr("Inspector:Edit:TextureMissingTooltip");
+                else if (unused != null) warnTooltip = Locales.Tr("Inspector:Edit:TextureUnusedTooltip", unused.name);
+            }
+            if (warnTooltip != null)
             {
                 const float iconWidth = 18f;
                 var iconRect = new Rect(nameRect.x, y, iconWidth, line);
@@ -381,7 +392,7 @@ namespace Nekoare.ClickRecolor.Editor.Inspector
                     GUI.contentColor = previous;
                 }
                 // ツールチップ用（文字は空）
-                GUI.Label(iconRect, new GUIContent(string.Empty, Locales.Tr("Inspector:Edit:MissingTooltip")));
+                GUI.Label(iconRect, new GUIContent(string.Empty, warnTooltip));
             }
 
             EditorGUI.BeginChangeCheck();
@@ -446,6 +457,32 @@ namespace Nekoare.ClickRecolor.Editor.Inspector
         }
 
         private static Texture s_warnIcon;
+
+        /// <summary>この描画でのアバター内のメインテクスチャ（OnInspectorGUI の最初に取り直す）</summary>
+        private HashSet<Texture2D> _usedTextures;
+
+        /// <summary>
+        /// 行 index（連結なら groupIndices の全編集）で、アバター内のどのマテリアルも使っていないテクスチャ（最初の 1 つ）。
+        /// テクスチャ自体が無い（削除された）編集があれば textureDeleted = true。どちらも無ければ null
+        /// </summary>
+        private Texture2D RowUnusedTexture(int index, List<int> groupIndices, out bool textureDeleted)
+        {
+            textureDeleted = false;
+            if (_usedTextures == null) return null;
+            IEnumerable<int> indices = groupIndices ?? (IEnumerable<int>)new[] { index };
+            foreach (int i in indices)
+            {
+                var edit = GetEdit(i);
+                if (edit == null || !edit.hasTarget) continue;
+                if (edit.sourceTexture == null)
+                {
+                    textureDeleted = true;
+                    return null;
+                }
+                if (!_usedTextures.Contains(edit.sourceTexture)) return edit.sourceTexture;
+            }
+            return null;
+        }
 
         /// <summary>行 index（連結なら groupIndices の全編集）に、クリックしたパーツが見つからない編集があるか</summary>
         private bool RowHasMissingSeed(int index, List<int> groupIndices)

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace Nekoare.ClickRecolor.Editor.Picking
@@ -34,6 +35,25 @@ namespace Nekoare.ClickRecolor.Editor.Picking
                 return true;
             }
             return false;
+        }
+
+        /// <summary>
+        /// root 配下の全 Renderer（無効な物も含む。アニメーションで出す衣装など）のマテリアルが使っているメインテクスチャ。
+        /// 編集のテクスチャがアバター内で使われているかの判定に使う（ユーザー要望 2026-10-03）
+        /// </summary>
+        public static HashSet<Texture2D> CollectMainTextures(GameObject root)
+        {
+            var result = new HashSet<Texture2D>();
+            if (root == null) return result;
+            foreach (var renderer in root.GetComponentsInChildren<Renderer>(true))
+            {
+                if (renderer == null) continue;
+                foreach (var material in renderer.sharedMaterials)
+                {
+                    if (TryGetMainTexture(material, out var info)) result.Add(info.texture);
+                }
+            }
+            return result;
         }
 
         /// <summary>UV0 に Tiling/Offset を掛けて [0,1) に畳む</summary>

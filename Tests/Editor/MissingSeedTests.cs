@@ -74,5 +74,38 @@ namespace Nekoare.ClickRecolor.Tests
             edit.hasSeedOklab = true;
             Assert.That(RecolorPipeline.IsSeedMissing(edit), Is.False);
         }
+    
+        [Test]
+        public void アバター内のメインテクスチャを無効な_Renderer_も含めて集める()
+        {
+            var root = new GameObject("Avatar");
+            _cleanup.Add(root);
+            var used = new Texture2D(2, 2);
+            var hiddenUsed = new Texture2D(2, 2);
+            var unused = new Texture2D(2, 2);
+            _cleanup.Add(used);
+            _cleanup.Add(hiddenUsed);
+            _cleanup.Add(unused);
+
+            var a = MakeRenderer(root, "A");
+            var materialA = new Material(Shader.Find("Standard"));
+            materialA.SetTexture("_MainTex", used);
+            a.sharedMaterial = materialA;
+            _cleanup.Add(materialA);
+
+            // アニメーションで出す衣装のように、無効な GameObject の物も「使われている」に数える
+            var b = MakeRenderer(root, "B");
+            var materialB = new Material(Shader.Find("Standard"));
+            materialB.SetTexture("_MainTex", hiddenUsed);
+            b.sharedMaterial = materialB;
+            b.gameObject.SetActive(false);
+            _cleanup.Add(materialB);
+
+            var textures = Nekoare.ClickRecolor.Editor.Picking.MaterialTextureResolver.CollectMainTextures(root);
+
+            Assert.That(textures, Has.Member(used));
+            Assert.That(textures, Has.Member(hiddenUsed));
+            Assert.That(textures, Has.No.Member(unused));
+        }
     }
 }
