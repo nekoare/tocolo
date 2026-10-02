@@ -29,9 +29,9 @@ namespace Nekoare.ClickRecolor.Tests
                 || !SystemInfo.SupportsRandomWriteOnRenderTextureFormat(RenderTextureFormat.R8)
                 || !SystemInfo.SupportsRandomWriteOnRenderTextureFormat(RenderTextureFormat.ARGBHalf))
             {
-                Assert.Ignore("この環境は compute shader（R8 / ARGBHalf への書き込み）に対応していません");
+                Assert.Ignore("この環境はcompute shader（R8 / ARGBHalfへの書き込み）に対応していません");
             }
-            Assert.That(ColorMaskBuilder.IsAvailable, Is.True, "ColorSelect.compute / Morphology.compute が読み込めません（.meta の GUID を確認）");
+            Assert.That(ColorMaskBuilder.IsAvailable, Is.True, "ColorSelect.compute / Morphology.computeが読み込めません（.metaのGUIDを確認）");
         }
 
         [TearDown]
@@ -122,8 +122,8 @@ namespace Nekoare.ClickRecolor.Tests
 
             for (int y = 0; y < Size; y++)
             {
-                for (int x = 0; x <= 2; x++) Assert.That(At(pixels, x, y), Is.EqualTo(255), $"赤 ({x},{y})");
-                for (int x = 5; x < Size; x++) Assert.That(At(pixels, x, y), Is.EqualTo(0), $"青 ({x},{y})");
+                for (int x = 0; x <= 2; x++) Assert.That(At(pixels, x, y), Is.EqualTo(255), $"赤({x},{y})");
+                for (int x = 5; x < Size; x++) Assert.That(At(pixels, x, y), Is.EqualTo(0), $"青({x},{y})");
             }
         }
 
@@ -155,10 +155,10 @@ namespace Nekoare.ClickRecolor.Tests
 
             for (int y = 0; y < Size; y++)
             {
-                Assert.That(At(contiguous, 0, y), Is.EqualTo(255), $"クリックした側 (0,{y})");
-                Assert.That(At(contiguous, 7, y), Is.EqualTo(0), $"離れた赤 (7,{y})");
+                Assert.That(At(contiguous, 0, y), Is.EqualTo(255), $"クリックした側(0,{y})");
+                Assert.That(At(contiguous, 7, y), Is.EqualTo(0), $"離れた赤(7,{y})");
                 // テクスチャ全体なら離れた赤も選ばれる（上の 0 が色の判定のせいではないことの確認）
-                Assert.That(At(whole, 7, y), Is.EqualTo(255), $"テクスチャ全体の離れた赤 (7,{y})");
+                Assert.That(At(whole, 7, y), Is.EqualTo(255), $"テクスチャ全体の離れた赤(7,{y})");
             }
         }
 
@@ -186,8 +186,8 @@ namespace Nekoare.ClickRecolor.Tests
 
             for (int y = 0; y < Size; y++)
             {
-                Assert.That(At(pixels, 0, y), Is.EqualTo(255), $"種の隣の核とつながった赤 (0,{y})");
-                Assert.That(At(pixels, 7, y), Is.EqualTo(0), $"離れた赤 (7,{y})");
+                Assert.That(At(pixels, 0, y), Is.EqualTo(255), $"種の隣の核とつながった赤(0,{y})");
+                Assert.That(At(pixels, 7, y), Is.EqualTo(0), $"離れた赤(7,{y})");
             }
         }
 
@@ -202,8 +202,8 @@ namespace Nekoare.ClickRecolor.Tests
 
             for (int y = 0; y < Size; y++)
             {
-                for (int x = 0; x <= 2; x++) Assert.That(At(pixels, x, y), Is.EqualTo(255), $"島の中 ({x},{y})");
-                for (int x = 5; x < Size; x++) Assert.That(At(pixels, x, y), Is.EqualTo(0), $"島の外 ({x},{y})");
+                for (int x = 0; x <= 2; x++) Assert.That(At(pixels, x, y), Is.EqualTo(255), $"島の中({x},{y})");
+                for (int x = 5; x < Size; x++) Assert.That(At(pixels, x, y), Is.EqualTo(0), $"島の外({x},{y})");
             }
         }
 
@@ -245,9 +245,9 @@ namespace Nekoare.ClickRecolor.Tests
 
             for (int y = 0; y < Size; y++)
             {
-                Assert.That(At(pixels, 4, y), Is.GreaterThan(0), $"核の隣の裾 (4,{y})");
+                Assert.That(At(pixels, 4, y), Is.GreaterThan(0), $"核の隣の裾(4,{y})");
                 // 核から 3px 以上離れた裾は消える（核の膨張は半径 2）
-                Assert.That(At(pixels, 7, y), Is.EqualTo(0), $"核から離れた裾 (7,{y})");
+                Assert.That(At(pixels, 7, y), Is.EqualTo(0), $"核から離れた裾(7,{y})");
             }
         }
 
@@ -261,8 +261,8 @@ namespace Nekoare.ClickRecolor.Tests
 
             for (int y = 0; y < Size; y++)
             {
-                for (int x = 0; x <= 2; x++) Assert.That(At(pixels, x, y), Is.EqualTo(255), $"不透明 ({x},{y})");
-                for (int x = 5; x < Size; x++) Assert.That(At(pixels, x, y), Is.EqualTo(0), $"透明 ({x},{y})");
+                for (int x = 0; x <= 2; x++) Assert.That(At(pixels, x, y), Is.EqualTo(255), $"不透明({x},{y})");
+                for (int x = 5; x < Size; x++) Assert.That(At(pixels, x, y), Is.EqualTo(0), $"透明({x},{y})");
             }
         }
 

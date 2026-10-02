@@ -281,7 +281,7 @@ namespace Nekoare.ClickRecolor.Tests
         {
             if (!SystemInfo.supportsComputeShaders || !SystemInfo.SupportsRandomWriteOnRenderTextureFormat(RenderTextureFormat.R8))
             {
-                Assert.Ignore("この環境は compute shader（R8 への書き込み）に対応していません");
+                Assert.Ignore("この環境はcompute shader（R8への書き込み）に対応していません");
             }
             var (component, clicked, _, _, texB) = MakeGroup();
             var other = component.edits[0] == clicked ? component.edits[1] : component.edits[0];
@@ -305,7 +305,7 @@ namespace Nekoare.ClickRecolor.Tests
             var result = RecolorSceneTool.ResolveSeedToggle(component, edit, MakeHit(bodyB, texB), Color.blue);
             Assert.That(result, Is.EqualTo(SeedToggleResult.MemberAdded), "前提: 別のテクスチャの島はメンバーとして足される");
             var member = EditGroups.FindMemberForTexture(component, edit, texB);
-            Assert.That(member, Is.Not.Null, "前提: B のメンバーがある");
+            Assert.That(member, Is.Not.Null, "前提: Bのメンバーがある");
             return (component, edit, member, bodyA, bodyB, texA, texB);
         }
 

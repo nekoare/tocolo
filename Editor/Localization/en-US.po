@@ -253,10 +253,25 @@ msgid "Scene:Panel:HairToolNotice"
 msgstr "This part is handled by Chimera Hair Master. On upload its processing is applied on top of this recolor, so export from Chimera Hair Master first, then recolor."
 
 msgid "Scene:Panel:LayerCovers"
-msgstr "lilToon Main Color {0} overlaps this spot, so the color change may be hard to see. You can change the {0} color or texture in the lilToon material."
+msgstr "The color change may be hard to see here. lilToon Main Color {0} overlaps this spot."
 
 msgid "Scene:Panel:LayerMixes"
-msgstr "lilToon Main Color {0} is blended over this spot, so the result may differ from the target color."
+msgstr "The result will differ from the target color. lilToon Main Color {0} is blended in."
+
+msgid "Scene:Panel:PoiLayerCovers"
+msgstr "The color change may be hard to see here. Poiyomi {0} overlaps this spot."
+
+msgid "Scene:Panel:PoiLayerMixes"
+msgstr "The result will differ from the target color. Poiyomi {0} is blended in."
+
+msgid "Scene:Panel:PoiColorAdjust"
+msgstr "The result will differ from the target color. Poiyomi Color Adjust is applied."
+
+msgid "Scene:Panel:LilColorAdjust"
+msgstr "The result will differ from the target color. lilToon tone correction (HSVG) or gradation map is applied."
+
+msgid "Scene:Panel:MainColorTint"
+msgstr "The result will differ from the target color. The material Color is not white and is multiplied in."
 
 msgid "Scene:Panel:ShowRange"
 msgstr "Show selection"
@@ -402,6 +417,12 @@ msgstr "Gradient"
 msgid "Scene:Color:GradientInsideOnly"
 msgstr "Inside box only"
 
+msgid "Scene:Color:ShowGradientBox"
+msgstr "Show box"
+
+msgid "Help:ShowGradientBox"
+msgstr "Turn off to hide the box and its handles in the Scene so you can check the colors. Only while this edit is selected."
+
 msgid "Scene:Color:GradientPreview"
 msgstr "Color 1 → Color 2"
 
@@ -481,7 +502,7 @@ msgid "Scene:Color:FlattenStrength"
 msgstr "Strength"
 
 msgid "Help:FlattenBase"
-msgstr "When the original color has a light-dark gradient from roots to tips, this cancels that difference so the whole area matches the target color. The selection is split into bands along the up axis (or the gradient box direction when Gradient is on) and each band is matched separately, so shading inside each band is kept. Large-scale light from above is also reduced, so adjust the strength."
+msgstr "Removes the light-dark difference of the original color (e.g. roots to tips) so the whole area matches. Works top to bottom (along the gradient box when Gradient is on). Shading is kept. Lower the strength if it looks too flat."
 
 msgid "Help:Strength"
 msgstr "Opacity of the recolor. At 1 the chosen color is applied fully; lower values keep more of the original color."

@@ -68,7 +68,7 @@ namespace Nekoare.ClickRecolor.Tests
 
             IslandMaskCache.GetOrBuild(KeyOf(seedTriangle: 0), BuildDummy);
 
-            Assert.That(_builds, Is.EqualTo(IslandMaskCache.Capacity + 2), "最古（三角形 0）は捨てられているので作り直す");
+            Assert.That(_builds, Is.EqualTo(IslandMaskCache.Capacity + 2), "最古（三角形0）は捨てられているので作り直す");
         }
 
         [Test]

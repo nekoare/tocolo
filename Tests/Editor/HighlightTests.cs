@@ -29,9 +29,9 @@ namespace Nekoare.ClickRecolor.Tests
             if (!SystemInfo.supportsComputeShaders
                 || !SystemInfo.SupportsRandomWriteOnRenderTextureFormat(RenderTextureFormat.ARGBHalf))
             {
-                Assert.Ignore("この環境は compute shader（ARGBHalf への書き込み）に対応していません");
+                Assert.Ignore("この環境はcompute shader（ARGBHalfへの書き込み）に対応していません");
             }
-            Assert.That(SelectionHighlight.IsAvailable, Is.True, "Highlight.compute が読み込めません（.meta の GUID を確認）");
+            Assert.That(SelectionHighlight.IsAvailable, Is.True, "Highlight.computeが読み込めません（.metaのGUIDを確認）");
         }
 
         [TearDown]
@@ -135,8 +135,8 @@ namespace Nekoare.ClickRecolor.Tests
                 {
                     if (!Selected(x)) continue;
                     var c = result[y * Size + x];
-                    Assert.That(c.r, Is.GreaterThan(Gray.r + 0.01f), $"({x},{y}) の R が増えていません");
-                    Assert.That(c.b, Is.LessThan(Gray.b - 0.01f), $"({x},{y}) の B が減っていません");
+                    Assert.That(c.r, Is.GreaterThan(Gray.r + 0.01f), $"({x},{y})のRが増えていません");
+                    Assert.That(c.b, Is.LessThan(Gray.b - 0.01f), $"({x},{y})のBが減っていません");
                 }
             }
         }
@@ -151,9 +151,9 @@ namespace Nekoare.ClickRecolor.Tests
                 {
                     if (Selected(x)) continue;
                     var c = result[y * Size + x];
-                    Assert.That(c.r, Is.EqualTo(Gray.r).Within(HalfTolerance), $"({x},{y}) の R");
-                    Assert.That(c.g, Is.EqualTo(Gray.g).Within(HalfTolerance), $"({x},{y}) の G");
-                    Assert.That(c.b, Is.EqualTo(Gray.b).Within(HalfTolerance), $"({x},{y}) の B");
+                    Assert.That(c.r, Is.EqualTo(Gray.r).Within(HalfTolerance), $"({x},{y})のR");
+                    Assert.That(c.g, Is.EqualTo(Gray.g).Within(HalfTolerance), $"({x},{y})のG");
+                    Assert.That(c.b, Is.EqualTo(Gray.b).Within(HalfTolerance), $"({x},{y})のB");
                 }
             }
         }
@@ -164,7 +164,7 @@ namespace Nekoare.ClickRecolor.Tests
             var result = Run();
             for (int i = 0; i < result.Length; i++)
             {
-                Assert.That(result[i].a, Is.EqualTo(Gray.a).Within(HalfTolerance), $"画素 {i} の α");
+                Assert.That(result[i].a, Is.EqualTo(Gray.a).Within(HalfTolerance), $"画素{i}の α");
             }
         }
     }

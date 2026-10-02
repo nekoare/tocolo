@@ -39,8 +39,8 @@ namespace Nekoare.ClickRecolor.Tests
             Assert.That(bands.max, Is.EqualTo(1f).Within(1e-4f));
             for (int b = 1; b < BandStats.Count; b++)
             {
-                Assert.That(bands.values[b].x, Is.GreaterThan(bands.values[b - 1].x), $"帯 {b} の p05 が下の帯より明るい");
-                Assert.That(bands.values[b].y, Is.GreaterThanOrEqualTo(bands.values[b].x), $"帯 {b} は p95 ≥ p05");
+                Assert.That(bands.values[b].x, Is.GreaterThan(bands.values[b - 1].x), $"帯{b}のp05が下の帯より明るい");
+                Assert.That(bands.values[b].y, Is.GreaterThanOrEqualTo(bands.values[b].x), $"帯{b}はp95 ≥ p05");
             }
         }
 
@@ -58,7 +58,7 @@ namespace Nekoare.ClickRecolor.Tests
             Assert.That(bands, Is.Not.Null);
             foreach (var v in bands.values)
             {
-                Assert.That(v.x, Is.GreaterThan(0f), "空の帯が 0 のまま残っていない");
+                Assert.That(v.x, Is.GreaterThan(0f), "空の帯が0のまま残っていない");
             }
         }
 

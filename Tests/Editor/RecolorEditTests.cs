@@ -48,8 +48,8 @@ namespace Nekoare.ClickRecolor.Tests
             Assert.That(component.edits[1], Is.SameAs(second));
             Assert.That(component.FindEdit(first.id), Is.SameAs(first));
             Assert.That(component.FindEdit("missing"), Is.Null);
-            Assert.That(first.name, Is.EqualTo("編集 1"));
-            Assert.That(second.name, Is.EqualTo("編集 2"));
+            Assert.That(first.name, Is.EqualTo("編集1"));
+            Assert.That(second.name, Is.EqualTo("編集2"));
         }
 
         [Test]

@@ -136,9 +136,9 @@ namespace Nekoare.ClickRecolor.Tests
             var lch = OklabConverter.SRGBToOklch(srgb);
             var result = OklabConverter.OklchToSRGBGamutMapped(lch, 1f);
 
-            Assert.That(result.r, Is.EqualTo(srgb.r).Within(ColorEps), "ガマット内なのに R が動いた");
-            Assert.That(result.g, Is.EqualTo(srgb.g).Within(ColorEps), "ガマット内なのに G が動いた");
-            Assert.That(result.b, Is.EqualTo(srgb.b).Within(ColorEps), "ガマット内なのに B が動いた");
+            Assert.That(result.r, Is.EqualTo(srgb.r).Within(ColorEps), "ガマット内なのにRが動いた");
+            Assert.That(result.g, Is.EqualTo(srgb.g).Within(ColorEps), "ガマット内なのにGが動いた");
+            Assert.That(result.b, Is.EqualTo(srgb.b).Within(ColorEps), "ガマット内なのにBが動いた");
         }
 
         [TestCase(0.2462f, -0.063f)]   // ビビッドなピンク相当
@@ -163,7 +163,7 @@ namespace Nekoare.ClickRecolor.Tests
 
                 int jump = MaxChannelDiff8Bit(prev, cur);
                 Assert.That(jump, Is.LessThanOrEqualTo(maxJump),
-                    $"L={l:F4} で隣接出力が {jump} 階調跳んだ（バンディング）");
+                    $"L={l:F4}で隣接出力が{jump}階調跳んだ（バンディング）");
                 prev = cur;
             }
         }
@@ -178,7 +178,7 @@ namespace Nekoare.ClickRecolor.Tests
             var result = OklabConverter.OklchToSRGBGamutMapped(lch, 1f);
             var back = OklabConverter.SRGBToOklch(result);
 
-            Assert.That(back.x, Is.EqualTo(lch.x).Within(5e-3f), "L が保たれていない");
+            Assert.That(back.x, Is.EqualTo(lch.x).Within(5e-3f), "Lが保たれていない");
             Assert.That(OklabConverter.WrapHueRadians(back.z - lch.z), Is.EqualTo(0f).Within(2e-2f),
                 "色相が保たれていない");
         }
@@ -210,8 +210,8 @@ namespace Nekoare.ClickRecolor.Tests
             foreach (var x in extremes)
             {
                 float clipped = OklabConverter.SoftClip01(x, softZone);
-                Assert.That(clipped, Is.GreaterThanOrEqualTo(0f), $"入力 {x} で L が負になった");
-                Assert.That(clipped, Is.LessThanOrEqualTo(1f), $"入力 {x} で L が 1 を超えた");
+                Assert.That(clipped, Is.GreaterThanOrEqualTo(0f), $"入力{x}でLが負になった");
+                Assert.That(clipped, Is.LessThanOrEqualTo(1f), $"入力{x}でLが1を超えた");
             }
         }
 

@@ -51,7 +51,7 @@ namespace Nekoare.ClickRecolor.Editor
             if (root == null) return null;
             if (EditorUtility.IsPersistent(root))
             {
-                Debug.LogWarning("[Tocolo] Project の Prefab には付けられません。シーンに置いたアバターを選んでください", root);
+                Debug.LogWarning("[Tocolo] ProjectのPrefabには付けられません。シーンに置いたアバターを選んでください", root);
                 return null;
             }
             var component = root.GetComponent<ClickRecolor>();

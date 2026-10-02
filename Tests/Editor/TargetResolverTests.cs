@@ -85,7 +85,7 @@ namespace Nekoare.ClickRecolor.Tests
         public void FindSceneAvatarRoots_は_Descriptor_付きオブジェクトを検出する()
         {
             var descriptorType = FindAvatarDescriptorType();
-            Assert.That(descriptorType, Is.Not.Null, "VRCAvatarDescriptor 型が見つかりません");
+            Assert.That(descriptorType, Is.Not.Null, "VRCAvatarDescriptor型が見つかりません");
 
             _root = new GameObject("avatar");
             _root.AddComponent(descriptorType);
@@ -106,7 +106,7 @@ namespace Nekoare.ClickRecolor.Tests
         public void ResolveRoot_は祖先の_Descriptor_付きオブジェクトを返す()
         {
             var descriptorType = FindAvatarDescriptorType();
-            Assert.That(descriptorType, Is.Not.Null, "VRCAvatarDescriptor 型が見つかりません");
+            Assert.That(descriptorType, Is.Not.Null, "VRCAvatarDescriptor型が見つかりません");
 
             _root = new GameObject("world");
             var avatar = new GameObject("avatar");

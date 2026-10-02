@@ -27,7 +27,7 @@ namespace Nekoare.ClickRecolor.Editor.Localization
                     .ToList();
                 if (assets.Count == 0)
                 {
-                    Debug.LogWarning("[Tocolo] ローカライズファイル（.po）が解決できません。.meta の GUID を確認してください");
+                    Debug.LogWarning("[Tocolo] ローカライズファイル（.po）が解決できません。.metaのGUIDを確認してください");
                 }
                 return assets;
             }

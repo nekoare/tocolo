@@ -191,7 +191,7 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
             }
             catch (Exception e)
             {
-                Debug.LogWarning($"[Tocolo] 元画像 '{assetPath}' を読めませんでした（{e.Message}）。インポート済みのテクスチャを使います");
+                Debug.LogWarning($"[Tocolo] 元画像'{assetPath}'を読めませんでした（{e.Message}）。インポート済みのテクスチャを使います");
                 return null;
             }
 
@@ -206,7 +206,7 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
             if (!loaded.LoadImage(bytes, false))
             {
                 UnityEngine.Object.DestroyImmediate(loaded);
-                Debug.LogWarning($"[Tocolo] 元画像 '{assetPath}' をデコードできませんでした。インポート済みのテクスチャを使います");
+                Debug.LogWarning($"[Tocolo] 元画像'{assetPath}'をデコードできませんでした。インポート済みのテクスチャを使います");
                 return null;
             }
 

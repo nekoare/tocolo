@@ -27,9 +27,9 @@ namespace Nekoare.ClickRecolor.Tests
             if (!SystemInfo.supportsComputeShaders
                 || !SystemInfo.SupportsRandomWriteOnRenderTextureFormat(RenderTextureFormat.ARGBHalf))
             {
-                Assert.Ignore("この環境は compute shader（ARGBHalf への書き込み）に対応していません");
+                Assert.Ignore("この環境はcompute shader（ARGBHalfへの書き込み）に対応していません");
             }
-            Assert.That(RecolorPipeline.IsShiftAvailable, Is.True, "ColorShift.compute が読み込めません（.meta の GUID を確認）");
+            Assert.That(RecolorPipeline.IsShiftAvailable, Is.True, "ColorShift.computeが読み込めません（.metaのGUIDを確認）");
         }
 
         [TearDown]
@@ -145,9 +145,9 @@ namespace Nekoare.ClickRecolor.Tests
                 Color cpu = ColorShiftCpu.ShiftLinear(src[i], mask[i] / 255f, p);
                 Color cpuSrgb = OklabConverter.LinearToSRGB(new Vector3(cpu.r, cpu.g, cpu.b));
                 Color gpuSrgb = OklabConverter.LinearToSRGB(new Vector3(gpu[i].r, gpu[i].g, gpu[i].b));
-                Assert.That(gpuSrgb.r, Is.EqualTo(cpuSrgb.r).Within(SrgbTolerance), $"画素 {i} の R（マスク {mask[i]}）");
-                Assert.That(gpuSrgb.g, Is.EqualTo(cpuSrgb.g).Within(SrgbTolerance), $"画素 {i} の G（マスク {mask[i]}）");
-                Assert.That(gpuSrgb.b, Is.EqualTo(cpuSrgb.b).Within(SrgbTolerance), $"画素 {i} の B（マスク {mask[i]}）");
+                Assert.That(gpuSrgb.r, Is.EqualTo(cpuSrgb.r).Within(SrgbTolerance), $"画素{i}のR（マスク{mask[i]}）");
+                Assert.That(gpuSrgb.g, Is.EqualTo(cpuSrgb.g).Within(SrgbTolerance), $"画素{i}のG（マスク{mask[i]}）");
+                Assert.That(gpuSrgb.b, Is.EqualTo(cpuSrgb.b).Within(SrgbTolerance), $"画素{i}のB（マスク{mask[i]}）");
             }
         }
 
@@ -296,8 +296,8 @@ namespace Nekoare.ClickRecolor.Tests
 
             for (int i = 0; i < src.Length; i++)
             {
-                Assert.That(ColorShiftCpu.ShiftLinear(src[i], mask[i] / 255f, p).a, Is.EqualTo(src[i].a), $"CPU 画素 {i}");
-                Assert.That(gpu[i].a, Is.EqualTo(src[i].a).Within(HalfTolerance), $"GPU 画素 {i}");
+                Assert.That(ColorShiftCpu.ShiftLinear(src[i], mask[i] / 255f, p).a, Is.EqualTo(src[i].a), $"CPU画素{i}");
+                Assert.That(gpu[i].a, Is.EqualTo(src[i].a).Within(HalfTolerance), $"GPU画素{i}");
             }
         }
 
@@ -313,10 +313,10 @@ namespace Nekoare.ClickRecolor.Tests
             for (int i = 0; i < src.Length; i++)
             {
                 if (mask[i] != 0) continue;
-                Assert.That(ColorShiftCpu.ShiftLinear(src[i], 0f, p), Is.EqualTo(src[i]), $"CPU 画素 {i}");
-                Assert.That(gpu[i].r, Is.EqualTo(src[i].r).Within(HalfTolerance), $"GPU 画素 {i}");
-                Assert.That(gpu[i].g, Is.EqualTo(src[i].g).Within(HalfTolerance), $"GPU 画素 {i}");
-                Assert.That(gpu[i].b, Is.EqualTo(src[i].b).Within(HalfTolerance), $"GPU 画素 {i}");
+                Assert.That(ColorShiftCpu.ShiftLinear(src[i], 0f, p), Is.EqualTo(src[i]), $"CPU画素{i}");
+                Assert.That(gpu[i].r, Is.EqualTo(src[i].r).Within(HalfTolerance), $"GPU画素{i}");
+                Assert.That(gpu[i].g, Is.EqualTo(src[i].g).Within(HalfTolerance), $"GPU画素{i}");
+                Assert.That(gpu[i].b, Is.EqualTo(src[i].b).Within(HalfTolerance), $"GPU画素{i}");
             }
         }
 
@@ -340,10 +340,10 @@ namespace Nekoare.ClickRecolor.Tests
             var passthrough = ApplyTo(srcTex, job);
             for (int i = 0; i < src.Length; i++)
             {
-                Assert.That(passthrough[i].r, Is.EqualTo(src[i].r).Within(HalfTolerance), $"画素 {i}");
-                Assert.That(passthrough[i].g, Is.EqualTo(src[i].g).Within(HalfTolerance), $"画素 {i}");
-                Assert.That(passthrough[i].b, Is.EqualTo(src[i].b).Within(HalfTolerance), $"画素 {i}");
-                Assert.That(passthrough[i].a, Is.EqualTo(src[i].a).Within(HalfTolerance), $"画素 {i}");
+                Assert.That(passthrough[i].r, Is.EqualTo(src[i].r).Within(HalfTolerance), $"画素{i}");
+                Assert.That(passthrough[i].g, Is.EqualTo(src[i].g).Within(HalfTolerance), $"画素{i}");
+                Assert.That(passthrough[i].b, Is.EqualTo(src[i].b).Within(HalfTolerance), $"画素{i}");
+                Assert.That(passthrough[i].a, Is.EqualTo(src[i].a).Within(HalfTolerance), $"画素{i}");
             }
 
             // 目標色を入れると変わる（素通しが「何もしない経路」だったことの確認）
@@ -408,9 +408,9 @@ namespace Nekoare.ClickRecolor.Tests
                 Color cpu = ColorShiftCpu.ShiftLinear(src[i], 1f, p, positions[i]);
                 Color cpuSrgb = OklabConverter.LinearToSRGB(new Vector3(cpu.r, cpu.g, cpu.b));
                 Color gpuSrgb = OklabConverter.LinearToSRGB(new Vector3(gpu[i].r, gpu[i].g, gpu[i].b));
-                Assert.That(gpuSrgb.r, Is.EqualTo(cpuSrgb.r).Within(SrgbTolerance), $"画素 {i} の R");
-                Assert.That(gpuSrgb.g, Is.EqualTo(cpuSrgb.g).Within(SrgbTolerance), $"画素 {i} の G");
-                Assert.That(gpuSrgb.b, Is.EqualTo(cpuSrgb.b).Within(SrgbTolerance), $"画素 {i} の B");
+                Assert.That(gpuSrgb.r, Is.EqualTo(cpuSrgb.r).Within(SrgbTolerance), $"画素{i}のR");
+                Assert.That(gpuSrgb.g, Is.EqualTo(cpuSrgb.g).Within(SrgbTolerance), $"画素{i}のG");
+                Assert.That(gpuSrgb.b, Is.EqualTo(cpuSrgb.b).Within(SrgbTolerance), $"画素{i}のB");
             }
 
             // 色相を残さない（hueRetain = 0）ので、結果の色相は混ぜた目標の色相になる: 下端は目標 1、上端は目標 2
@@ -421,9 +421,9 @@ namespace Nekoare.ClickRecolor.Tests
                 var c = gpu[y * Size + x];
                 return OklabConverter.OklabToOklch(OklabConverter.LinearRGBToOklab(new Vector3(c.r, c.g, c.b))).z;
             }
-            Assert.That(HueDistance(Hue(4, 0), startHue), Is.LessThan(0.05f), "下端の行は目標 1");
-            Assert.That(HueDistance(Hue(4, Size - 1), endHue), Is.LessThan(0.05f), "上端の行は目標 2");
-            Assert.That(HueDistance(Hue(0, Size - 1), startHue), Is.LessThan(0.05f), "描かれていない画素は t = 0（目標 1）");
+            Assert.That(HueDistance(Hue(4, 0), startHue), Is.LessThan(0.05f), "下端の行は目標1");
+            Assert.That(HueDistance(Hue(4, Size - 1), endHue), Is.LessThan(0.05f), "上端の行は目標2");
+            Assert.That(HueDistance(Hue(0, Size - 1), startHue), Is.LessThan(0.05f), "描かれていない画素はt = 0（目標1）");
             // 途中の行は両端の間（目標 1 から離れていく）
             Assert.That(HueDistance(Hue(4, Size / 2), startHue), Is.GreaterThan(HueDistance(Hue(4, 1), startHue)));
 
@@ -435,16 +435,16 @@ namespace Nekoare.ClickRecolor.Tests
                 var c = flipped[y * Size + x];
                 return OklabConverter.OklabToOklch(OklabConverter.LinearRGBToOklab(new Vector3(c.r, c.g, c.b))).z;
             }
-            Assert.That(HueDistance(FlippedHue(4, 0), endHue), Is.LessThan(0.05f), "反転: 下端の行は目標 2");
-            Assert.That(HueDistance(FlippedHue(4, Size - 1), startHue), Is.LessThan(0.05f), "反転: 上端の行は目標 1");
+            Assert.That(HueDistance(FlippedHue(4, 0), endHue), Is.LessThan(0.05f), "反転: 下端の行は目標2");
+            Assert.That(HueDistance(FlippedHue(4, Size - 1), startHue), Is.LessThan(0.05f), "反転: 上端の行は目標1");
             for (int i = 0; i < src.Length; i++)
             {
                 Color cpu = ColorShiftCpu.ShiftLinear(src[i], 1f, p, positions[i]);
                 Color cpuSrgb = OklabConverter.LinearToSRGB(new Vector3(cpu.r, cpu.g, cpu.b));
                 Color gpuSrgb = OklabConverter.LinearToSRGB(new Vector3(flipped[i].r, flipped[i].g, flipped[i].b));
-                Assert.That(gpuSrgb.r, Is.EqualTo(cpuSrgb.r).Within(SrgbTolerance), $"反転 画素 {i} の R");
-                Assert.That(gpuSrgb.g, Is.EqualTo(cpuSrgb.g).Within(SrgbTolerance), $"反転 画素 {i} の G");
-                Assert.That(gpuSrgb.b, Is.EqualTo(cpuSrgb.b).Within(SrgbTolerance), $"反転 画素 {i} の B");
+                Assert.That(gpuSrgb.r, Is.EqualTo(cpuSrgb.r).Within(SrgbTolerance), $"反転 画素{i}のR");
+                Assert.That(gpuSrgb.g, Is.EqualTo(cpuSrgb.g).Within(SrgbTolerance), $"反転 画素{i}のG");
+                Assert.That(gpuSrgb.b, Is.EqualTo(cpuSrgb.b).Within(SrgbTolerance), $"反転 画素{i}のB");
             }
         }
 
@@ -496,9 +496,9 @@ namespace Nekoare.ClickRecolor.Tests
                 Color cpu = ColorShiftCpu.ShiftLinear(src[i], 1f, p, positions[i]);
                 Color cpuSrgb = OklabConverter.LinearToSRGB(new Vector3(cpu.r, cpu.g, cpu.b));
                 Color gpuSrgb = OklabConverter.LinearToSRGB(new Vector3(gpu[i].r, gpu[i].g, gpu[i].b));
-                Assert.That(gpuSrgb.r, Is.EqualTo(cpuSrgb.r).Within(SrgbTolerance), $"画素 {i} の R");
-                Assert.That(gpuSrgb.g, Is.EqualTo(cpuSrgb.g).Within(SrgbTolerance), $"画素 {i} の G");
-                Assert.That(gpuSrgb.b, Is.EqualTo(cpuSrgb.b).Within(SrgbTolerance), $"画素 {i} の B");
+                Assert.That(gpuSrgb.r, Is.EqualTo(cpuSrgb.r).Within(SrgbTolerance), $"画素{i}のR");
+                Assert.That(gpuSrgb.g, Is.EqualTo(cpuSrgb.g).Within(SrgbTolerance), $"画素{i}のG");
+                Assert.That(gpuSrgb.b, Is.EqualTo(cpuSrgb.b).Within(SrgbTolerance), $"画素{i}のB");
             }
 
             // 箱の上下外（左右端の列、|y| = 1）は色変えしない＝元の灰色のまま。箱の中（y ≈ ±0.14、横は箱外でも切らない）は色が付く
@@ -510,7 +510,7 @@ namespace Nekoare.ClickRecolor.Tests
             }
             Assert.That(gpu[3 * Size + 0].r, Is.EqualTo(grey).Within(SrgbTolerance), "下端より下は元の色のまま");
             Assert.That(gpu[3 * Size + (Size - 1)].r, Is.EqualTo(grey).Within(SrgbTolerance), "上端より上は元の色のまま");
-            Assert.That(HueDistance(Hue(Size / 2, 3), startHue), Is.GreaterThan(0.5f), "箱の中はグラデーション（目標 1 から離れる）");
+            Assert.That(HueDistance(Hue(Size / 2, 3), startHue), Is.GreaterThan(0.5f), "箱の中はグラデーション（目標1から離れる）");
         }
 
         [Test]
@@ -561,26 +561,26 @@ namespace Nekoare.ClickRecolor.Tests
                 Color cpu = ColorShiftCpu.ShiftLinear(src[i], 1f, p, positions[i]);
                 Color cpuSrgb = OklabConverter.LinearToSRGB(new Vector3(cpu.r, cpu.g, cpu.b));
                 Color gpuSrgb = OklabConverter.LinearToSRGB(new Vector3(gpu[i].r, gpu[i].g, gpu[i].b));
-                Assert.That(gpuSrgb.r, Is.EqualTo(cpuSrgb.r).Within(SrgbTolerance), $"画素 {i} の R");
-                Assert.That(gpuSrgb.g, Is.EqualTo(cpuSrgb.g).Within(SrgbTolerance), $"画素 {i} の G");
-                Assert.That(gpuSrgb.b, Is.EqualTo(cpuSrgb.b).Within(SrgbTolerance), $"画素 {i} の B");
+                Assert.That(gpuSrgb.r, Is.EqualTo(cpuSrgb.r).Within(SrgbTolerance), $"画素{i}のR");
+                Assert.That(gpuSrgb.g, Is.EqualTo(cpuSrgb.g).Within(SrgbTolerance), $"画素{i}のG");
+                Assert.That(gpuSrgb.b, Is.EqualTo(cpuSrgb.b).Within(SrgbTolerance), $"画素{i}のB");
             }
 
             // 上端の行（t = 1、強さ 0）は元の色のまま
             for (int x = 0; x < Size; x++)
             {
                 int i = (Size - 1) * Size + x;
-                Assert.That(ColorShiftCpu.ShiftLinear(src[i], 1f, p, positions[i]), Is.EqualTo(src[i]), $"CPU 上端 {x}");
-                Assert.That(gpu[i].r, Is.EqualTo(src[i].r).Within(HalfTolerance), $"GPU 上端 {x} の R");
-                Assert.That(gpu[i].g, Is.EqualTo(src[i].g).Within(HalfTolerance), $"GPU 上端 {x} の G");
-                Assert.That(gpu[i].b, Is.EqualTo(src[i].b).Within(HalfTolerance), $"GPU 上端 {x} の B");
+                Assert.That(ColorShiftCpu.ShiftLinear(src[i], 1f, p, positions[i]), Is.EqualTo(src[i]), $"CPU上端{x}");
+                Assert.That(gpu[i].r, Is.EqualTo(src[i].r).Within(HalfTolerance), $"GPU上端{x}のR");
+                Assert.That(gpu[i].g, Is.EqualTo(src[i].g).Within(HalfTolerance), $"GPU上端{x}のG");
+                Assert.That(gpu[i].b, Is.EqualTo(src[i].b).Within(HalfTolerance), $"GPU上端{x}のB");
             }
 
             // 下端の行（t = 0、強さ 1）は色 1 の色相に変わる
             float startHue = OklabConverter.SRGBToOklch(start).z;
             var bottom = gpu[4];
             float bottomHue = OklabConverter.OklabToOklch(OklabConverter.LinearRGBToOklab(new Vector3(bottom.r, bottom.g, bottom.b))).z;
-            Assert.That(HueDistance(bottomHue, startHue), Is.LessThan(0.05f), "下端の行は色 1");
+            Assert.That(HueDistance(bottomHue, startHue), Is.LessThan(0.05f), "下端の行は色1");
         }
 
         /// <summary>色相（ラジアン）の差の大きさ（0..π）</summary>

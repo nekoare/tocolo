@@ -73,5 +73,33 @@ namespace Nekoare.ClickRecolor.Tests
                 Object.DestroyImmediate(material);
             }
         }
+    
+        [Test]
+        public void メインの色が白以外なら掛け合わせの案内が出る()
+        {
+            var material = new Material(Shader.Find("Standard"));
+            try
+            {
+                material.SetColor("_Color", Color.white);
+                Assert.That(LilToonLayerOverlap.Check(material, Vector2.zero, Vector2.zero).mainColorTint, Is.False, "白なら出さない");
+                material.SetColor("_Color", new Color(0.4f, 0.6f, 1f, 1f));
+                Assert.That(LilToonLayerOverlap.Check(material, Vector2.zero, Vector2.zero).mainColorTint, Is.True);
+            }
+            finally
+            {
+                Object.DestroyImmediate(material);
+            }
+        }
+    
+        [Test]
+        public void lilToon_の色調補正は既定値なら効かず_変えれば効く()
+        {
+            var identity = new Vector4(0f, 1f, 1f, 1f);
+            Assert.That(LilToonLayerOverlap.IsLilToneCorrectionActive(identity, 0f, false), Is.False);
+            Assert.That(LilToonLayerOverlap.IsLilToneCorrectionActive(new Vector4(0.1f, 1f, 1f, 1f), 0f, false), Is.True, "色相");
+            Assert.That(LilToonLayerOverlap.IsLilToneCorrectionActive(new Vector4(0f, 0.5f, 1f, 1f), 0f, false), Is.True, "彩度");
+            Assert.That(LilToonLayerOverlap.IsLilToneCorrectionActive(identity, 0.5f, true), Is.True, "グラデーションマップ");
+            Assert.That(LilToonLayerOverlap.IsLilToneCorrectionActive(identity, 0.5f, false), Is.False, "テクスチャが無ければ効かない");
+        }
     }
 }

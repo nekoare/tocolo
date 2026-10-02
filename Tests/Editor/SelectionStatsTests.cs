@@ -144,7 +144,7 @@ namespace Nekoare.ClickRecolor.Tests
                 || !SystemInfo.SupportsRandomWriteOnRenderTextureFormat(RenderTextureFormat.ARGBHalf)
                 || !SystemInfo.SupportsRandomWriteOnRenderTextureFormat(RenderTextureFormat.R8))
             {
-                Assert.Ignore("この環境は compute shader（ARGBHalf / R8 への書き込み）に対応していません");
+                Assert.Ignore("この環境はcompute shader（ARGBHalf / R8への書き込み）に対応していません");
             }
 
             const int size = 8;

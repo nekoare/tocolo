@@ -276,7 +276,7 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
                 if (!s_warnedUnavailable)
                 {
                     s_warnedUnavailable = true;
-                    Debug.LogWarning("[Tocolo] この環境ではグラデーションの位置の計算が使えないため、グラデーションは「色 1」だけで塗られます");
+                    Debug.LogWarning("[Tocolo] この環境ではグラデーションの位置の計算が使えないため、グラデーションは「色1」だけで塗られます");
                 }
                 return null;
             }
@@ -347,7 +347,7 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
                 if (!s_warnedFillUnavailable)
                 {
                     s_warnedFillUnavailable = true;
-                    Debug.LogWarning("[Tocolo] この環境では位置マップの膨張が使えないため、はみ出し幅の部分はグラデーションの「色 1」側で塗られます");
+                    Debug.LogWarning("[Tocolo] この環境では位置マップの膨張が使えないため、はみ出し幅の部分はグラデーションの「色1」側で塗られます");
                 }
                 return map;
             }

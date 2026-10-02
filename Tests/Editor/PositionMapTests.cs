@@ -19,9 +19,9 @@ namespace Nekoare.ClickRecolor.Tests
         {
             if (!SystemInfo.SupportsRenderTextureFormat(RenderTextureFormat.ARGBFloat))
             {
-                Assert.Ignore("この環境は ARGBFloat の RenderTexture に対応していません");
+                Assert.Ignore("この環境はARGBFloatのRenderTextureに対応していません");
             }
-            Assert.That(PositionMap.IsAvailable, Is.True, "PositionMap.shader が読み込めません（.meta の GUID を確認）");
+            Assert.That(PositionMap.IsAvailable, Is.True, "PositionMap.shaderが読み込めません（.metaのGUIDを確認）");
         }
 
         [TearDown]
@@ -120,11 +120,11 @@ namespace Nekoare.ClickRecolor.Tests
                 var world = renderer.transform.TransformPoint(new Vector3(u - 0.5f, v - 0.5f, 0f));
                 var expected = root.InverseTransformPoint(world);
                 var actual = pixels[y * Size + x];
-                string at = $"画素 ({x}, {y})";
-                Assert.That(actual.a, Is.EqualTo(1f).Within(1e-4f), at + " の A（描いた印）");
-                Assert.That(actual.r, Is.EqualTo(expected.x).Within(1e-3f), at + " の x");
-                Assert.That(actual.g, Is.EqualTo(expected.y).Within(1e-3f), at + " の y");
-                Assert.That(actual.b, Is.EqualTo(expected.z).Within(1e-3f), at + " の z");
+                string at = $"画素({x}, {y})";
+                Assert.That(actual.a, Is.EqualTo(1f).Within(1e-4f), at + "のA（描いた印）");
+                Assert.That(actual.r, Is.EqualTo(expected.x).Within(1e-3f), at + "のx");
+                Assert.That(actual.g, Is.EqualTo(expected.y).Within(1e-3f), at + "のy");
+                Assert.That(actual.b, Is.EqualTo(expected.z).Within(1e-3f), at + "のz");
             }
         }
 
@@ -151,7 +151,7 @@ namespace Nekoare.ClickRecolor.Tests
         {
             if (!SystemInfo.supportsComputeShaders || !SystemInfo.SupportsRandomWriteOnRenderTextureFormat(RenderTextureFormat.ARGBFloat))
             {
-                Assert.Ignore("この環境は compute shader（ARGBFloat への書き込み）に対応していません");
+                Assert.Ignore("この環境はcompute shader（ARGBFloatへの書き込み）に対応していません");
             }
             var texture = Track(new Texture2D(4, 4));
             // UV を左下 1/2 だけに縮める: 描かれるのは x, y ≤ 31 の画素
@@ -166,7 +166,7 @@ namespace Nekoare.ClickRecolor.Tests
             Assert.That(edge.a, Is.EqualTo(1f).Within(1e-4f), "三角形の端は描かれる");
             // 端から 4px 外（x = 35）は膨張で埋まり、端の位置に近い（同じ行の端から横へ写した値）
             var filled = pixels[row * Size + 35];
-            Assert.That(filled.a, Is.EqualTo(1f).Within(1e-4f), "4px 以内は埋まる");
+            Assert.That(filled.a, Is.EqualTo(1f).Within(1e-4f), "4px以内は埋まる");
             float distance = Vector3.Distance(new Vector3(filled.r, filled.g, filled.b), new Vector3(edge.r, edge.g, edge.b));
             Assert.That(distance, Is.LessThan(1e-3f), "埋めた位置は隣（端）の位置に近い");
             // 5px 以上外は埋まらない

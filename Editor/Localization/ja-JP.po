@@ -7,46 +7,46 @@ msgid "Inspector:Title"
 msgstr "Tocolo"
 
 msgid "Inspector:Description"
-msgstr "Scene でクリックした場所のメインテクスチャの色を、陰影を保ったまま非破壊で変えます。"
+msgstr "Sceneでクリックした場所のメインテクスチャの色を、陰影を保ったまま非破壊で変えます。"
 
 msgid "Inspector:StartTool"
-msgstr "Scene で色を変える"
+msgstr "Sceneで色を変える"
 
 msgid "Inspector:StopTool"
-msgstr "Scene 編集を終了"
+msgstr "Scene編集を終了"
 
 msgid "Inspector:EditCount"
-msgstr "編集: {0} 件"
+msgstr "編集: {0}件"
 
 msgid "Inspector:UnreadableMesh"
-msgstr "Read/Write が無効なメッシュがあります（{0}）。メッシュのインポート設定で Read/Write を有効にしてください"
+msgstr "Read/Writeが無効なメッシュがあります（{0}）。メッシュのインポート設定でRead/Writeを有効にしてください"
 
 msgid "Scene:Panel:Unreadable"
-msgstr "「{0}」はメッシュの Read/Write が無効なため選べません。下のボタンで有効にできます。"
+msgstr "「{0}」はメッシュのRead/Writeが無効なため選べません。下のボタンで有効にできます。"
 
 msgid "Scene:Panel:UnreadableLocked"
-msgstr "「{0}」はメッシュの Read/Write が無効なため選べません。変更できない場所のメッシュなので、元の FBX のインポート設定で Read/Write を有効にしてください。"
+msgstr "「{0}」はメッシュのRead/Writeが無効なため選べません。変更できない場所のメッシュなので、元のFBXのインポート設定でRead/Writeを有効にしてください。"
 
 msgid "Scene:Panel:UnreadableFix"
-msgstr "Read/Write を有効にする"
+msgstr "Read/Writeを有効にする"
 
 msgid "Dialog:ReadWriteTitle"
-msgstr "Read/Write を有効にする"
+msgstr "Read/Writeを有効にする"
 
 msgid "Dialog:ReadWriteConfirm"
-msgstr "次のメッシュのインポート設定で Read/Write を有効にします。"
+msgstr "次のメッシュのインポート設定でRead/Writeを有効にします。"
 
 msgid "Dialog:ReadWriteNote"
-msgstr "同じ FBX を使う他のアバターにも反映されます。アップロードしたアバターのメモリが少し増えます。"
+msgstr "同じFBXを使う他のアバターにも反映されます。アップロードしたアバターのメモリが少し増えます。"
 
 msgid "Inspector:PersistentNotice"
-msgstr "シーンに置いたアバターで使ってください（Project の Prefab では動きません）"
+msgstr "シーンに置いたアバターで使ってください（ProjectのPrefabでは動きません）"
 
 msgid "Inspector:PlayModeNotice"
-msgstr "Play モード中は使えません（Play を止めてから開始してください）"
+msgstr "Playモード中は使えません（Playを止めてから開始してください）"
 
 msgid "Scene:Panel:PrefabModeNotice"
-msgstr "Prefab の編集モード中はプレビューされません。シーンに戻して（Prefab 編集を閉じて）使ってください"
+msgstr "Prefabの編集モード中はプレビューされません。シーンに戻して（Prefab編集を閉じて）使ってください"
 
 msgid "Inspector:ApplyOnBuildHint"
 msgstr "アップロード時にメインテクスチャへ反映します"
@@ -73,13 +73,13 @@ msgid "Inspector:BakeCompressionAndroid:Normal"
 msgstr "標準（ASTC 6x6）"
 
 msgid "Help:BakeCompressionAndroid"
-msgstr "Android（Quest）向けのアップロードで生成するテクスチャと、書き出した PNG の Android 用インポート設定に使う圧縮形式です。既定の高画質（ASTC 4x4）は BC7 と同じ容量で、グラデーションがきれいに残ります。Quest の容量を優先するなら標準（ASTC 6x6。容量は約半分）にしてください。「元と同じ」で元が PC 用の形式（BC 系）のときは ASTC 6x6 になります。"
+msgstr "Android（Quest）向けのアップロードで生成するテクスチャと、書き出したPNGのAndroid用インポート設定に使う圧縮形式です。既定の高画質（ASTC 4x4）はBC7と同じ容量で、グラデーションがきれいに残ります。Questの容量を優先するなら標準（ASTC 6x6。容量は約半分）にしてください。「元と同じ」で元がPC用の形式（BC系）のときはASTC 6x6になります。"
 
 msgid "Help:BakeCompression"
-msgstr "PC 向けのアップロードで生成するテクスチャと、書き出した PNG のインポート設定に使う圧縮形式です。元のテクスチャが BC1（DXT1）だと、グラデーションや同系色の変化がブロック状に潰れることがあるため、既定は高画質（BC7。Android は ASTC 4x4）です。容量は BC1 の約 2 倍になります。容量を優先するなら「元と同じ」にしてください。"
+msgstr "PC向けのアップロードで生成するテクスチャと、書き出したPNGのインポート設定に使う圧縮形式です。元のテクスチャがBC1（DXT1）だと、グラデーションや同系色の変化がブロック状に潰れることがあるため、既定は高画質（BC7。AndroidはASTC 4x4）です。容量はBC1の約2倍になります。容量を優先するなら「元と同じ」にしてください。"
 
 msgid "Error:LowQualityFormat"
-msgstr "テクスチャ「{0}」は元の圧縮形式（{1}）のまま焼き込みました。グラデーションがブロック状に見える場合は、コンポーネントの「生成テクスチャの圧縮」を「高画質」にしてください（PC と Quest で別々に選べます）"
+msgstr "テクスチャ「{0}」は元の圧縮形式（{1}）のまま焼き込みました。グラデーションがブロック状に見える場合は、コンポーネントの「生成テクスチャの圧縮」を「高画質」にしてください（PCとQuestで別々に選べます）"
 
 msgid "Inspector:PreviewResolution"
 msgstr "プレビューの解像度"
@@ -103,7 +103,7 @@ msgid "Inspector:Edits"
 msgstr "編集一覧"
 
 msgid "Inspector:Edit:SelectInScene"
-msgstr "Scene で選ぶ"
+msgstr "Sceneで選ぶ"
 
 msgid "Inspector:Edit:DeleteAll"
 msgstr "すべて削除"
@@ -142,7 +142,7 @@ msgid "Inspector:Edit:Mode:Color"
 msgstr "色"
 
 msgid "Inspector:Edit:GroupCount"
-msgstr "（{0} テクスチャ）"
+msgstr "（{0}テクスチャ）"
 
 msgid "Inspector:Export"
 msgstr "書き出し"
@@ -154,13 +154,13 @@ msgid "Inspector:Export:ReplaceMaterial"
 msgstr "マテリアルを複製して差し替え"
 
 msgid "Inspector:Export:Overwrite"
-msgstr "既に {0} があります。上書きしますか？"
+msgstr "既に{0}があります。上書きしますか？"
 
 msgid "Inspector:Export:OverwriteOk"
 msgstr "上書き"
 
 msgid "Inspector:Export:Done"
-msgstr "{0} を書き出しました"
+msgstr "{0}を書き出しました"
 
 msgid "Inspector:Export:All"
 msgstr "すべてのテクスチャ"
@@ -172,13 +172,13 @@ msgid "Inspector:Export:Second"
 msgstr "2ndに焼き込み"
 
 msgid "Inspector:Export:NotLilToon"
-msgstr "lilToon のマテリアルではありません"
+msgstr "lilToonのマテリアルではありません"
 
 msgid "Inspector:Export:SecondBusy"
-msgstr "2nd と 3rd が使用中のため書き出せません"
+msgstr "2ndと3rdが使用中のため書き出せません"
 
 msgid "Inspector:Export:UseThird"
-msgstr "2nd が使用中です。3rd に書き出しますか？"
+msgstr "2ndが使用中です。3rdに書き出しますか？"
 
 msgid "Inspector:Export:Mask"
 msgstr "マスク書き出し"
@@ -199,7 +199,7 @@ msgid "Scene:Panel:Target"
 msgstr "対象: {0}"
 
 msgid "Scene:Panel:PickTarget"
-msgstr "対象を選ぶか、Scene でモデルをクリックしてください"
+msgstr "対象を選ぶか、Sceneでモデルをクリックしてください"
 
 msgid "Scene:Panel:ChangeTarget"
 msgstr "対象アバターを切り替える"
@@ -208,10 +208,10 @@ msgid "Scene:Panel:ExcludeList"
 msgstr "除外リスト"
 
 msgid "Scene:Panel:ExcludeListCount"
-msgstr "除外リスト ({0})"
+msgstr "除外リスト({0})"
 
 msgid "Scene:Exclude:DropHere"
-msgstr "ここに Hierarchy から GameObject をドロップ（選択しないパーツとして登録。Renderer 単位）"
+msgstr "ここにHierarchyからGameObjectをドロップ（選択しないパーツとして登録。Renderer単位）"
 
 msgid "Scene:Exclude:Empty"
 msgstr "除外はありません"
@@ -220,16 +220,16 @@ msgid "Scene:Exclude:ClearAll"
 msgstr "すべて外す"
 
 msgid "Scene:Exclude:NotInTarget"
-msgstr "対象アバターの外の GameObject は除外できません"
+msgstr "対象アバターの外のGameObjectは除外できません"
 
 msgid "Scene:Exclude:NoRenderer"
-msgstr "ドロップした GameObject に Renderer がありません"
+msgstr "ドロップしたGameObjectにRendererがありません"
 
 msgid "Inspector:ExcludedRenderers"
-msgstr "選択しない Renderer"
+msgstr "選択しないRenderer"
 
 msgid "Help:ExcludeList"
-msgstr "ここに登録した Renderer（GameObject）は、Scene でクリックしてもエリア選択で囲んでも選ばれなくなります。誤って選びたくないパーツを入れておくためのもので、見た目には影響しません（共有テクスチャに掛かった編集はそのまま映ります）。"
+msgstr "ここに登録したRenderer（GameObject）は、Sceneでクリックしてもエリア選択で囲んでも選ばれなくなります。誤って選びたくないパーツを入れておくためのもので、見た目には影響しません（共有テクスチャに掛かった編集はそのまま映ります）。"
 
 msgid "Scene:Panel:CrossTexture"
 msgstr "マテリアルをまたいで選ぶ"
@@ -241,22 +241,37 @@ msgid "Scene:Panel:SelectHidden"
 msgstr "隠れている範囲も選ぶ"
 
 msgid "Help:SelectHidden"
-msgstr "オンにすると、ドラッグ選択で他のメッシュの奥に隠れているパーツも、ドラッグ範囲に入っていれば選びます。オフでは Scene で見えている面だけを選びます。Ctrl＋クリックには効きません。"
+msgstr "オンにすると、ドラッグ選択で他のメッシュの奥に隠れているパーツも、ドラッグ範囲に入っていれば選びます。オフではSceneで見えている面だけを選びます。Ctrl＋クリックには効きません。"
 
 msgid "Scene:Panel:CrossTextureOff"
 msgstr "「マテリアルをまたいで選ぶ」がオフなので、別のテクスチャのパーツは足しません"
 
 msgid "Scene:Panel:CrossTextureOffRect"
-msgstr "別のテクスチャのパーツ（{0} 個）は足しませんでした（「マテリアルをまたいで選ぶ」がオフ）"
+msgstr "別のテクスチャのパーツ（{0}個）は足しませんでした（「マテリアルをまたいで選ぶ」がオフ）"
 
 msgid "Scene:Panel:HairToolNotice"
 msgstr "このパーツはキメラヘアマスターの対象です。アップロード時はキメラヘアマスターの加工がこの色変えの上に掛かるため、先にキメラヘアマスターでエクスポートしてから色を変えてください"
 
 msgid "Scene:Panel:LayerCovers"
-msgstr "この場所は lilToon のメインカラー {0} が重なっているため、色が変わりにくいかもしれません。{0} の色やテクスチャは lilToon のマテリアルで変えられます。"
+msgstr "色が変わりにくい場所です。lilToonのメインカラー{0}が上に重なっています。"
 
 msgid "Scene:Panel:LayerMixes"
-msgstr "この場所は lilToon のメインカラー {0} の色が混ざるため、狙った色からずれることがあります。"
+msgstr "色が狙いとずれます。lilToonのメインカラー{0}の色が混ざります。"
+
+msgid "Scene:Panel:PoiLayerCovers"
+msgstr "色が変わりにくい場所です。Poiyomiの{0}が上に重なっています。"
+
+msgid "Scene:Panel:PoiLayerMixes"
+msgstr "色が狙いとずれます。Poiyomiの{0}の色が混ざります。"
+
+msgid "Scene:Panel:PoiColorAdjust"
+msgstr "色が狙いとずれます。PoiyomiのColor Adjustが掛かっています。"
+
+msgid "Scene:Panel:LilColorAdjust"
+msgstr "色が狙いとずれます。lilToonの色調補正（HSVG）かグラデーションマップが掛かっています。"
+
+msgid "Scene:Panel:MainColorTint"
+msgstr "色が狙いとずれます。マテリアルの色（Color）が白以外で、掛け合わされます。"
 
 msgid "Scene:Panel:ShowRange"
 msgstr "範囲を表示"
@@ -277,7 +292,7 @@ msgid "Scene:Panel:Mode:SimilarColor"
 msgstr "似た色"
 
 msgid "Scene:Panel:EscHint"
-msgstr "終了する（Esc キーでも終了できます）"
+msgstr "終了する（Escキーでも終了できます）"
 
 msgid "Scene:Panel:ShiftHint"
 msgstr "Shift＋クリックで新しい編集"
@@ -325,10 +340,10 @@ msgid "Scene:Color:ResetToOriginal"
 msgstr "クリックで元の色に戻す"
 
 msgid "Scene:Color:Target"
-msgstr "色 1"
+msgstr "色1"
 
 msgid "Scene:Color:Eyedropper"
-msgstr "スポイト: Scene のモデルをクリックして、その場所の元の色を取ります（Esc でやめる）"
+msgstr "スポイト: Sceneのモデルをクリックして、その場所の元の色を取ります（Escでやめる）"
 
 msgid "Scene:Color:EyedropperShort"
 msgstr "スポイト"
@@ -394,7 +409,7 @@ msgid "Scene:Color:Strength"
 msgstr "不透明度"
 
 msgid "Scene:Color:ShadingFor2"
-msgstr "（色 2）"
+msgstr "（色2）"
 
 msgid "Scene:Color:Gradient"
 msgstr "グラデーション"
@@ -402,14 +417,20 @@ msgstr "グラデーション"
 msgid "Scene:Color:GradientInsideOnly"
 msgstr "箱の中だけ"
 
+msgid "Scene:Color:ShowGradientBox"
+msgstr "箱を表示"
+
+msgid "Help:ShowGradientBox"
+msgstr "オフにするとSceneの箱とハンドルを隠して、色を確認しやすくします。この編集を選んでいる間だけ効きます。"
+
 msgid "Scene:Color:GradientPreview"
-msgstr "色 1 → 色 2"
+msgstr "色1 → 色2"
 
 msgid "Scene:Color:EditTarget:Start"
-msgstr "色 1"
+msgstr "色1"
 
 msgid "Scene:Color:EditTarget:End"
-msgstr "色 2"
+msgstr "色2"
 
 msgid "Scene:Color:Padding"
 msgstr "はみ出し幅"
@@ -421,16 +442,16 @@ msgid "Scene:Label:Format"
 msgstr "{0} / {1} / {2}"
 
 msgid "Help:ShowRange"
-msgstr "今の編集で色が変わる範囲を、Scene に縞模様で重ねて表示します。アップロード結果には影響しません。"
+msgstr "今の編集で色が変わる範囲を、Sceneに縞模様で重ねて表示します。アップロード結果には影響しません。"
 
 msgid "Help:PerSeedStats"
-msgstr "オンにすると、Ctrl＋クリックで足した点ごとに明るさの分布を取り、それぞれを目標の色に揃えます。オフでは全体で 1 つの分布を取るので、点どうしの明るさの差が保たれます。マテリアルをまたいだ連結でも同様です。"
+msgstr "オンにすると、Ctrl＋クリックで足した点ごとに明るさの分布を取り、それぞれを目標の色に揃えます。オフでは全体で1つの分布を取るので、点どうしの明るさの差が保たれます。マテリアルをまたいだ連結でも同様です。"
 
 msgid "Help:Mode"
 msgstr "クリックしたときに、どこまでを色変えの対象にするかを決めます。選んでいる編集にもすぐ反映されます。"
 
 msgid "Help:Mode:Island"
-msgstr "パーツ: クリックしたパーツ（UV のひとかたまり）をまるごと変えます。"
+msgstr "パーツ: クリックしたパーツ（UVのひとかたまり）をまるごと変えます。"
 
 msgid "Help:Mode:SameColor"
 msgstr "同じ色: クリックした場所とほぼ同じ色だけを変えます。模様や線を選ぶのに向いています。"
@@ -442,19 +463,19 @@ msgid "Scene:Panel:Mode:Box"
 msgstr "箱の中"
 
 msgid "Help:Mode:Box"
-msgstr "箱の中: Scene に出る箱の内側だけを変えます。パーツや UV の切れ目に関係なく、箱の面で色変えが切れます。箱はハンドルで動かせます。"
+msgstr "箱の中: Sceneに出る箱の内側だけを変えます。パーツやUVの切れ目に関係なく、箱の面で色変えが切れます。箱はハンドルで動かせます。"
 
 msgid "Scene:Select:BoxFeather"
 msgstr "面のぼかし"
 
 msgid "Help:BoxFeather"
-msgstr "箱の面のところで色変えをなめらかに切る幅です。0 だと面でぱきっと切れます。"
+msgstr "箱の面のところで色変えをなめらかに切る幅です。0だと面でぱきっと切れます。"
 
 msgid "Scene:Select:BoxPerPartStats"
 msgstr "箱の中の色を揃える"
 
 msgid "Help:BoxPerPartStats"
-msgstr "オンにすると、箱に入るパーツ（UV のひとまとまり）ごとに明るさの分布を取り、それぞれを目標の色に揃えます（パーツを複数選んだときの「各点の色を揃える」と同じ）。オフでは箱の中全体で 1 つの分布を取るので、パーツどうしの明るさの差が保たれます。"
+msgstr "オンにすると、箱に入るパーツ（UVのひとまとまり）ごとに明るさの分布を取り、それぞれを目標の色に揃えます（パーツを複数選んだときの「各点の色を揃える」と同じ）。オフでは箱の中全体で1つの分布を取るので、パーツどうしの明るさの差が保たれます。"
 
 msgid "Help:Threshold"
 msgstr "どれくらい近い色まで選ぶかです。大きくすると広く、小さくすると狭く選びます。"
@@ -481,22 +502,22 @@ msgid "Scene:Color:FlattenStrength"
 msgstr "打ち消す強さ"
 
 msgid "Help:FlattenBase"
-msgstr "元の色が根元と毛先で明るさの違うグラデーションになっているとき、その明暗差を打ち消して全体を目標の色に揃えます。選んだ範囲を上下（グラデーションが ON なら箱の向き）の帯に分けて帯ごとに明るさを合わせるので、帯の中の陰影は残ります。上から当たる光のような大きな明暗も弱まるので、強さで加減してください。"
+msgstr "根元と毛先など、元の色の明暗差を消して全体を揃えます。向きは上下（グラデーションONなら箱の向き）です。陰影は残ります。平らになりすぎたら強さを下げてください。"
 
 msgid "Help:Strength"
 msgstr "色変えの不透明度です。１で完全に指定した色になり、下げるほど元の色が残ります。"
 
 msgid "Help:Gradient"
-msgstr "オンにすると Scene に箱が出ます。箱の下端から上端に向けて「色 1」から「色 2」へ変化します。箱を動かして向きと範囲を決めてください"
+msgstr "オンにするとSceneに箱が出ます。箱の下端から上端に向けて「色1」から「色2」へ変化します。箱を動かして向きと範囲を決めてください"
 
 msgid "Help:GradientInsideOnly"
 msgstr "オンにすると、箱の上端より上と下端より下は色変えせず元の色のままになり、箱の高さの範囲だけがグラデーションになります。横方向は箱で切りません。オフでは上下の外側も端の色で続きます。"
 
 msgid "Help:Padding"
-msgstr "パーツのまわりの、UV で使われていない部分まで色を広げる幅（ピクセル）です。つなぎ目に元の色の線が見えるときは上げてください。マイナスにすると逆に選んだ範囲の縁を削ります。"
+msgstr "パーツのまわりの、UVで使われていない部分まで色を広げる幅（ピクセル）です。つなぎ目に元の色の線が見えるときは上げてください。マイナスにすると逆に選んだ範囲の縁を削ります。"
 
 msgid "Help:PreviewResolution"
-msgstr "Scene のプレビューで使う解像度の上限です。小さいほど軽く動きます。アップロードと書き出しは元の解像度で行います。"
+msgstr "Sceneのプレビューで使う解像度の上限です。小さいほど軽く動きます。アップロードと書き出しは元の解像度で行います。"
 
 msgid "Help:ApplyOnBuild"
 msgstr "オンにすると、アップロード（ビルド）のときに色変えをメインテクスチャへ焼き込みます（有料版）。元のテクスチャとマテリアルは変更しません。体験版では反映されず、報告ウィンドウに案内が出ます。"
@@ -505,16 +526,16 @@ msgid "Help:Export:Main"
 msgstr "色変えを焼き込んだ新しいテクスチャ（元の名前_recolor.png）を元の隣に保存します。「マテリアルを複製して差し替え」がオンなら、複製したマテリアルに差し替えます。書き出した編集は自動でオフになります。Ctrl＋ｚで元に戻せます。"
 
 msgid "Help:Export:Second"
-msgstr "lilToon の 2nd（使用中なら 3rd）の層に、色を変えた部分だけを載せます。元のメインテクスチャはそのまま残るので、層をオフにすれば元に戻せます。書き出した編集はオフになります。3rdも使用中の場合警告が出ます。Ctrl＋ｚで元に戻せます。"
+msgstr "lilToonの2nd（使用中なら3rd）の層に、色を変えた部分だけを載せます。元のメインテクスチャはそのまま残るので、層をオフにすれば元に戻せます。書き出した編集はオフになります。3rdも使用中の場合警告が出ます。Ctrl＋ｚで元に戻せます。"
 
 msgid "Help:Export:Mask"
 msgstr "選んだ範囲を白黒の画像（元の名前_recolormask.png）で保存します。他のツールでマスクとして使えます。マテリアルと編集は変わりません。"
 
 msgid "Help:Export:CropSecond"
-msgstr "2nd に書き出す画像を、選んだ範囲のまわりだけに切り抜いて小さくします。層の位置は自動で合わせます。"
+msgstr "2ndに書き出す画像を、選んだ範囲のまわりだけに切り抜いて小さくします。層の位置は自動で合わせます。"
 
 msgid "Error:SeedRendererMissing"
-msgstr "編集「{0}」でクリックした Renderer が見つからないため、この編集は反映しません（削除された可能性があります）"
+msgstr "編集「{0}」でクリックしたRendererが見つからないため、この編集は反映しません（削除された可能性があります）"
 
 msgid "Error:TextureUnused"
 msgstr "テクスチャ「{0}」はアバター内のどのマテリアルからも使われていないため、反映しません"
@@ -523,7 +544,7 @@ msgid "Error:ComputeUnavailable"
 msgstr "この環境では色変換（compute shader）が使えないため、アップロード時に色を反映できません"
 
 msgid "Error:MaskFailed"
-msgstr "編集「{0}」の選択範囲を作れなかったため、この編集は反映しません（メッシュの Read/Write が無効、GPU が使えない等）"
+msgstr "編集「{0}」の選択範囲を作れなかったため、この編集は反映しません（メッシュのRead/Writeが無効、GPUが使えない等）"
 
 msgid "Error:ApplyFailed"
 msgstr "テクスチャ「{0}」に色変えを適用できなかったため、反映しません"

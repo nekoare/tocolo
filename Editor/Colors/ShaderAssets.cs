@@ -58,7 +58,7 @@ namespace Nekoare.ClickRecolor.Editor.Colors
             var shader = string.IsNullOrEmpty(path) ? null : AssetDatabase.LoadAssetAtPath<ComputeShader>(path);
             if (shader == null && WarnedGuids.Add(guid))
             {
-                Debug.LogWarning($"[Tocolo] シェーダーが読み込めません（GUID: {guid}）。.meta の GUID を確認してください");
+                Debug.LogWarning($"[Tocolo] シェーダーが読み込めません（GUID: {guid}）。.metaのGUIDを確認してください");
             }
             return shader;
         }
@@ -72,7 +72,7 @@ namespace Nekoare.ClickRecolor.Editor.Colors
             var shader = string.IsNullOrEmpty(path) ? null : AssetDatabase.LoadAssetAtPath<Shader>(path);
             if (shader == null && WarnedGuids.Add(guid))
             {
-                Debug.LogWarning($"[Tocolo] シェーダーが読み込めません（GUID: {guid}）。.meta の GUID を確認してください");
+                Debug.LogWarning($"[Tocolo] シェーダーが読み込めません（GUID: {guid}）。.metaのGUIDを確認してください");
             }
             return shader;
         }

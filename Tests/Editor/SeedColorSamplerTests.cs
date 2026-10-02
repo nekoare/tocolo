@@ -65,7 +65,7 @@ namespace Nekoare.ClickRecolor.Tests
             if (!SystemInfo.supportsComputeShaders
                 || !SystemInfo.SupportsRandomWriteOnRenderTextureFormat(RenderTextureFormat.ARGBHalf))
             {
-                Assert.Ignore("この環境は compute shader（ARGBHalf への書き込み）に対応していません");
+                Assert.Ignore("この環境はcompute shader（ARGBHalfへの書き込み）に対応していません");
             }
 
             // 左下の 4×4 だけ Noise、他は Base。(1,1) は周りも Noise、(6,6) は周りも Base
@@ -92,7 +92,7 @@ namespace Nekoare.ClickRecolor.Tests
                 // ARGBHalf を通るので誤差は half 精度ぶん許す
                 Assert.That(Vector3.Distance(low, Lab(Noise)), Is.LessThan(5e-3f), "左下（Noise）");
                 Assert.That(Vector3.Distance(high, Lab(Base)), Is.LessThan(5e-3f), "右上（Base）");
-                Assert.That(RenderTexture.active, Is.EqualTo(previous), "アクティブな RT を元に戻していない");
+                Assert.That(RenderTexture.active, Is.EqualTo(previous), "アクティブなRTを元に戻していない");
             }
             finally
             {

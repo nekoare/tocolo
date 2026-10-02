@@ -16,8 +16,14 @@ namespace Nekoare.ClickRecolor.Editor.Picking
         internal struct Result
         {
             public Kind kind;
-            /// <summary>当てはまる層の名前（"2nd" / "3rd" / "2nd/3rd"）</summary>
+            /// <summary>当てはまる層の名前（"2nd" / "3rd" / "2nd/3rd"、Poiyomi なら "Decal 0" など）</summary>
             public string layers;
+            /// <summary>Poiyomi のマテリアルの結果か（案内の文言を分ける）</summary>
+            public bool poiyomi;
+            /// <summary>Poiyomi の Color Adjust が効いている（色が狙いとずれることがある）</summary>
+            public bool colorAdjust;
+            /// <summary>メインの色（_Color）が白以外で、テクスチャに掛け合わされる（シェーダーを問わない）</summary>
+            public bool mainColorTint;
         }
 
         /// <summary>lilToon の合成モード（_Main2ndTexBlendMode）の「通常」</summary>
@@ -56,8 +62,56 @@ namespace Nekoare.ClickRecolor.Editor.Picking
         /// </summary>
         internal static Result Check(Material material, Vector2 uv0, Vector2 uvMain)
         {
-            var layers = new List<(string name, float alpha, int blendMode)>();
             if (material == null) return default;
+            var result = CheckLayers(material, uv0, uvMain);
+            result.mainColorTint = HasMainColorTint(material);
+            if (!result.poiyomi) result.colorAdjust = HasLilToonColorAdjust(material, uvMain);
+            return result;
+        }
+
+        /// <summary>
+        /// lilToon のメインカラーの色調補正（_MainTexHSVG）かグラデーションマップ（_MainGradationTex / _MainGradationStrength）が、
+        /// クリック位置で効いているか（ユーザー要望 2026-10-03）。lilToon 2.3.4 の lil_common_frag.hlsl の OVERRIDE_MAIN と同じ条件:
+        /// 補正が既定値でなく、補正マスク（_MainColorAdjustMask の赤、uvMain で読む）が 0 でない場所。
+        /// lilToon の設定で色調補正の機能自体を切っている場合は区別できない（その場合も案内は出る）
+        /// </summary>
+        internal static bool HasLilToonColorAdjust(Material material, Vector2 uvMain)
+        {
+            if (material == null || !material.HasProperty("_MainTexHSVG")) return false;
+            float gradationStrength = material.HasProperty("_MainGradationStrength") ? material.GetFloat("_MainGradationStrength") : 0f;
+            bool hasGradation = material.HasProperty("_MainGradationTex") && material.GetTexture("_MainGradationTex") != null;
+            if (!IsLilToneCorrectionActive(material.GetVector("_MainTexHSVG"), gradationStrength, hasGradation)) return false;
+            var mask = material.HasProperty("_MainColorAdjustMask") ? material.GetTexture("_MainColorAdjustMask") : null;
+            return mask == null || TexelSampler.Sample(mask, uvMain).r > IgnoreBelow;
+        }
+
+        /// <summary>色調補正（HSVG の既定は (0,1,1,1)）かグラデーションマップ（強さ &gt; 0 でテクスチャあり）のどちらかが効く値か</summary>
+        internal static bool IsLilToneCorrectionActive(Vector4 hsvg, float gradationStrength, bool hasGradationTexture)
+        {
+            const float e = 1e-3f;
+            bool tone = Mathf.Abs(hsvg.x) > e || Mathf.Abs(hsvg.y - 1f) > e || Mathf.Abs(hsvg.z - 1f) > e || Mathf.Abs(hsvg.w - 1f) > e;
+            bool gradation = gradationStrength > e && hasGradationTexture;
+            return tone || gradation;
+        }
+
+        /// <summary>
+        /// メインの色（_Color）が白以外か。lilToon・Poiyomi・Standard などはメインテクスチャに _Color を掛けるので、色変えの結果にもその色が掛かる
+        /// （ユーザー報告 2026-10-03: Poiyomi の「カラー＆アルファ」に色が入っていると狙いとずれる）。Poiyomi で Global Theme の色を使う設定も含める
+        /// </summary>
+        internal static bool HasMainColorTint(Material material)
+        {
+            if (material == null || !material.HasProperty("_Color")) return false;
+            if (material.HasProperty("_ColorThemeIndex") && Mathf.RoundToInt(material.GetFloat("_ColorThemeIndex")) != 0) return true;
+            var c = material.GetColor("_Color");
+            const float tolerance = 0.02f;
+            return c.r < 1f - tolerance || c.g < 1f - tolerance || c.b < 1f - tolerance;
+        }
+
+        private static Result CheckLayers(Material material, Vector2 uv0, Vector2 uvMain)
+        {
+            var layers = new List<(string name, float alpha, int blendMode)>();
+            // Poiyomi は層の作りが違うので専用の判定へ（ユーザー判断 2026-10-03）
+            if (PoiyomiLayerOverlap.IsPoiyomi(material)) return PoiyomiLayerOverlap.Check(material, uv0);
             foreach (var layer in Layers)
             {
                 if (!material.HasProperty(layer.use) || material.GetFloat(layer.use) == 0f) continue;

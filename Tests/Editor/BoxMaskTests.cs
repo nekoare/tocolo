@@ -23,9 +23,9 @@ namespace Nekoare.ClickRecolor.Tests
         {
             if (!SystemInfo.supportsComputeShaders || !SystemInfo.SupportsRenderTextureFormat(RenderTextureFormat.ARGBFloat))
             {
-                Assert.Ignore("この環境は compute shader か ARGBFloat の RenderTexture に対応していません");
+                Assert.Ignore("この環境はcompute shaderかARGBFloatのRenderTextureに対応していません");
             }
-            Assert.That(BoxMaskBuilder.IsAvailable, Is.True, "BoxMask.shader が読み込めません（.meta の GUID を確認）");
+            Assert.That(BoxMaskBuilder.IsAvailable, Is.True, "BoxMask.shaderが読み込めません（.metaのGUIDを確認）");
         }
 
         private const string TextureAPath = "Assets/__ClickRecolorBoxMaskTests_A.asset";
@@ -141,7 +141,7 @@ namespace Nekoare.ClickRecolor.Tests
                 float center = PixelAt(pixels, 32, 32);
                 float nearFace = PixelAt(pixels, 2, 32); // x ≈ −0.46（面から 0.04）
                 Assert.That(center, Is.GreaterThan(0.99f));
-                Assert.That(nearFace, Is.GreaterThan(0.05f).And.LessThan(0.3f), "面の近くは 0 と 1 の間");
+                Assert.That(nearFace, Is.GreaterThan(0.05f).And.LessThan(0.3f), "面の近くは0と1の間");
             }
             finally
             {
@@ -195,7 +195,7 @@ namespace Nekoare.ClickRecolor.Tests
 
             component.excludedRenderers.Add(renderer);
             var excludedJob = RecolorPipeline.PrepareJob(edit, texture, Size, users, context: MaskContext.For(component, renderers));
-            Assert.That(excludedJob, Is.Null, "唯一の Renderer を除外したら位置マップが描けず、マスクは作れない");
+            Assert.That(excludedJob, Is.Null, "唯一のRendererを除外したら位置マップが描けず、マスクは作れない");
 
             Assert.That(RecolorPipeline.PrepareJob(edit, texture, Size, users), Is.Null, "文脈が無ければ箱モードは作れない");
         }
@@ -261,12 +261,12 @@ namespace Nekoare.ClickRecolor.Tests
             component.excludedRenderers.Add(rendererB);
             SelectionBox.SyncMembers(component, edit);
             Assert.That(EditGroups.Members(component, edit).Count, Is.EqualTo(1));
-            Assert.That(EditGroups.IsGrouped(edit), Is.False, "残り 1 件なら単独に戻る");
+            Assert.That(EditGroups.IsGrouped(edit), Is.False, "残り1件なら単独に戻る");
 
             // OFF なら他テクスチャのメンバーを外して 1 テクスチャに戻る（ON で増やしてから OFF にする）
             component.excludedRenderers.Clear();
             SelectionBox.SyncMembers(component, edit);
-            Assert.That(EditGroups.Members(component, edit).Count, Is.EqualTo(2), "前提: ON で B のメンバーが戻る");
+            Assert.That(EditGroups.Members(component, edit).Count, Is.EqualTo(2), "前提: ONでBのメンバーが戻る");
             ToolSession.CrossTextureEnabled = false;
             SelectionBox.SyncMembers(component, edit);
             Assert.That(EditGroups.Members(component, edit).Count, Is.EqualTo(1));
@@ -292,7 +292,7 @@ namespace Nekoare.ClickRecolor.Tests
             edit.boxSize = new Vector3(3.2f, 2f, 2f);
             component.AddEdit(edit);
             SelectionBox.SyncMembers(component, edit);
-            Assert.That(component.edits.Count, Is.EqualTo(2), "前提: メンバーが 1 件できている");
+            Assert.That(component.edits.Count, Is.EqualTo(2), "前提: メンバーが1件できている");
             ToolSession.CurrentEditId = edit.id;
 
             ToolPanelOverlay.DeleteEdit(component, component.FindEdit(edit.id));

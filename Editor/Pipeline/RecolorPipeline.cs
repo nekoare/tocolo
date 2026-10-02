@@ -469,7 +469,7 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
                     if (!s_warnedMissingExtraSeed)
                     {
                         s_warnedMissingExtraSeed = true;
-                        Debug.LogWarning("[Tocolo] 追加した種の Renderer（メッシュ）が見つからない編集があります。その種は範囲に入りません");
+                        Debug.LogWarning("[Tocolo] 追加した種のRenderer（メッシュ）が見つからない編集があります。その種は範囲に入りません");
                     }
                     continue;
                 }
@@ -888,7 +888,7 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
                 if (!s_warnedLostMask)
                 {
                     s_warnedLostMask = true;
-                    Debug.LogWarning("[Tocolo] 選択マスクが解放済みの編集があります。その編集は反映されません（PrepareJob からやり直してください）");
+                    Debug.LogWarning("[Tocolo] 選択マスクが解放済みの編集があります。その編集は反映されません（PrepareJobからやり直してください）");
                 }
                 return false;
             }

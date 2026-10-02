@@ -138,7 +138,7 @@ namespace Nekoare.ClickRecolor.Editor.Picking
             {
                 if (_warnedUnreadable.Add(renderer.GetInstanceID()))
                 {
-                    Debug.LogWarning($"[Tocolo] '{renderer.name}' のメッシュは Read/Write が無効なため Scene でクリックできません。メッシュのインポート設定で Read/Write を有効にしてください", renderer);
+                    Debug.LogWarning($"[Tocolo] '{renderer.name}'のメッシュはRead/Writeが無効なためSceneでクリックできません。メッシュのインポート設定でRead/Writeを有効にしてください", renderer);
                 }
                 return null;
             }

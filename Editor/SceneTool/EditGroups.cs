@@ -284,6 +284,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             member.padding = anchor.padding;
             member.targetColor = anchor.targetColor;
             member.hasTarget = anchor.hasTarget;
+            member.confirmed = anchor.confirmed;
             member.darkEndRatio = anchor.darkEndRatio;
             member.lightnessToTarget = anchor.lightnessToTarget;
             member.chromaToTarget = anchor.chromaToTarget;

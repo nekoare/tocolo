@@ -269,10 +269,10 @@ namespace Nekoare.ClickRecolor.Tests
         {
             if (!SystemInfo.supportsComputeShaders || !SystemInfo.SupportsRandomWriteOnRenderTextureFormat(RenderTextureFormat.R8))
             {
-                Assert.Ignore("この環境は compute shader（R8 への書き込み）に対応していません");
+                Assert.Ignore("この環境はcompute shader（R8への書き込み）に対応していません");
             }
-            Assert.That(UvRasterizer.IsAvailable, Is.True, "Rasterize.compute が読み込めません（.meta の GUID を確認）");
-            Assert.That(Morphology.IsAvailable, Is.True, "Morphology.compute が読み込めません（.meta の GUID を確認）");
+            Assert.That(UvRasterizer.IsAvailable, Is.True, "Rasterize.computeが読み込めません（.metaのGUIDを確認）");
+            Assert.That(Morphology.IsAvailable, Is.True, "Morphology.computeが読み込めません（.metaのGUIDを確認）");
         }
 
         private static Vector2 ChartPx(float x, float y) => new Vector2(x / ChartSize, y / ChartSize);
@@ -640,8 +640,8 @@ namespace Nekoare.ClickRecolor.Tests
             MaskCache.Trim();
 
             Assert.That(width, Is.EqualTo(ChartSize), "前提: マスクはテクスチャと同じ大きさ");
-            Assert.That(pixels[12 * width + 16], Is.EqualTo(255), "チャート A の内側");
-            Assert.That(pixels[32 * width + 46], Is.EqualTo(255), "チャート B の内側");
+            Assert.That(pixels[12 * width + 16], Is.EqualTo(255), "チャートAの内側");
+            Assert.That(pixels[32 * width + 46], Is.EqualTo(255), "チャートBの内側");
             // A の上の空き（A からも B からもパディング 8 より離れている）
             Assert.That(pixels[50 * width + 16], Is.EqualTo(0), "どちらの島でもない場所");
         }
@@ -672,7 +672,7 @@ namespace Nekoare.ClickRecolor.Tests
             var (component, renderer, texture) = MakeChartAvatar(DarkALightBPixels());
             var edit = RecolorSceneTool.CreateEditFromHit(component, MakeChartHit(renderer, texture, 0, ChartPx(20, 10)), null);
             RecolorSceneTool.ResolveSeedToggle(component, edit, MakeChartHit(renderer, texture, 2, ChartPx(46, 32)));
-            Assert.That(edit.extraSeeds.Count, Is.EqualTo(1), "前提: 追加の種が 1 つ");
+            Assert.That(edit.extraSeeds.Count, Is.EqualTo(1), "前提: 追加の種が1つ");
             // パディングで隣の色を拾わないようにする
             edit.padding = 0;
             edit.perSeedStats = perSeedStats;
@@ -740,9 +740,9 @@ namespace Nekoare.ClickRecolor.Tests
             RequireMaskGpu();
             if (!SystemInfo.SupportsRandomWriteOnRenderTextureFormat(RenderTextureFormat.ARGBHalf))
             {
-                Assert.Ignore("この環境は compute shader（ARGBHalf への書き込み）に対応していません");
+                Assert.Ignore("この環境はcompute shader（ARGBHalfへの書き込み）に対応していません");
             }
-            Assert.That(RecolorPipeline.IsShiftAvailable, Is.True, "ColorShift.compute が読み込めません（.meta の GUID を確認）");
+            Assert.That(RecolorPipeline.IsShiftAvailable, Is.True, "ColorShift.computeが読み込めません（.metaのGUIDを確認）");
         }
 
         [Test]
@@ -753,7 +753,7 @@ namespace Nekoare.ClickRecolor.Tests
             var (lA, lB, partCount) = RunTwoIslandEdit(perSeedStats: true);
 
             Assert.That(partCount, Is.EqualTo(2), "種ごとに部分が分かれる");
-            Assert.That(lA, Is.EqualTo(lB).Within(0.05f), $"暗い島 L={lA}, 明るい島 L={lB}");
+            Assert.That(lA, Is.EqualTo(lB).Within(0.05f), $"暗い島L={lA},明るい島L={lB}");
         }
 
         [Test]
@@ -763,8 +763,8 @@ namespace Nekoare.ClickRecolor.Tests
 
             var (lA, lB, partCount) = RunTwoIslandEdit(perSeedStats: false);
 
-            Assert.That(partCount, Is.EqualTo(1), "全体で 1 つの部分");
-            Assert.That(lA, Is.LessThan(lB - 0.05f), $"暗い島 L={lA}, 明るい島 L={lB}");
+            Assert.That(partCount, Is.EqualTo(1), "全体で1つの部分");
+            Assert.That(lA, Is.LessThan(lB - 0.05f), $"暗い島L={lA},明るい島L={lB}");
         }
 
         // ── グラデーション ──
@@ -795,9 +795,9 @@ namespace Nekoare.ClickRecolor.Tests
             RequireMaskGpu();
             if (!SystemInfo.SupportsRenderTextureFormat(RenderTextureFormat.ARGBFloat))
             {
-                Assert.Ignore("この環境は ARGBFloat の RenderTexture に対応していません");
+                Assert.Ignore("この環境はARGBFloatのRenderTextureに対応していません");
             }
-            Assert.That(PositionMap.IsAvailable, Is.True, "PositionMap.shader が読み込めません（.meta の GUID を確認）");
+            Assert.That(PositionMap.IsAvailable, Is.True, "PositionMap.shaderが読み込めません（.metaのGUIDを確認）");
 
             // メッシュは UV = 位置（z = 0）なので、チャート A（x 4..28 px, y 4..30 px）の UV 範囲がそのままルートのローカルの範囲
             var (component, renderer, texture) = MakeChartAvatar();
@@ -817,7 +817,7 @@ namespace Nekoare.ClickRecolor.Tests
                 Assert.That(box.size.y, Is.EqualTo(26f / ChartSize * 1.1f).Within(tolerance * 1.1f));
                 Assert.That(box.size.z, Is.EqualTo(GradientBox.SelectionMinSize).Within(1e-6f), "薄い軸は最小値で止める");
                 // チャート B（x 32..60 px）の位置を含まない
-                Assert.That(box.position.x + box.size.x * 0.5f, Is.LessThan(32f / ChartSize), "箱がチャート B まで広がっている");
+                Assert.That(box.position.x + box.size.x * 0.5f, Is.LessThan(32f / ChartSize), "箱がチャートBまで広がっている");
                 // 重心は選択範囲の中（A は長方形なので中心付近）
                 Assert.That(box.centroid.x, Is.EqualTo(16f / ChartSize).Within(tolerance));
                 Assert.That(box.centroid.y, Is.EqualTo(17f / ChartSize).Within(tolerance));
@@ -885,6 +885,61 @@ namespace Nekoare.ClickRecolor.Tests
         }
 
         [Test]
+        public void グラデーション中に色1をリセットすると_色1だけ元の色になり_グラデーションと編集は残る()
+        {
+            var component = MakeComponent();
+            var edit = RecolorSceneTool.CreateEditFromHit(component, MakeHit(_texture), Color.green);
+            ToolPanelOverlay.ApplyTargetColor(component, edit, Color.red);
+            ToolPanelOverlay.ApplyTargetColor(component, edit, Color.blue, gradientEnd: true);
+            edit.gradientEnabled = true;
+
+            ToolPanelOverlay.ResetEditingColor(component, edit, end: false);
+
+            Assert.That(edit.targetColor, Is.EqualTo(Color.green), "色1は元の色");
+            Assert.That(edit.hasTarget, Is.True, "色の指定は残る（色未設定の編集として捨てられない）");
+            Assert.That(edit.gradientEnabled, Is.True, "グラデーションは残る");
+            Assert.That(edit.gradientColor, Is.EqualTo(Color.blue), "色2は変えない");
+
+            // 別の場所を触ったときに捨てられない
+            RecolorSceneTool.DiscardPendingEdit();
+            Assert.That(component.FindEdit(edit.id), Is.Not.Null);
+        }
+
+        [Test]
+        public void 色の指定を取り消した編集は自動で捨てられず_色を決めていない編集は従来どおり捨てられる()
+        {
+            var component = MakeComponent();
+            var reset = RecolorSceneTool.CreateEditFromHit(component, MakeHit(_texture), Color.green);
+            ToolPanelOverlay.ApplyTargetColor(component, reset, Color.red);
+            ToolPanelOverlay.ResetEditingColor(component, reset, end: false);
+            Assert.That(reset.hasTarget, Is.False, "見た目は元どおり（色未設定）");
+            Assert.That(reset.confirmed, Is.True, "一度色を決めた印は残る");
+
+            RecolorSceneTool.DiscardPendingEdit();
+            Assert.That(component.FindEdit(reset.id), Is.Not.Null, "選択範囲（編集）は残る");
+
+            // クリック直後で色を決めていない仮の編集は、従来どおり捨てられる
+            var pending = RecolorSceneTool.CreateEditFromHit(component, MakeHit(_texture), Color.green);
+            Assert.That(pending.confirmed, Is.False);
+            RecolorSceneTool.DiscardPendingEdit();
+            Assert.That(component.FindEdit(pending.id), Is.Null);
+            Assert.That(component.FindEdit(reset.id), Is.Not.Null);
+        }
+
+        [Test]
+        public void グラデーションOFFで色1をリセットすると従来どおり色の指定を取り消す()
+        {
+            var component = MakeComponent();
+            var edit = RecolorSceneTool.CreateEditFromHit(component, MakeHit(_texture), Color.green);
+            ToolPanelOverlay.ApplyTargetColor(component, edit, Color.red);
+
+            ToolPanelOverlay.ResetEditingColor(component, edit, end: false);
+
+            Assert.That(edit.hasTarget, Is.False);
+            Assert.That(edit.targetColor, Is.EqualTo(Color.green));
+        }
+
+        [Test]
         public void 色2への書き込みは色1を変えず_色1が未設定なら編集を確定する()
         {
             var component = MakeComponent();
@@ -893,7 +948,7 @@ namespace Nekoare.ClickRecolor.Tests
             ToolPanelOverlay.ApplyTargetColor(component, edit, Color.blue, gradientEnd: true);
 
             Assert.That(edit.gradientColor, Is.EqualTo(Color.blue));
-            Assert.That(edit.targetColor, Is.EqualTo(Color.green), "色 1 は元の色のまま");
+            Assert.That(edit.targetColor, Is.EqualTo(Color.green), "色1は元の色のまま");
             // 色 1 を決める前に色 2 を決めても編集が確定する（仮のままだとグラデーションが掛からない）
             Assert.That(edit.hasTarget, Is.True);
             Assert.That(edit.darkEndRatio, Is.EqualTo(DarkEndAutoAdjust.Compute(Color.green)).Within(1e-5f));

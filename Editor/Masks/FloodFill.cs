@@ -19,7 +19,7 @@ namespace Nekoare.ClickRecolor.Editor.Masks
         internal static void RestrictToConnected(byte[] mask, int w, int h, Vector2Int seed)
         {
             if (mask == null) throw new ArgumentNullException(nameof(mask));
-            if (mask.Length < w * h) throw new ArgumentException("mask の長さが w×h より短いです", nameof(mask));
+            if (mask.Length < w * h) throw new ArgumentException("maskの長さがw×hより短いです", nameof(mask));
             if (seed.x < 0 || seed.x >= w || seed.y < 0 || seed.y >= h) return;
             int seedIndex = seed.y * w + seed.x;
             if (mask[seedIndex] == 0) return;

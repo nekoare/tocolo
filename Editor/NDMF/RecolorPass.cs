@@ -23,7 +23,7 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
             int total = ExecuteCore(
                 context.AvatarRootObject,
                 bake != null ? () => bake(context) : (Func<int>)null);
-            if (total > 0) Debug.Log($"{LogPrefix} {total} 枚のテクスチャに反映");
+            if (total > 0) Debug.Log($"{LogPrefix} {total}枚のテクスチャに反映");
         }
 
         /// <summary>

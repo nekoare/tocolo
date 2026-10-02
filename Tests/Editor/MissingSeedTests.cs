@@ -62,7 +62,7 @@ namespace Nekoare.ClickRecolor.Tests
 
             Assert.That(removed, Is.EqualTo(2));
             Assert.That(component.edits, Is.EquivalentTo(new[] { alive, groupHead }));
-            Assert.That(groupHead.groupId, Is.Empty, "連結の残りが 1 件なら単独に戻る");
+            Assert.That(groupHead.groupId, Is.Empty, "連結の残りが1件なら単独に戻る");
         }
 
         [Test]

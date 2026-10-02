@@ -174,6 +174,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             ToolSession.LastPick = null;
             ToolSession.LastPickColor = null;
             ToolSession.UnreadableRenderer = null;
+            ToolSession.GradientBoxHiddenEditId = null;
             ToolSession.HoverPick = null;
             SceneView.RepaintAll();
         }
@@ -372,6 +373,8 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             var edit = component != null ? component.FindEdit(ToolSession.CurrentEditId) : null;
             if (edit == null || !edit.gradientEnabled) return;
             if (s_gradientDragging && GUIUtility.hotControl == 0) s_gradientDragging = false;
+            // 「箱を非表示」なら箱・つまみ・ギズモ・札を出さない（色を確認しやすくする）
+            if (ToolSession.IsGradientBoxHidden) return;
 
             var e = Event.current;
             using (new Handles.DrawingScope(component.transform.localToWorldMatrix))
@@ -413,6 +416,51 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 DrawFace(-half.y, half, startColor);
                 DrawFace(half.y, half, endColor);
                 // 「箱の中だけ」は上下方向だけで切る（横は切らない）ので、側面は塗らない。上下の面は色 1／色 2 で常に塗られている
+                // 面の中央付近に「色1」「色2」の札（どちらの面がどちらの色か分かるように。ユーザー要望 2026-10-03）
+                DrawFaceLabel(new Vector3(0f, -half.y, 0f), startColor, Locales.Tr("Scene:Color:EditTarget:Start"));
+                DrawFaceLabel(new Vector3(0f, half.y, 0f), endColor, Locales.Tr("Scene:Color:EditTarget:End"));
+            }
+        }
+
+        private static GUIStyle s_faceLabelStyle;
+
+        /// <summary>札を面の中央（つまみの位置）から画面上でずらす量（px）。つまみと重ならないよう右上へ</summary>
+        private static readonly Vector2 FaceLabelOffset = new Vector2(16f, -22f);
+
+        /// <summary>
+        /// 箱のローカル位置 local の近くに、その面の名前の札を出す（Handles.matrix の中で呼ぶ）。枠は付けない。
+        /// 文字の色は面の色の明るさ（HSV の V）を反転したもの（白い面なら黒、黒い面なら白。ユーザー要望 2026-10-03）。
+        /// モデルの上でも読めるよう、面の色で 1px の影を付ける
+        /// </summary>
+        private static void DrawFaceLabel(Vector3 local, Color color, string text)
+        {
+            var world = Handles.matrix.MultiplyPoint3x4(local);
+            var camera = SceneView.currentDrawingSceneView != null ? SceneView.currentDrawingSceneView.camera : null;
+            if (camera != null && camera.WorldToViewportPoint(world).z <= 0f) return; // カメラの後ろ
+            s_faceLabelStyle ??= new GUIStyle(EditorStyles.boldLabel) { fontSize = 12, alignment = TextAnchor.MiddleLeft };
+
+            Color.RGBToHSV(color, out float h, out float sat, out float v);
+            var textColor = Color.HSVToRGB(h, sat, 1f - v);
+            var shadowColor = new Color(color.r, color.g, color.b, 1f);
+
+            var content = new GUIContent(text);
+            var size = s_faceLabelStyle.CalcSize(content);
+            // WorldToGUIPoint は Handles.matrix を自分で掛けるので、変換前の local を渡す（world を渡すと 2 回掛かって画面外へ出ていた）
+            var point = HandleUtility.WorldToGUIPoint(local) + FaceLabelOffset;
+            var rect = new Rect(point.x, point.y - size.y * 0.5f, size.x, size.y);
+            Handles.BeginGUI();
+            try
+            {
+                var previous = s_faceLabelStyle.normal.textColor;
+                s_faceLabelStyle.normal.textColor = shadowColor;
+                GUI.Label(new Rect(rect.x + 1f, rect.y + 1f, rect.width, rect.height), content, s_faceLabelStyle);
+                s_faceLabelStyle.normal.textColor = textColor;
+                GUI.Label(rect, content, s_faceLabelStyle);
+                s_faceLabelStyle.normal.textColor = previous;
+            }
+            finally
+            {
+                Handles.EndGUI();
             }
         }
 
@@ -1054,7 +1102,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             if (AssetDatabase.Contains(texture)) return true;
             if (s_warnedNonAssetTextures.Add(texture.GetInstanceID()))
             {
-                Debug.LogWarning($"[Tocolo] テクスチャ '{texture.name}' はプロジェクトの資産ではないため色を変えられません（実行時に作られたテクスチャなど）", texture);
+                Debug.LogWarning($"[Tocolo] テクスチャ'{texture.name}'はプロジェクトの資産ではないため色を変えられません（実行時に作られたテクスチャなど）", texture);
             }
             texture = null;
             return false;
@@ -1303,7 +1351,8 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 {
                     var edit = component.edits[i];
                     // 無効化した編集は拾わない（選んでも縞が出ず、色を変えても見た目が変わらないため。レビュー指摘 2026-09-25）
-                    if (edit == null || !edit.enabled || !edit.hasTarget || edit.sourceTexture != texture) continue;
+                    // 色の指定を取り消した編集（confirmed）も選び直せるようにする
+                if (edit == null || !edit.enabled || !edit.IsKept || edit.sourceTexture != texture) continue;
 
                     // 利用者はプレビューと同じ集め方にする（マスクの鍵が揃い、プレビューが作ったマスクに当たる）
                     renderers ??= CollectPreviewRenderers(component.gameObject);
@@ -1424,7 +1473,8 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 if (component == null) continue;
                 var edit = component.FindEdit(id);
                 if (edit == null) continue;
-                if (!edit.hasTarget)
+                // 一度色を決めた編集（confirmed）は、色の指定を取り消していても捨てない
+                if (!edit.IsKept)
                 {
                     Undo.RecordObject(component, "Tocolo: 色未設定の編集を削除");
                     EditGroups.RemoveGroup(component, edit);

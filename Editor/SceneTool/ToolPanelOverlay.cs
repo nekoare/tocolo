@@ -228,11 +228,11 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 }
 
                 // 削除はパネルの最後（ブロックの外）に置く。これより後に部品が無いので、このイベント内で部品の数が変わらない
-                // 色未設定の仮の編集は別の場所をクリックすれば捨てられるので、削除は色を決めた編集にだけ有効にする
+                // 色未設定の仮の編集は別の場所をクリックすれば捨てられるので、削除は残す編集（色を決めた・一度決めた）にだけ有効にする
                 if (edit != null)
                 {
                     EditorGUILayout.Space(4);
-                    using (new EditorGUI.DisabledScope(!edit.hasTarget))
+                    using (new EditorGUI.DisabledScope(!edit.IsKept))
                     {
                         if (GUILayout.Button(Locales.Tr("Scene:Color:DeleteEdit"))) DeleteEdit(component, edit);
                     }
@@ -437,10 +437,22 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             if (ToolSession.CurrentEditIsHairToolTarget) EditorGUILayout.HelpBox(Locales.Tr("Scene:Panel:HairToolNotice"), MessageType.Warning);
             // クリックした場所に lilToon の 2nd／3rd が重なっているときの案内（その編集を選んでいる間だけ）
             var layerNotice = ToolSession.LayerNotice;
-            if (layerNotice.kind != Picking.LilToonLayerOverlap.Kind.None && ToolSession.LayerNoticeEditId == edit.id)
+            if (ToolSession.LayerNoticeEditId == edit.id)
             {
-                string key = layerNotice.kind == Picking.LilToonLayerOverlap.Kind.Covers ? "Scene:Panel:LayerCovers" : "Scene:Panel:LayerMixes";
-                EditorGUILayout.HelpBox(Locales.Tr(key, layerNotice.layers), MessageType.Info);
+                if (layerNotice.kind != Picking.LilToonLayerOverlap.Kind.None)
+                {
+                    bool covers = layerNotice.kind == Picking.LilToonLayerOverlap.Kind.Covers;
+                    string key = layerNotice.poiyomi
+                        ? (covers ? "Scene:Panel:PoiLayerCovers" : "Scene:Panel:PoiLayerMixes")
+                        : (covers ? "Scene:Panel:LayerCovers" : "Scene:Panel:LayerMixes");
+                    EditorGUILayout.HelpBox(Locales.Tr(key, layerNotice.layers), MessageType.Info);
+                }
+                if (layerNotice.colorAdjust)
+                {
+                    EditorGUILayout.HelpBox(
+                        Locales.Tr(layerNotice.poiyomi ? "Scene:Panel:PoiColorAdjust" : "Scene:Panel:LilColorAdjust"), MessageType.Info);
+                }
+                if (layerNotice.mainColorTint) EditorGUILayout.HelpBox(Locales.Tr("Scene:Panel:MainColorTint"), MessageType.Info);
             }
             // Ctrl＋クリックで種を足せなかった理由など（数秒で消える）
             string notice = ToolSession.TransientNotice;
@@ -637,6 +649,16 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 Undo.RecordObject(component, "Tocolo: 箱の中だけを変更");
                 EditGroups.ForEachInGroup(component, edit, e => e.gradientInsideOnly = insideOnly);
                 EditorUtility.SetDirty(component);
+            }
+
+            // 箱を表示（既定 ON。OFF はその編集を選んでいる間だけで、コンポーネントには保存しない。ユーザー要望 2026-10-03）
+            bool wasShown = !ToolSession.IsGradientBoxHidden;
+            bool shown = WithHelp("Help:ShowGradientBox",
+                () => EditorGUILayout.ToggleLeft(Locales.Tr("Scene:Color:ShowGradientBox"), wasShown));
+            if (shown != wasShown)
+            {
+                ToolSession.GradientBoxHiddenEditId = shown ? null : edit.id;
+                SceneView.RepaintAll();
             }
             }
             }
@@ -879,7 +901,9 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             if (EditorGUI.EndChangeCheck() && TryParseHex(typed, out var typedColor)) CommitColor(component, edit, typedColor, gradientEnd: end);
 
             // リセット（色 1: 色未設定のあいだは無効。色 2: 元の色と同じなら無効）
-            bool canReset = end ? edit.gradientColor != edit.seedColor : edit.hasTarget;
+            bool canReset = end
+                ? edit.gradientColor != edit.seedColor
+                : edit.gradientEnabled ? edit.targetColor != edit.seedColor : edit.hasTarget;
             using (new EditorGUI.DisabledScope(!canReset))
             {
                 var content = new GUIContent(Locales.Tr("Scene:Color:ResetButton"), Locales.Tr("Scene:Color:ResetToOriginal"));
@@ -887,13 +911,30 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             }
         }
 
-        /// <summary>見本行のリセット。色 1 の編集中は ResetToOriginal、色 2 の編集中は色 2 を元の色に戻す（グラデーションは切らない）</summary>
-        private static void ResetEditingColor(ClickRecolor component, RecolorEdit edit, bool end)
+        /// <summary>
+        /// 見本行のリセット（「元の色」の見本・［リセット］）。色 2 の編集中は色 2 を元の色に、グラデーション中の色 1 は色 1 を元の色にする
+        /// （どちらもグラデーションと選択範囲は残す）。グラデーション OFF の色 1 は ResetToOriginal（色の指定の取り消し）
+        /// </summary>
+        internal static void ResetEditingColor(ClickRecolor component, RecolorEdit edit, bool end)
         {
-            if (!end) { ResetToOriginal(component, edit); return; }
-            Undo.RecordObject(component, "Tocolo: 色 2 を元の色に戻す");
-            EditGroups.ForEachInGroup(component, edit, e => e.gradientColor = e.seedColor);
-            EditorUtility.SetDirty(component);
+            if (component == null || edit == null) return;
+            if (end)
+            {
+                Undo.RecordObject(component, "Tocolo: 色2を元の色に戻す");
+                EditGroups.ForEachInGroup(component, edit, e => e.gradientColor = e.seedColor);
+                EditorUtility.SetDirty(component);
+                return;
+            }
+            // グラデーション中の色 1 は、色だけを元の色にする（色の指定・グラデーション・選択範囲は残す）。
+            // 取り消すと色未設定の編集になり、別の場所を触ったときに選択範囲ごと捨てられていた（ユーザー報告 2026-10-03）
+            if (edit.gradientEnabled)
+            {
+                Undo.RecordObject(component, "Tocolo: 色1を元の色に戻す");
+                EditGroups.ForEachInGroup(component, edit, e => e.targetColor = e.seedColor);
+                EditorUtility.SetDirty(component);
+                return;
+            }
+            ResetToOriginal(component, edit);
         }
 
         /// <summary>「色 1 → 色 2」のグラデーション見本の行。色 2 のカラーコードは見本行（DrawColorRow の色 2 編集中）に出すのでここには無い</summary>
@@ -1112,6 +1153,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                         e.darkEndRatio = DarkEndAutoAdjust.Compute(e.targetColor);
                         e.gradientDarkEndRatio = DarkEndAutoAdjust.Compute(newColor);
                     }
+                    e.confirmed = true;
                     return;
                 }
                 e.targetColor = newColor;
@@ -1120,12 +1162,14 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                     e.hasTarget = true;
                     e.darkEndRatio = DarkEndAutoAdjust.Compute(newColor);
                 }
+                e.confirmed = true;
             });
             EditorUtility.SetDirty(component);
         }
 
         /// <summary>
         /// 色の指定を取り消して元の色に戻す（新しい色 = 元の色、hasTarget = false、グラデーション OFF）。プレビューは元の見た目に戻り、
+        /// 一度色を決めた編集（confirmed）なので選択範囲は残る（自動で捨てない・再クリックで選び直せる）。
         /// 現在の編集（ハイライト）はそのまま残る。暗部の明るさ等の手動値は変えない
         /// （次に色を選んだときは ApplyTargetColor が初回と同じく暗部の明るさを自動調整する）。連結（「アバター全体」・島の連結）なら連結の全編集に効かせる
         /// </summary>

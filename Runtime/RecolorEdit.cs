@@ -63,6 +63,14 @@ namespace Nekoare.ClickRecolor
         public Color targetColor = Color.white;
         /// <summary>false の間は見た目を変えない（クリック直後）</summary>
         public bool hasTarget;
+        /// <summary>
+        /// 一度でも色を決めた編集か。色の指定を取り消して hasTarget が false に戻っても、この編集は自動で捨てない
+        /// （選択範囲を残し、再クリックで選び直せる。ユーザー判断 2026-10-03: 案 A）。クリック直後の仮の編集は false
+        /// </summary>
+        public bool confirmed;
+
+        /// <summary>選択範囲を残す編集か（色が決まっている、または一度でも色を決めた）。false なら自動で捨ててよい仮の編集</summary>
+        public bool IsKept => hasTarget || confirmed;
         [Range(0f, 1f)] public float darkEndRatio = 0.7f;
         [Range(0f, 1f)] public float lightnessToTarget = 1f;
         [Range(0f, 1f)] public float chromaToTarget = 1f;

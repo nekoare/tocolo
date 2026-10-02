@@ -49,6 +49,16 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         public static bool BoxDragging { get; set; }
 
         /// <summary>
+        /// グラデーションの箱を隠している編集の id（「箱を非表示」。ユーザー要望 2026-10-03）。コンポーネントには保存せず、
+        /// その編集を選んでいる間だけ効く（別の編集を選ぶ・ツールを閉じると元に戻る）
+        /// </summary>
+        public static string GradientBoxHiddenEditId { get; set; }
+
+        /// <summary>現在の編集のグラデーションの箱を隠しているか</summary>
+        public static bool IsGradientBoxHidden =>
+            GradientBoxHiddenEditId != null && GradientBoxHiddenEditId == CurrentEditId;
+
+        /// <summary>
         /// 最後のクリックが当たった、メッシュの Read/Write が無効で選べない Renderer。パネルに案内と［Read/Write を有効にする］を出す。
         /// 次に何かを選べたとき・ツールの終了・対象の切り替えで消える（ユーザー報告 2026-09-29: 後から追加したアイテムが選べない）
         /// </summary>
@@ -277,6 +287,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             LastPick = null;
             LastPickColor = null;
             UnreadableRenderer = null;
+            GradientBoxHiddenEditId = null;
             LayerNotice = default;
             LayerNoticeEditId = null;
             HoverPick = null;

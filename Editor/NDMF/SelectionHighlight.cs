@@ -27,6 +27,23 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
         private static readonly int MaskHeightId = Shader.PropertyToID("MaskHeight");
         private static readonly int TintId = Shader.PropertyToID("Tint");
         private static readonly int PhaseId = Shader.PropertyToID("Phase");
+        private static readonly int PosMapId = Shader.PropertyToID("PosMap");
+        private static readonly int PosWidthId = Shader.PropertyToID("PosWidth");
+        private static readonly int PosHeightId = Shader.PropertyToID("PosHeight");
+        private static readonly int ClipToBoxId = Shader.PropertyToID("ClipToBox");
+        private static readonly int WorldToBoxId = Shader.PropertyToID("WorldToBox");
+        private static readonly int BoxHeightId = Shader.PropertyToID("BoxHeight");
+
+        /// <summary>
+        /// グラデーションの「箱の中だけ」で縞を箱の中に限るときの情報（ユーザー要望 2026-10-03）。
+        /// positionMap は位置マップ、rootToBox は対象ルートのローカル → 箱のローカル、boxHeight は箱の大きさの y
+        /// </summary>
+        internal struct BoxClip
+        {
+            public Texture positionMap;
+            public Matrix4x4 rootToBox;
+            public float boxHeight;
+        }
 
         private static ComputeShader Compute
         {
@@ -52,7 +69,7 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
         /// src と dst は別の RT で、dst は enableRandomWrite の RT（RecolorPipeline.CreateWorkTexture）であること。
         /// mask は src と別サイズでもよい（正規化座標で対応させる）。mip 0 だけ書く（ミップは呼び出し側で作る）
         /// </summary>
-        internal static void Apply(RenderTexture src, RenderTexture mask, RenderTexture dst)
+        internal static void Apply(RenderTexture src, RenderTexture mask, RenderTexture dst, BoxClip? clip = null)
         {
             var shader = Compute;
             if (shader == null || src == null || mask == null || dst == null) return;
@@ -68,6 +85,15 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
             shader.SetVector(TintId, TintSrgb.linear);
             // 縞はアニメしない（静止でも十分見える）
             shader.SetFloat(PhaseId, 0f);
+            // 位置マップは切らないときも何か束縛しておく（未設定のテクスチャがあると Dispatch がエラーになる）
+            bool useClip = clip.HasValue && clip.Value.positionMap != null;
+            var pos = useClip ? clip.Value.positionMap : Texture2D.blackTexture;
+            shader.SetTexture(s_kernel, PosMapId, pos);
+            shader.SetInt(PosWidthId, pos.width);
+            shader.SetInt(PosHeightId, pos.height);
+            shader.SetInt(ClipToBoxId, useClip ? 1 : 0);
+            shader.SetMatrix(WorldToBoxId, useClip ? clip.Value.rootToBox : Matrix4x4.identity);
+            shader.SetFloat(BoxHeightId, useClip ? clip.Value.boxHeight : 0f);
 
             shader.Dispatch(s_kernel, Groups(dst.width), Groups(dst.height), 1);
         }
@@ -76,7 +102,7 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
         /// src（プレビューの結果 RT）にハイライトを掛けた新しい RT を作って返す。src と同じ大きさ・形式・ミップの有無・サンプラー設定。
         /// 返した RT は呼び出し側の所有（RecolorPipeline.DestroyWorkTexture で破棄）。GPU が使えなければ null
         /// </summary>
-        internal static RenderTexture CreateHighlighted(RenderTexture src, RenderTexture mask)
+        internal static RenderTexture CreateHighlighted(RenderTexture src, RenderTexture mask, BoxClip? clip = null)
         {
             if (src == null || mask == null || !mask.IsCreated() || !IsAvailable) return null;
 
@@ -84,7 +110,7 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
             bool succeeded = false;
             try
             {
-                Apply(src, mask, dst);
+                Apply(src, mask, dst, clip);
                 // 遠目でちらつかないようにミップを作る（書き込みは mip 0 だけ）
                 if (dst.useMipMap) dst.GenerateMips();
                 succeeded = true;

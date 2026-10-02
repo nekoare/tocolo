@@ -181,7 +181,7 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
                 }
                 catch (Exception ex)
                 {
-                    Debug.LogError($"{LogPrefix} プレビューの対象収集に失敗しました（{(avatar != null ? avatar.name : "?")}）: {ex}");
+                    Debug.LogError($"{LogPrefix}プレビューの対象収集に失敗しました（{(avatar != null ? avatar.name : "?")}）: {ex}");
                 }
             }
             return groups.ToImmutable();
@@ -337,6 +337,12 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
                             clone.hideFlags = HideFlags.HideAndDontSave;
                             // Tiling/Offset は複製で引き継がれる。結果 RT は Linear（シェーダーは線形値として読む）
                             clone.SetTexture(info.propertyName, rt);
+                            // 同じ元テクスチャを参照する他のプロパティも差し替える（ビルド・書き出しと同じ）。
+                            // Poiyomi のロック済みマテリアルで _MainTex を改名してアニメートにすると、シェーダーは _MainTex_<名前> を読むため
+                            foreach (var name in clone.GetTexturePropertyNames())
+                            {
+                                if (name != info.propertyName && clone.GetTexture(name) == info.texture) clone.SetTexture(name, rt);
+                            }
                             cloneOf.Add(material, clone);
                             clones.Add(clone);
                         }
@@ -353,7 +359,7 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
             }
             catch (Exception ex)
             {
-                Debug.LogError($"{LogPrefix} プレビューの生成に失敗しました: {ex}");
+                Debug.LogError($"{LogPrefix}プレビューの生成に失敗しました: {ex}");
                 return Task.FromResult<IRenderFilterNode>(new EmptyNode());
             }
             finally
@@ -491,14 +497,14 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
                 if (edit.seedRenderer == null && RecolorPipeline.NeedsSeedRenderer(edit))
                 {
                     WarnOnce(edit, "seed",
-                        $"編集「{edit.name}」でクリックした Renderer が見つかりません（削除された可能性があります）。この編集はプレビューに反映されません");
+                        $"編集「{edit.name}」でクリックしたRendererが見つかりません（削除された可能性があります）。この編集はプレビューに反映されません");
                     continue;
                 }
                 var job = RecolorPipeline.PrepareJob(edit, texture, plan.size, users, context: context);
                 if (job == null)
                 {
                     WarnOnce(edit, "mask",
-                        $"編集「{edit.name}」の選択範囲を作れませんでした（メッシュの Read/Write が無効、GPU が使えない等）。この編集はプレビューに反映されません");
+                        $"編集「{edit.name}」の選択範囲を作れませんでした（メッシュのRead/Writeが無効、GPUが使えない等）。この編集はプレビューに反映されません");
                     continue;
                 }
                 jobs.Add(job);
@@ -560,7 +566,25 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
 
             var job = RecolorPipeline.PrepareJob(edit, texture, plan.size, users, context: MaskContext.For(plan.root, renderers));
             if (job?.mask == null) return null;
-            return SelectionHighlight.CreateHighlighted(result, job.mask);
+
+            // グラデーションの「箱の中だけ」が ON なら、箱の外は色が変わらないので縞も箱の中だけにする（ユーザー要望 2026-10-03）。
+            // 判定は縞を描くシェーダーの中で、色変えと同じ式で行う
+            SelectionHighlight.BoxClip? clip = null;
+            if (edit.gradientEnabled && edit.gradientInsideOnly && plan.root != null && renderers != null)
+            {
+                var positions = PositionMap.GetOrBuild(
+                    plan.root, renderers, texture, result.width, result.height, RecolorPipeline.FillIterations(new[] { job }));
+                if (positions != null)
+                {
+                    clip = new SelectionHighlight.BoxClip
+                    {
+                        positionMap = positions,
+                        rootToBox = Matrix4x4.TRS(edit.gradientBoxPosition, Quaternion.Normalize(edit.gradientBoxRotation), Vector3.one).inverse,
+                        boxHeight = edit.gradientBoxSize.y,
+                    };
+                }
+            }
+            return SelectionHighlight.CreateHighlighted(result, job.mask, clip);
         }
 
         // ── 抽出（テスト用に ComputeContext を使わない静的関数に分けてある）──
@@ -776,8 +800,8 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
             }
             if (unreadable == 0) return;
             WarnOnceByKey($"texture:{texture.GetInstanceID()}:unreadable",
-                $"テクスチャ「{texture.name}」を使うメッシュのうち {unreadable} 個は Read/Write が無効なため、" +
-                "はみ出し防止の計算に入っていません（隣のパーツに色がはみ出すことがあります）。メッシュのインポート設定で Read/Write を有効にしてください");
+                $"テクスチャ「{texture.name}」を使うメッシュのうち{unreadable}個はRead/Writeが無効なため、" +
+                "はみ出し防止の計算に入っていません（隣のパーツに色がはみ出すことがあります）。メッシュのインポート設定でRead/Writeを有効にしてください");
         }
 
         private static void WarnOnce(RecolorEdit edit, string kind, string message) =>

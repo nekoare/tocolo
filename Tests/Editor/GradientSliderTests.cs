@@ -13,10 +13,10 @@ namespace Nekoare.ClickRecolor.Tests
 
         private static void AssertColor(Color actual, Color expected, string message)
         {
-            Assert.That(actual.r, Is.EqualTo(expected.r).Within(Eps), message + " の R");
-            Assert.That(actual.g, Is.EqualTo(expected.g).Within(Eps), message + " の G");
-            Assert.That(actual.b, Is.EqualTo(expected.b).Within(Eps), message + " の B");
-            Assert.That(actual.a, Is.EqualTo(expected.a).Within(Eps), message + " の A");
+            Assert.That(actual.r, Is.EqualTo(expected.r).Within(Eps), message + "のR");
+            Assert.That(actual.g, Is.EqualTo(expected.g).Within(Eps), message + "のG");
+            Assert.That(actual.b, Is.EqualTo(expected.b).Within(Eps), message + "のB");
+            Assert.That(actual.a, Is.EqualTo(expected.a).Within(Eps), message + "のA");
         }
 
         [Test]

@@ -16,6 +16,14 @@ int MaskHeight;
 float4 Tint;              // ハイライト色（線形 RGB。w は未使用）
 float Phase;              // 縞のずらし（px）。今はアニメしないので 0
 
+// グラデーションの「箱の中だけ」: 箱の外（Y 方向）は色が変わらないので縞も描かない（ColorShift.compute の GradientOutsideBox と同じ判定）
+Texture2D<float4> PosMap; // 位置マップ（xyz = 対象ルートのローカル位置、a > 0 なら描かれた画素）。ClipToBox = 0 ならダミー
+int PosWidth;
+int PosHeight;
+int ClipToBox;            // 0 以外なら箱で切る
+float4x4 WorldToBox;      // 対象ルートのローカル → 箱のローカル
+float BoxHeight;          // 箱の高さ（大きさの y）
+
 static const float StripeWidth = 8.0;
 static const float StripeLow = 0.35;
 static const float TintAmount = 0.35; // 0.5 から 30% 薄く（ユーザー要望 2026-09-24）
@@ -37,6 +45,22 @@ void CSHighlight(uint3 id : SV_DispatchThreadID)
     {
         Out[id.xy] = src;
         return;
+    }
+
+    if (ClipToBox != 0)
+    {
+        int2 pq = int2((float2(id.xy) + 0.5) * float2(PosWidth, PosHeight) / float2(Width, Height));
+        pq = clamp(pq, int2(0, 0), int2(PosWidth - 1, PosHeight - 1));
+        float4 position = PosMap[pq];
+        if (position.a > 0.0)
+        {
+            float3 local = mul(WorldToBox, float4(position.xyz, 1.0)).xyz;
+            if (abs(local.y) > abs(BoxHeight) * 0.5)
+            {
+                Out[id.xy] = src;
+                return;
+            }
+        }
     }
 
     // 斜め（x + y）方向に StripeWidth px ごとに濃い／薄いを繰り返す

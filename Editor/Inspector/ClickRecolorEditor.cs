@@ -235,7 +235,7 @@ namespace Nekoare.ClickRecolor.Editor.Inspector
             // 色を決めた編集だけを数える（クリック直後の色未設定の編集は仮の状態なので数えない）
             // 「アバター全体」の連結は 1 件と数える（先頭の編集だけ）
             int decided = 0;
-            foreach (var e in component.edits) if (e != null && e.hasTarget && EditGroups.IsHead(component, e)) decided++;
+            foreach (var e in component.edits) if (e != null && e.IsKept && EditGroups.IsHead(component, e)) decided++;
             EditorGUI.LabelField(rect, Locales.Tr("Inspector:Edits"));
             var countStyle = new GUIStyle(EditorStyles.miniLabel) { alignment = TextAnchor.MiddleRight };
             EditorGUI.LabelField(rect, Locales.Tr("Inspector:EditCount", decided), countStyle);
@@ -473,7 +473,7 @@ namespace Nekoare.ClickRecolor.Editor.Inspector
             foreach (int i in indices)
             {
                 var edit = GetEdit(i);
-                if (edit == null || !edit.hasTarget) continue;
+                if (edit == null || !edit.IsKept) continue;
                 if (edit.sourceTexture == null)
                 {
                     textureDeleted = true;

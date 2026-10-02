@@ -253,10 +253,25 @@ msgid "Scene:Panel:HairToolNotice"
 msgstr "이 파츠는 Chimera Hair Master의 대상이에요. 업로드 시 Chimera Hair Master의 가공이 이 색 변경 위에 적용되므로, 먼저 Chimera Hair Master에서 내보낸 뒤 색을 바꿔 주세요"
 
 msgid "Scene:Panel:LayerCovers"
-msgstr "이 위치는 lilToon 메인 컬러 {0}이(가) 겹쳐 있어서 색이 잘 바뀌지 않을 수 있어요. {0}의 색이나 텍스처는 lilToon 머티리얼에서 바꿀 수 있어요."
+msgstr "색이 잘 바뀌지 않는 위치예요. lilToon 메인 컬러 {0}이(가) 위에 겹쳐 있어요."
 
 msgid "Scene:Panel:LayerMixes"
-msgstr "이 위치는 lilToon 메인 컬러 {0}의 색이 섞여서 원하는 색과 달라질 수 있어요."
+msgstr "원하는 색과 달라져요. lilToon 메인 컬러 {0}의 색이 섞여요."
+
+msgid "Scene:Panel:PoiLayerCovers"
+msgstr "색이 잘 바뀌지 않는 위치예요. Poiyomi의 {0}이(가) 위에 겹쳐 있어요."
+
+msgid "Scene:Panel:PoiLayerMixes"
+msgstr "원하는 색과 달라져요. Poiyomi의 {0} 색이 섞여요."
+
+msgid "Scene:Panel:PoiColorAdjust"
+msgstr "원하는 색과 달라져요. Poiyomi의 Color Adjust가 적용되어 있어요."
+
+msgid "Scene:Panel:LilColorAdjust"
+msgstr "원하는 색과 달라져요. lilToon의 색조 보정(HSVG) 또는 그라데이션 맵이 적용되어 있어요."
+
+msgid "Scene:Panel:MainColorTint"
+msgstr "원하는 색과 달라져요. 머티리얼 색(Color)이 흰색이 아니라서 곱해져요."
 
 msgid "Scene:Panel:ShowRange"
 msgstr "범위 표시"
@@ -325,7 +340,7 @@ msgid "Scene:Color:ResetToOriginal"
 msgstr "클릭하면 원래 색으로 되돌려요"
 
 msgid "Scene:Color:Target"
-msgstr "색 1"
+msgstr "색 1"
 
 msgid "Scene:Color:Eyedropper"
 msgstr "스포이트: Scene의 모델을 클릭해서 그 위치의 원래 색을 가져와요(Esc로 취소)"
@@ -394,7 +409,7 @@ msgid "Scene:Color:Strength"
 msgstr "불투명도"
 
 msgid "Scene:Color:ShadingFor2"
-msgstr "(색 2)"
+msgstr "(색 2)"
 
 msgid "Scene:Color:Gradient"
 msgstr "그라데이션"
@@ -402,14 +417,20 @@ msgstr "그라데이션"
 msgid "Scene:Color:GradientInsideOnly"
 msgstr "박스 안에만"
 
+msgid "Scene:Color:ShowGradientBox"
+msgstr "박스 표시"
+
+msgid "Help:ShowGradientBox"
+msgstr "끄면 Scene의 박스와 핸들을 숨겨서 색을 확인하기 쉽게 해요. 이 편집을 선택한 동안만 적용돼요."
+
 msgid "Scene:Color:GradientPreview"
-msgstr "색 1 → 색 2"
+msgstr "색 1 → 색 2"
 
 msgid "Scene:Color:EditTarget:Start"
-msgstr "색 1"
+msgstr "색 1"
 
 msgid "Scene:Color:EditTarget:End"
-msgstr "색 2"
+msgstr "색 2"
 
 msgid "Scene:Color:Padding"
 msgstr "여백 확장"
@@ -481,13 +502,13 @@ msgid "Scene:Color:FlattenStrength"
 msgstr "상쇄 강도"
 
 msgid "Help:FlattenBase"
-msgstr "원래 색이 뿌리 쪽과 끝 쪽에서 밝기가 다른 그라데이션일 때, 그 명암 차이를 상쇄해 전체를 목표 색에 맞춰요. 선택 범위를 위아래(그라데이션이 켜져 있으면 박스 방향)의 띠로 나눠 띠마다 밝기를 맞추므로 띠 안의 음영은 남아요. 위에서 비치는 빛 같은 큰 명암도 약해지니 강도로 조절해 주세요."
+msgstr "뿌리와 끝처럼 원래 색의 명암 차이를 없애 전체를 맞춰요. 방향은 위아래(그라데이션이 켜져 있으면 박스 방향)예요. 음영은 남아요. 너무 평평해 보이면 강도를 낮춰 주세요."
 
 msgid "Help:Strength"
 msgstr "색 변경의 불투명도예요. 1이면 지정한 색이 완전히 적용되고, 낮출수록 원래 색이 남아요."
 
 msgid "Help:Gradient"
-msgstr "켜면 Scene에 박스가 나타나요. 박스의 아래쪽 끝에서 위쪽 끝으로 '색 1'에서 '색 2'로 변해요. 박스를 움직여 방향과 범위를 정해 주세요"
+msgstr "켜면 Scene에 박스가 나타나요. 박스의 아래쪽 끝에서 위쪽 끝으로 '색 1'에서 '색 2'로 변해요. 박스를 움직여 방향과 범위를 정해 주세요"
 
 msgid "Help:GradientInsideOnly"
 msgstr "켜면 박스의 위쪽 끝보다 위와 아래쪽 끝보다 아래는 색을 바꾸지 않고 원래 색으로 남기며, 박스 높이 범위만 그라데이션이 돼요. 가로 방향은 박스로 자르지 않아요. 끄면 위아래 바깥쪽도 끝의 색으로 이어져요."

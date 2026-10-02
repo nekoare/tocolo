@@ -26,7 +26,7 @@ namespace Nekoare.ClickRecolor.Editor.Masks
         internal static Vector3 SampleOklab(Color[] linearPixels, int w, int h, Vector2Int texel)
         {
             if (linearPixels == null) throw new ArgumentNullException(nameof(linearPixels));
-            if (w <= 0 || h <= 0 || linearPixels.Length < w * h) throw new ArgumentException("画素数が w×h より少ないです", nameof(linearPixels));
+            if (w <= 0 || h <= 0 || linearPixels.Length < w * h) throw new ArgumentException("画素数がw×hより少ないです", nameof(linearPixels));
             int cx = Mathf.Clamp(texel.x, 0, w - 1);
             int cy = Mathf.Clamp(texel.y, 0, h - 1);
 

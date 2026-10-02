@@ -23,10 +23,10 @@ namespace Nekoare.ClickRecolor.Tests
         {
             if (!SystemInfo.supportsComputeShaders || !SystemInfo.SupportsRandomWriteOnRenderTextureFormat(RenderTextureFormat.R8))
             {
-                Assert.Ignore("この環境は compute shader（R8 への書き込み）に対応していません");
+                Assert.Ignore("この環境はcompute shader（R8への書き込み）に対応していません");
             }
-            Assert.That(UvRasterizer.IsAvailable, Is.True, "Rasterize.compute が読み込めません（.meta の GUID を確認）");
-            Assert.That(Morphology.IsAvailable, Is.True, "Morphology.compute が読み込めません（.meta の GUID を確認）");
+            Assert.That(UvRasterizer.IsAvailable, Is.True, "Rasterize.computeが読み込めません（.metaのGUIDを確認）");
+            Assert.That(Morphology.IsAvailable, Is.True, "Morphology.computeが読み込めません（.metaのGUIDを確認）");
         }
 
         [TearDown]
@@ -106,7 +106,7 @@ namespace Nekoare.ClickRecolor.Tests
             {
                 for (int x = 34; x <= 58; x++)
                 {
-                    Assert.That(At(pixels, x, y), Is.EqualTo(0), $"もう片方のチャート ({x},{y})");
+                    Assert.That(At(pixels, x, y), Is.EqualTo(0), $"もう片方のチャート({x},{y})");
                 }
             }
         }
@@ -154,13 +154,13 @@ namespace Nekoare.ClickRecolor.Tests
             Assert.That(At(pixels, 21, 32), Is.GreaterThanOrEqualTo(128));
             Assert.That(At(pixels, 23, 32), Is.GreaterThanOrEqualTo(128));
             // 細いチャート B には広がらない
-            for (int x = 24; x <= 27; x++) Assert.That(At(pixels, x, 32), Is.EqualTo(0), $"チャート B ({x},32)");
+            for (int x = 24; x <= 27; x++) Assert.That(At(pixels, x, 32), Is.EqualTo(0), $"チャートB ({x},32)");
             // B の向こう側の被覆の外へは、島から 8px 以内（x = 28 は島の縁 x = 20 から 8px）でも滲まない
             for (int y = 0; y < Size; y++)
             {
                 for (int x = 28; x <= 36; x++)
                 {
-                    Assert.That(At(pixels, x, y), Is.EqualTo(0), $"B の向こう側 ({x},{y})");
+                    Assert.That(At(pixels, x, y), Is.EqualTo(0), $"Bの向こう側({x},{y})");
                 }
             }
         }
@@ -289,7 +289,7 @@ namespace Nekoare.ClickRecolor.Tests
             {
                 RenderTexture.active = other;
                 FloodFill.WriteR8(data, rt);
-                Assert.That(RenderTexture.active, Is.EqualTo(other), "WriteR8 がアクティブな RT を書き換えたまま戻していない");
+                Assert.That(RenderTexture.active, Is.EqualTo(other), "WriteR8がアクティブなRTを書き換えたまま戻していない");
             }
             finally
             {
@@ -334,7 +334,7 @@ namespace Nekoare.ClickRecolor.Tests
             var pixels = FloodFill.ReadR8(result);
 
             Assert.That(At(pixels, 35, 25), Is.EqualTo(255), "ずらした先の内側");
-            Assert.That(At(pixels, 9, 12), Is.EqualTo(0), "生 UV の位置（ずらす前）");
+            Assert.That(At(pixels, 9, 12), Is.EqualTo(0), "生UVの位置（ずらす前）");
         }
     }
 

@@ -39,7 +39,7 @@ namespace Nekoare.ClickRecolor.Tests
                 var str = i + 1 < lines.Length ? MsgStrRegex.Match(lines[i + 1]) : Match.Empty;
                 if (!str.Success)
                 {
-                    Assert.Fail($"msgid \"{id.Groups[1].Value}\" の直後に msgstr がありません（msgstr は 1 行で書く前提）");
+                    Assert.Fail($"msgid \"{id.Groups[1].Value}\"の直後にmsgstrがありません（msgstrは1行で書く前提）");
                 }
                 entries[id.Groups[1].Value] = str.Groups[1].Value;
             }
@@ -64,7 +64,7 @@ namespace Nekoare.ClickRecolor.Tests
             {
                 foreach (var (id, text) in ReadEntries(Path.Combine(Dir, file)))
                 {
-                    Assert.That(Regex.IsMatch(text, "(^|[^\\\\])\""), Is.False, $"{file}: {id} の msgstr に未エスケープの \" があります");
+                    Assert.That(Regex.IsMatch(text, "(^|[^\\\\])\""), Is.False, $"{file}: {id}のmsgstrに未エスケープの\"があります");
                 }
             }
         }
@@ -78,7 +78,7 @@ namespace Nekoare.ClickRecolor.Tests
 
             Assert.That(ja, Is.Not.Empty);
             Assert.That(en, Is.EquivalentTo(ja));
-            Assert.That(ko, Is.EquivalentTo(ja), "ko-KR.po の msgid が ja と一致しません");
+            Assert.That(ko, Is.EquivalentTo(ja), "ko-KR.poのmsgidがjaと一致しません");
         }
 
         [Test]
@@ -91,16 +91,16 @@ namespace Nekoare.ClickRecolor.Tests
             Assert.That(ja, Is.Not.Empty);
             foreach (var pair in ja)
             {
-                Assert.That(ko.ContainsKey(pair.Key), Is.True, $"ko-KR.po に msgid \"{pair.Key}\" がありません");
+                Assert.That(ko.ContainsKey(pair.Key), Is.True, $"ko-KR.poにmsgid \"{pair.Key}\"がありません");
                 Assert.That(
                     PlaceholderNumbers(ko[pair.Key]),
                     Is.EquivalentTo(PlaceholderNumbers(pair.Value)),
-                    $"msgid \"{pair.Key}\" のプレースホルダ番号が ja と ko で一致しません");
-                Assert.That(en.ContainsKey(pair.Key), Is.True, $"en-US.po に msgid \"{pair.Key}\" がありません");
+                    $"msgid \"{pair.Key}\"のプレースホルダ番号がjaとkoで一致しません");
+                Assert.That(en.ContainsKey(pair.Key), Is.True, $"en-US.poにmsgid \"{pair.Key}\"がありません");
                 Assert.That(
                     PlaceholderNumbers(en[pair.Key]),
                     Is.EquivalentTo(PlaceholderNumbers(pair.Value)),
-                    $"msgid \"{pair.Key}\" のプレースホルダ番号が ja と en で一致しません");
+                    $"msgid \"{pair.Key}\"のプレースホルダ番号がjaとenで一致しません");
             }
         }
 
@@ -139,7 +139,7 @@ namespace Nekoare.ClickRecolor.Tests
             {
                 // 見出し（Inspector:Title）は ja/en とも商品名「Tocolo」で同じなので、言語で違う説明文で確かめる
                 LanguagePrefs.Language = "ja-jp";
-                Assert.That(Nekoare.ClickRecolor.Editor.Localization.Locales.Tr("Inspector:Description"), Does.StartWith("Scene でクリック"));
+                Assert.That(Nekoare.ClickRecolor.Editor.Localization.Locales.Tr("Inspector:Description"), Does.StartWith("Sceneでクリック"));
 
                 LanguagePrefs.Language = "en-us";
                 Assert.That(Nekoare.ClickRecolor.Editor.Localization.Locales.Tr("Inspector:Description"), Does.StartWith("Click a spot"));

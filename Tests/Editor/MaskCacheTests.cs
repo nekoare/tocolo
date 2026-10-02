@@ -50,7 +50,7 @@ namespace Nekoare.ClickRecolor.Tests
                 AddDummy(key);
             }
             Assert.That(MaskCache.Capacity, Is.EqualTo(16));
-            Assert.That(MaskCache.Count, Is.EqualTo(17), "Add では減らさない（同じ Run の途中で捨てない）");
+            Assert.That(MaskCache.Count, Is.EqualTo(17), "Addでは減らさない（同じRunの途中で捨てない）");
 
             MaskCache.Trim();
 

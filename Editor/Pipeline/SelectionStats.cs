@@ -55,7 +55,7 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
         {
             if (linearPixels == null) throw new ArgumentNullException(nameof(linearPixels));
             if (mask == null) throw new ArgumentNullException(nameof(mask));
-            if (mask.Length < linearPixels.Length) throw new ArgumentException("mask の長さが画素数より短いです", nameof(mask));
+            if (mask.Length < linearPixels.Length) throw new ArgumentException("maskの長さが画素数より短いです", nameof(mask));
 
             var ls = new float[linearPixels.Length];
             var weights = new float[linearPixels.Length];
