@@ -253,10 +253,10 @@ msgid "Scene:Panel:HairToolNotice"
 msgstr "This part is handled by Chimera Hair Master. On upload its processing is applied on top of this recolor, so export from Chimera Hair Master first, then recolor."
 
 msgid "Scene:Panel:LayerCovers"
-msgstr "The color change may be hard to see here. lilToon Main Color {0} overlaps this spot."
+msgstr "The color change may be hard to see here. lilToon Main Color {0} overlaps this spot. Bake it into the main texture with the Bake button under Main Color {0}, then pick again to recolor it all together."
 
 msgid "Scene:Panel:LayerMixes"
-msgstr "The result will differ from the target color. lilToon Main Color {0} is blended in."
+msgstr "The result will differ from the target color. lilToon Main Color {0} is blended in. Bake it into the main texture with the Bake button under Main Color {0}, then pick again to recolor it all together."
 
 msgid "Scene:Panel:PoiLayerCovers"
 msgstr "The color change may be hard to see here. Poiyomi {0} overlaps this spot."
@@ -265,10 +265,10 @@ msgid "Scene:Panel:PoiLayerMixes"
 msgstr "The result will differ from the target color. Poiyomi {0} is blended in."
 
 msgid "Scene:Panel:PoiColorAdjust"
-msgstr "The result will differ from the target color. Poiyomi Color Adjust is applied."
+msgstr "The result will differ from the target color. Poiyomi Color Adjust is applied. Bake it with the Bake Color Adjust button in Color Adjust, then pick again."
 
 msgid "Scene:Panel:LilColorAdjust"
-msgstr "The result will differ from the target color. lilToon tone correction (HSVG) or gradation map is applied."
+msgstr "The result will differ from the target color. lilToon tone correction (HSVG) or gradation map is applied. Bake it with the Bake button under Main Color, then pick again."
 
 msgid "Scene:Panel:MainColorTint"
 msgstr "The result will differ from the target color. The material Color is not white and is multiplied in."

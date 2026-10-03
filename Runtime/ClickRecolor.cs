@@ -59,7 +59,7 @@ namespace Nekoare.ClickRecolor
         {
             if (edit == null) return null;
             if (string.IsNullOrEmpty(edit.id)) edit.id = RecolorEdit.NewId();
-            if (string.IsNullOrEmpty(edit.name)) edit.name = $"編集 {edits.Count + 1}";
+            if (string.IsNullOrEmpty(edit.name)) edit.name = $"編集{edits.Count + 1}";
             edits.Add(edit);
             return edit;
         }
@@ -115,7 +115,7 @@ namespace Nekoare.ClickRecolor
         private void Reset()
         {
             if (!UnityEditor.EditorUtility.IsPersistent(this)) return;
-            Debug.LogWarning("[Tocolo] Project の Prefab には付けられません。シーンに置いたアバターに付けてください", this);
+            Debug.LogWarning("[Tocolo] ProjectのPrefabには付けられません。シーンに置いたアバターに付けてください", this);
             UnityEditor.EditorApplication.delayCall += () => { if (this != null) DestroyImmediate(this, true); };
         }
 #endif

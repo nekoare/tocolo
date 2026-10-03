@@ -253,10 +253,10 @@ msgid "Scene:Panel:HairToolNotice"
 msgstr "이 파츠는 Chimera Hair Master의 대상이에요. 업로드 시 Chimera Hair Master의 가공이 이 색 변경 위에 적용되므로, 먼저 Chimera Hair Master에서 내보낸 뒤 색을 바꿔 주세요"
 
 msgid "Scene:Panel:LayerCovers"
-msgstr "색이 잘 바뀌지 않는 위치예요. lilToon 메인 컬러 {0}이(가) 위에 겹쳐 있어요."
+msgstr "색이 잘 바뀌지 않는 위치예요. lilToon 메인 컬러 {0}이(가) 위에 겹쳐 있어요. {0}의 「굽기」로 메인에 구운 뒤 다시 선택하면 한꺼번에 색을 바꿀 수 있어요."
 
 msgid "Scene:Panel:LayerMixes"
-msgstr "원하는 색과 달라져요. lilToon 메인 컬러 {0}의 색이 섞여요."
+msgstr "원하는 색과 달라져요. lilToon 메인 컬러 {0}의 색이 섞여요. {0}의 「굽기」로 메인에 구운 뒤 다시 선택하면 한꺼번에 색을 바꿀 수 있어요."
 
 msgid "Scene:Panel:PoiLayerCovers"
 msgstr "색이 잘 바뀌지 않는 위치예요. Poiyomi의 {0}이(가) 위에 겹쳐 있어요."
@@ -265,10 +265,10 @@ msgid "Scene:Panel:PoiLayerMixes"
 msgstr "원하는 색과 달라져요. Poiyomi의 {0} 색이 섞여요."
 
 msgid "Scene:Panel:PoiColorAdjust"
-msgstr "원하는 색과 달라져요. Poiyomi의 Color Adjust가 적용되어 있어요."
+msgstr "원하는 색과 달라져요. Poiyomi의 Color Adjust가 적용되어 있어요. Color Adjust의 「Bake Color Adjust」로 구운 뒤 다시 선택할 수 있어요."
 
 msgid "Scene:Panel:LilColorAdjust"
-msgstr "원하는 색과 달라져요. lilToon의 색조 보정(HSVG) 또는 그라데이션 맵이 적용되어 있어요."
+msgstr "원하는 색과 달라져요. lilToon의 색조 보정(HSVG) 또는 그라데이션 맵이 적용되어 있어요. 메인 컬러의 「굽기」로 구운 뒤 다시 선택할 수 있어요."
 
 msgid "Scene:Panel:MainColorTint"
 msgstr "원하는 색과 달라져요. 머티리얼 색(Color)이 흰색이 아니라서 곱해져요."

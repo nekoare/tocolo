@@ -253,10 +253,10 @@ msgid "Scene:Panel:HairToolNotice"
 msgstr "このパーツはキメラヘアマスターの対象です。アップロード時はキメラヘアマスターの加工がこの色変えの上に掛かるため、先にキメラヘアマスターでエクスポートしてから色を変えてください"
 
 msgid "Scene:Panel:LayerCovers"
-msgstr "色が変わりにくい場所です。lilToonのメインカラー{0}が上に重なっています。"
+msgstr "色が変わりにくい場所です。lilToonのメインカラー{0}が上に重なっています。{0}の「焼き込み」でメインに焼き込んでから選び直すと、まとめて色を変えられます。"
 
 msgid "Scene:Panel:LayerMixes"
-msgstr "色が狙いとずれます。lilToonのメインカラー{0}の色が混ざります。"
+msgstr "色が狙いとずれます。lilToonのメインカラー{0}の色が混ざります。{0}の「焼き込み」でメインに焼き込んでから選び直すと、まとめて色を変えられます。"
 
 msgid "Scene:Panel:PoiLayerCovers"
 msgstr "色が変わりにくい場所です。Poiyomiの{0}が上に重なっています。"
@@ -265,10 +265,10 @@ msgid "Scene:Panel:PoiLayerMixes"
 msgstr "色が狙いとずれます。Poiyomiの{0}の色が混ざります。"
 
 msgid "Scene:Panel:PoiColorAdjust"
-msgstr "色が狙いとずれます。PoiyomiのColor Adjustが掛かっています。"
+msgstr "色が狙いとずれます。PoiyomiのColor Adjustが掛かっています。Color Adjustの「Bake Color Adjust」で焼き込んでから選び直せます。"
 
 msgid "Scene:Panel:LilColorAdjust"
-msgstr "色が狙いとずれます。lilToonの色調補正（HSVG）かグラデーションマップが掛かっています。"
+msgstr "色が狙いとずれます。lilToonの色調補正（HSVG）かグラデーションマップが掛かっています。メインカラーの「焼き込み」で焼き込んでから選び直せます。"
 
 msgid "Scene:Panel:MainColorTint"
 msgstr "色が狙いとずれます。マテリアルの色（Color）が白以外で、掛け合わされます。"
