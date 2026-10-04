@@ -145,6 +145,8 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
         private static readonly int HueRetainId = Shader.PropertyToID("_HueRetain");
         private static readonly int StrengthId = Shader.PropertyToID("_Strength");
         private static readonly int DarkEndRatio2Id = Shader.PropertyToID("_DarkEndRatio2");
+        private static readonly int GammaId = Shader.PropertyToID("_Gamma");
+        private static readonly int Gamma2Id = Shader.PropertyToID("_Gamma2");
         private static readonly int Strength2Id = Shader.PropertyToID("_Strength2");
         private static readonly int LP05Id = Shader.PropertyToID("_LP05");
         private static readonly int LP95Id = Shader.PropertyToID("_LP95");
@@ -246,7 +248,7 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
             if (source == null) return null;
             // 種ごとに色を揃えるなら種ごとのマスクを残す（合成は最後に別の RT へ）。揃えないなら 1 枚へ順に合成する
             // 画像入りなら統計は画像から取るので、種ごとの部分は要らない（部分は常に合成マスク 1 つ）
-            bool perSeed = edit.perSeedStats && seeds.Count > 1 && !edit.HasDecal;
+            bool perSeed = edit.perSeedStats && seeds.Count > 1 && !edit.HasDecal && !edit.wholeTexture;
             var seedMasks = new List<RenderTexture>();
             RenderTexture mask = null;
             try
@@ -257,7 +259,13 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
                     ? CoverageMask.GetOrBuild(sourceAsset, users, source.width, source.height, out _)
                     : null;
 
-                if (edit.mode == SelectionMode.Box)
+                if (edit.wholeTexture)
+                {
+                    // テクスチャ全体（「テクスチャの残りを選択」）: モードに関係なく、そのテクスチャを使う全メッシュの UV が覆う所すべて
+                    mask = BuildWholeTextureMask(source, coverage, edit.padding);
+                    if (mask == null) return null;
+                }
+                else if (edit.mode == SelectionMode.Box)
                 {
                     // 箱の中: 種は使わない（クリック位置はテクスチャの特定と「元の色」のためだけ）。
                     // 「パーツごとに色を揃える」なら箱マスクをパーツ（チャート）ごとに分けて、パーツ複数選択と同じく部分ごとの統計にする
@@ -803,6 +811,29 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
         }
 
         /// <summary>種のチャートの島マスク（作業 RT と同じ大きさ、padding px のパディング込み）。作れなければ null</summary>
+        /// <summary>
+        /// テクスチャ全体の選択マスク: 全チャート被覆（coverage。マスクと同じ大きさ）を写し、パーツと同じくはみ出し幅（padding）とぼかしを掛ける
+        /// （IslandMaskBuilder の 5. と同じ）。被覆が無ければ null
+        /// </summary>
+        private static RenderTexture BuildWholeTextureMask(RenderTexture source, RenderTexture coverage, int padding)
+        {
+            if (coverage == null || coverage.width != source.width || coverage.height != source.height || !Morphology.IsAvailable) return null;
+            var rt = MaskTextures.Create(source.width, source.height, "ClickRecolor_WholeTextureMask");
+            try
+            {
+                Graphics.CopyTexture(coverage, rt);
+                if (padding > 0) Morphology.DilateInto(rt, coverage, padding, invertAllowed: true);
+                else if (padding < 0) Morphology.Erode(rt, -padding);
+                Morphology.Blur1(rt, coverage, invertAllowed: true);
+                return rt;
+            }
+            catch
+            {
+                MaskTextures.Destroy(rt);
+                throw;
+            }
+        }
+
         private static RenderTexture BuildIslandMask(
             in SeedSpec seed, RenderTexture source, Vector2 uvScale, Vector2 uvOffset,
             RenderTexture coverage, int padding, int cleanupRadius)
@@ -1146,6 +1177,9 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
 
             shader.SetVector(TargetOklchId, p.targetOklch);
             shader.SetFloat(DarkEndRatioId, p.darkEndRatio);
+            shader.SetFloat(GammaId, p.gamma);
+            // 色 2 側はグラデーションのときだけ使うが、前の値が残らないよう常に入れる
+            shader.SetFloat(Gamma2Id, p.gamma2);
             shader.SetFloat(LToTargetId, p.lToTarget);
             shader.SetFloat(ChromaToTargetId, p.chromaToTarget);
             shader.SetFloat(HueRetainId, p.hueRetain);

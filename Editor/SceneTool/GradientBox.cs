@@ -245,6 +245,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 e.gradientColor = e.seedColor;
                 // 色 2 の陰影の暗さ・強さは色 1 の値から始める（ON にした直後の見た目を変えない）
                 e.gradientDarkEndRatio = e.darkEndRatio;
+                e.gradientGamma = e.gamma;
                 e.gradientStrength = e.strength;
                 e.gradientBoxPosition = box.position;
                 e.gradientBoxRotation = box.rotation;

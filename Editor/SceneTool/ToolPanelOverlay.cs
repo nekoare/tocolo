@@ -431,6 +431,35 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                     ToolSession.PublishHighlight();
                 }
             }
+
+            DrawSelectWholeTextureButton(root);
+        }
+
+        /// <summary>
+        /// 影響範囲のボタンの真下・右端の「テクスチャの残りを選択」。押すと現在の編集の範囲を、その編集のテクスチャ全体
+        /// （そのテクスチャを使う全メッシュの UV が覆う所）へ広げる（RecolorEdit.wholeTexture。戻すのは Ctrl+Z か、影響範囲のモードを選び直す）。
+        /// 連結なら全メンバー（それぞれのテクスチャ）に効かせる。編集が無い・すでに全体・「アバター全体」の連結（もとから全体）なら押せない（ユーザー要望 2026-10-04）
+        /// </summary>
+        private static void DrawSelectWholeTextureButton(GameObject root)
+        {
+            var component = root.GetComponent<ClickRecolor>();
+            var edit = component != null ? component.FindEdit(ToolSession.CurrentEditId) : null;
+            bool enabled = edit != null && !edit.wholeTexture && !EditGroups.IsWholeAvatarGroup(edit);
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                GUILayout.FlexibleSpace();
+                using (new EditorGUI.DisabledScope(!enabled))
+                {
+                    var content = new GUIContent(Locales.Tr("Scene:Panel:SelectWholeTexture"), Locales.Tr("Scene:Panel:SelectWholeTextureTooltip"));
+                    if (GUILayout.Button(content, GUILayout.ExpandWidth(false)) && enabled)
+                    {
+                        Undo.RecordObject(component, "Tocolo: テクスチャの残りを選択");
+                        EditGroups.ForEachInGroup(component, edit, e => e.wholeTexture = true);
+                        EditorUtility.SetDirty(component);
+                        SceneView.RepaintAll();
+                    }
+                }
+            }
         }
 
         /// <summary>
@@ -528,6 +557,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             // 色を決める前は新しい色が仮の値（元の色）なので、自動調整の基準にしない
             // end（色 2 を編集中）なら自動調整・陰影の暗さ・強さは色 2 側の値（gradientDarkEndRatio / gradientStrength）を読み書きする
             using (new EditorGUI.DisabledScope(!edit.hasTarget))
+            using (new EditorGUILayout.HorizontalScope())
             {
                 if (GUILayout.Button(Locales.Tr("Scene:Color:AutoDarkEnd")))
                 {
@@ -539,6 +569,9 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                     });
                     EditorUtility.SetDirty(component);
                 }
+                // 陰影の暗さ・陰影の強調を初期値に戻す（不透明度は戻さない。ユーザー要望 2026-10-04）
+                var resetShading = new GUIContent(Locales.Tr("Scene:Color:ResetButton"), Locales.Tr("Scene:Color:ResetShadingTooltip"));
+                if (GUILayout.Button(resetShading, GUILayout.ExpandWidth(false))) ResetShading(component, edit, end);
             }
 
             // ドラッグ中・数値欄への入力中の変更は Undo 1 回にまとめる
@@ -1043,7 +1076,12 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             if (end)
             {
                 Undo.RecordObject(component, "Tocolo: 色2を元の色に戻す");
-                EditGroups.ForEachInGroup(component, edit, e => e.gradientColor = e.seedColor);
+                EditGroups.ForEachInGroup(component, edit, e =>
+                {
+                    e.gradientColor = e.seedColor;
+                    // ガンマは色相・彩度と同じく色の一部としてリセットする（ユーザー要望 2026-10-04）
+                    e.gradientGamma = 1f;
+                });
                 EditorUtility.SetDirty(component);
                 return;
             }
@@ -1052,7 +1090,11 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             if (edit.gradientEnabled)
             {
                 Undo.RecordObject(component, "Tocolo: 色1を元の色に戻す");
-                EditGroups.ForEachInGroup(component, edit, e => e.targetColor = e.seedColor);
+                EditGroups.ForEachInGroup(component, edit, e =>
+                {
+                    e.targetColor = e.seedColor;
+                    e.gamma = 1f;
+                });
                 EditorUtility.SetDirty(component);
                 return;
             }
@@ -1099,12 +1141,14 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 if (selected != mode) EditorPrefs.SetInt(SliderModeKey, selected);
             }
 
+            string gammaLabel = Locales.Tr("Scene:Color:Gamma");
+            float labelWidth;
             if (mode == SliderModeHsv)
             {
                 string hLabel = Locales.Tr("Scene:Color:Hue");
                 string sLabel = Locales.Tr("Scene:Color:Sat");
                 string vLabel = Locales.Tr("Scene:Color:Val");
-                float labelWidth = SliderLabelWidth(hLabel, sLabel, vLabel);
+                labelWidth = SliderLabelWidth(hLabel, sLabel, vLabel, gammaLabel);
 
                 Vector3 hsv = ColorWheelGUI.GetHsv(EditingColor(edit, end));
                 s_satGradient.Update(hsv, t => Color.HSVToRGB(hsv.x, t, hsv.z));
@@ -1124,7 +1168,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 string rLabel = Locales.Tr("Scene:Color:Red");
                 string gLabel = Locales.Tr("Scene:Color:Green");
                 string bLabel = Locales.Tr("Scene:Color:Blue");
-                float labelWidth = SliderLabelWidth(rLabel, gLabel, bLabel);
+                labelWidth = SliderLabelWidth(rLabel, gLabel, bLabel, gammaLabel);
 
                 Color c = EditingColor(edit, end);
                 var rgb = new Vector3(c.r, c.g, c.b);
@@ -1141,6 +1185,41 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                     ChangeColor(component, edit, new Color(r / 255f, g / 255f, b / 255f, 1f), end);
                 }
             }
+
+            DrawGammaSlider(component, edit, end, gammaLabel, labelWidth);
+        }
+
+        /// <summary>ガンマのスライダーの範囲（lilToon の色調補正のガンマと同じ）</summary>
+        private const float GammaMin = 0.01f, GammaMax = 2f;
+
+        private static readonly GradientSlider.Cache s_gammaGradient = new GradientSlider.Cache(GradientSlider.GradientSize, "ClickRecolor.GammaGradient");
+
+        /// <summary>
+        /// 色のスライダーの下（明るさ・青の下）のガンマ（lilToon の色調補正のガンマと同じ式・範囲。小さいほど明るい。ユーザー要望 2026-10-04）。
+        /// end（色 2 を編集中）なら色 2 のガンマ。トラックには編集中の色にそのガンマを掛けた色を敷く
+        /// </summary>
+        private static void DrawGammaSlider(ClickRecolor component, RecolorEdit edit, bool end, string label, float labelWidth)
+        {
+            float current = end ? edit.gradientGamma : edit.gamma;
+            Color c = EditingColor(edit, end);
+            var linear = new Vector3(Mathf.GammaToLinearSpace(c.r), Mathf.GammaToLinearSpace(c.g), Mathf.GammaToLinearSpace(c.b));
+            s_gammaGradient.Update(new Vector3(c.r, c.g, c.b), t =>
+            {
+                var shifted = Colors.ColorShiftCpu.ApplyGamma(linear, Mathf.Lerp(GammaMin, GammaMax, t));
+                return new Color(Mathf.LinearToGammaSpace(shifted.x), Mathf.LinearToGammaSpace(shifted.y), Mathf.LinearToGammaSpace(shifted.z));
+            });
+
+            EditorGUI.BeginChangeCheck();
+            float gamma = GradientSlider.Draw(label, current, GammaMin, GammaMax, s_gammaGradient.Texture, "0.00", labelWidth);
+            if (!EditorGUI.EndChangeCheck()) return;
+            BeginDragIfGrabbing("Tocolo: ガンマを変更");
+            Undo.RecordObject(component, "Tocolo: ガンマを変更");
+            EditGroups.ForEachInGroup(component, edit, e =>
+            {
+                if (end) e.gradientGamma = gamma;
+                else e.gamma = gamma;
+            });
+            EditorUtility.SetDirty(component);
         }
 
         /// <summary>
@@ -1290,9 +1369,26 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         }
 
         /// <summary>
+        /// 陰影の暗さ・陰影の強調を初期値に戻す（陰影の暗さは色を決めたときと同じ自動の値、陰影の強調 0）。不透明度は戻さない（ユーザー判断 2026-10-04）。
+        /// end（色 2 を編集中）なら陰影の暗さは色 2 の値。陰影の強調は色 1・色 2 で共通。連結なら連結の全編集に効かせる
+        /// </summary>
+        internal static void ResetShading(ClickRecolor component, RecolorEdit edit, bool end)
+        {
+            if (component == null || edit == null) return;
+            Undo.RecordObject(component, "Tocolo: 陰影の設定を戻す");
+            EditGroups.ForEachInGroup(component, edit, e =>
+            {
+                e.shadingStretch = 0f;
+                if (end) e.gradientDarkEndRatio = DarkEndAutoAdjust.Compute(e.gradientColor);
+                else e.darkEndRatio = DarkEndAutoAdjust.Compute(e.targetColor);
+            });
+            EditorUtility.SetDirty(component);
+        }
+
+        /// <summary>
         /// 色の指定を取り消して元の色に戻す（新しい色 = 元の色、hasTarget = false、グラデーション OFF）。プレビューは元の見た目に戻り、
         /// 一度色を決めた編集（confirmed）なので選択範囲は残る（自動で捨てない・再クリックで選び直せる）。
-        /// 現在の編集（ハイライト）はそのまま残る。暗部の明るさ等の手動値は変えない
+        /// 現在の編集（ハイライト）はそのまま残る。ガンマは色の一部として 1 に戻し、暗部の明るさ等の手動値は変えない
         /// （次に色を選んだときは ApplyTargetColor が初回と同じく暗部の明るさを自動調整する）。連結（「アバター全体」・島の連結）なら連結の全編集に効かせる
         /// </summary>
         internal static void ResetToOriginal(ClickRecolor component, RecolorEdit edit)
@@ -1302,6 +1398,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             EditGroups.ForEachInGroup(component, edit, e =>
             {
                 e.targetColor = e.seedColor;
+                e.gamma = 1f;
                 e.hasTarget = false;
                 // グラデーションも切る（元の色に戻したのに終了色が残って見えるのを防ぐ。箱と終了色の値は残す）
                 e.gradientEnabled = false;

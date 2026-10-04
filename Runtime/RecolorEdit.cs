@@ -74,7 +74,17 @@ namespace Nekoare.ClickRecolor
         /// 画像入りも残す: 画像を入れた時点で見た目が変わるので、新しい色が未決定でも捨てない
         /// </summary>
         public bool IsKept => hasTarget || confirmed || HasDecal;
+        /// <summary>
+        /// テクスチャ全体を選ぶ（「テクスチャの残りを選択」で立てる）。立っている間は、モードに関係なく範囲がそのテクスチャを使う
+        /// 全メッシュの UV が覆う所すべてになる（はみ出し幅は効く）。影響範囲のモードを選び直すと下ろす（ユーザー要望 2026-10-04）
+        /// </summary>
+        public bool wholeTexture;
         [Range(0f, 1f)] public float darkEndRatio = 0.7f;
+        /// <summary>
+        /// ガンマ（0.01〜2、1 で従来どおり）。色を変えた後の線形 RGB に pow(色, ガンマ) を掛ける（lilToon の色調補正のガンマと同じ式。小さいほど明るい）。
+        /// 暗い髪のテクスチャを明るい色にすると全体が暗く見えるのを持ち上げる（ユーザー要望 2026-10-04。ColorShiftCpu.ApplyGamma）
+        /// </summary>
+        [Range(0.01f, 2f)] public float gamma = 1f;
         [Range(0f, 1f)] public float lightnessToTarget = 1f;
         [Range(0f, 1f)] public float chromaToTarget = 1f;
         [Range(0f, 1f)] public float hueRetain = 0f;
@@ -99,6 +109,8 @@ namespace Nekoare.ClickRecolor
         public Color gradientColor = Color.white;
         /// <summary>色 2（箱の上端）の暗部の明るさ。グラデーション ON のとき、テクセルの t で darkEndRatio と混ぜる</summary>
         [Range(0f, 1f)] public float gradientDarkEndRatio = 0.7f;
+        /// <summary>色 2（箱の上端）のガンマ。グラデーション ON のとき、テクセルの t で gamma と混ぜる</summary>
+        [Range(0.01f, 2f)] public float gradientGamma = 1f;
         /// <summary>色 2（箱の上端）の強さ。グラデーション ON のとき、テクセルの t で strength と混ぜる</summary>
         [Range(0f, 1f)] public float gradientStrength = 1f;
         /// <summary>箱の中心（対象ルート＝ClickRecolor の GameObject のローカル座標）</summary>

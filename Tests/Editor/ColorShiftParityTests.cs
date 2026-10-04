@@ -205,6 +205,47 @@ namespace Nekoare.ClickRecolor.Tests
         }
 
         [Test]
+        public void ガンマを変えても_GPU_と_CPU_が一致する()
+        {
+            var src = RandomLinearPixels(4);
+            var mask = MaskBytes();
+            var srcTex = MakeSource(src);
+            var maskTex = MakeMask(mask);
+            foreach (float g in new[] { 0.5f, 0.8f, 1.6f })
+            {
+                var p = Params(new Color(0.95f, 0.75f, 0.85f), 0.25f, 0.85f);
+                p.gamma = g;
+                AssertParity(src, mask, RunGpu(srcTex, maskTex, p), p);
+            }
+        }
+
+        [Test]
+        public void ガンマは_lilToon_と同じく線形の各チャンネルを_pow_し_1と未設定は恒等()
+        {
+            var c = new Vector3(0.25f, 0.5f, 0.81f);
+            var half = ColorShiftCpu.ApplyGamma(c, 0.5f);
+            Assert.That(half.x, Is.EqualTo(0.5f).Within(1e-5f));
+            Assert.That(half.y, Is.EqualTo(Mathf.Sqrt(0.5f)).Within(1e-5f));
+            Assert.That(half.z, Is.EqualTo(0.9f).Within(1e-5f));
+            Assert.That(ColorShiftCpu.ApplyGamma(c, 1f), Is.EqualTo(c), "1 なら従来どおり");
+            Assert.That(ColorShiftCpu.ApplyGamma(c, 0f), Is.EqualTo(c), "0（手で作った ShiftParams の既定）は未設定として恒等");
+        }
+
+        [Test]
+        public void ガンマを下げると明るくなる()
+        {
+            var p = Params(new Color(0.95f, 0.75f, 0.85f), 0.25f, 0.85f);
+            var gray = OklabConverter.OklabToLinearRGB(new Vector3(0.55f, 0f, 0f));
+            var src = new Color(gray.x, gray.y, gray.z, 1f);
+            float before = OklabConverter.LinearRGBToOklab(Vec(ColorShiftCpu.ShiftLinear(src, 1f, p, Vector4.zero))).x;
+            p.gamma = 0.6f;
+            float after = OklabConverter.LinearRGBToOklab(Vec(ColorShiftCpu.ShiftLinear(src, 1f, p, Vector4.zero))).x;
+            Assert.That(after, Is.GreaterThan(before + 0.02f));
+        }
+
+        private static Vector3 Vec(Color c) => new Vector3(c.r, c.g, c.b);
+
+        [Test]
         public void 狭いレンジは傾き1の加算オフセットになる()
         {
             // 灰色（L = 0.6）を、選択の L が 0.5 に集まっている（range 0）ときに灰色の目標へ寄せる

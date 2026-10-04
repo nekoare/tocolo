@@ -25,6 +25,7 @@ int MaskHeight;
 // 1 画素の式のパラメータ（C# の ShiftParams と 1:1）
 float4 _TargetOklch;      // (L_t, C_t, h_t ラジアン, 未使用)
 float _DarkEndRatio;      // 暗部の明るさ（選択内の最暗部 = L_t × ratio）
+float _Gamma;             // ガンマ（ApplyGamma。1 で恒等、小さいほど明るい）
 float _LToTarget;         // L を目標へ寄せる強さ
 float _ChromaToTarget;    // C を目標へ寄せる強さ
 float _HueRetain;         // 代表色相からの差を残す割合
@@ -52,6 +53,7 @@ float3 BoxSize;           // 箱の大きさ（Y で混ぜる。GradientInsideOn
 int GradientInsideOnly;   // 0 以外ならグラデーション方向（Y）で箱の外の画素は色変えしない（元の色のまま）。横方向は切らない
 float3 TargetOklab2;      // 色 2（箱の上端 t = 1）の Oklab
 float _DarkEndRatio2;     // 色 2（箱の上端 t = 1）の暗部の明るさ。t で _DarkEndRatio と混ぜる
+float _Gamma2;            // 色 2（箱の上端 t = 1）のガンマ。t で _Gamma と混ぜる
 float _Strength2;         // 色 2（箱の上端 t = 1）の強さ。t で _Strength と混ぜる
 
 static const float MinBoxHeight = 1e-5;      // 箱の高さの下限（0 で割らない）
@@ -76,6 +78,14 @@ bool GradientOutsideBox(float4 position)
     if (GradientInsideOnly == 0 || position.a <= 0.0) return false;
     float3 local = mul(WorldToBox, float4(position.xyz, 1.0)).xyz;
     return abs(local.y) > abs(BoxSize.y) * 0.5;
+}
+
+// ガンマ（ColorShiftCpu.ApplyGamma と同じ式）。色を変えた後の線形 RGB に pow(c, gamma)（lilToon の色調補正のガンマと同じ）。1 なら恒等
+float3 ApplyGamma(float3 lin, float gamma)
+{
+    // 0 以下は未設定（ShiftParams を手で作ったときの既定値）として恒等
+    if (gamma <= 0.0 || abs(gamma - 1.0) < 1e-6) return lin;
+    return pow(abs(lin), max(gamma, 0.01));
 }
 
 // 線形 RGB を目標色 targetLch（OKLCh）へ寄せた線形 RGB を返す（マスクを掛ける前の値）。darkEndRatio は暗部の明るさ
@@ -156,6 +166,7 @@ void CSShift(uint3 id : SV_DispatchThreadID)
     }
     float strength = UseGradient != 0 ? lerp(_Strength, _Strength2, t) : _Strength;
     float darkEndRatio = UseGradient != 0 ? lerp(_DarkEndRatio, _DarkEndRatio2, t) : _DarkEndRatio;
+    float gamma = UseGradient != 0 ? lerp(_Gamma, _Gamma2, t) : _Gamma;
 
     // 画素中心の正規化座標でマスクの画素を引く（解像度が違っても同じ場所を見る）
     int2 q = int2((float2(id.xy) + 0.5) * float2(MaskWidth, MaskHeight) / float2(Width, Height));
@@ -179,7 +190,7 @@ void CSShift(uint3 id : SV_DispatchThreadID)
     }
 
     float2 lp = BandLP(position);
-    float3 shifted = ShiftToTargetLinear(src.rgb, targetLch, darkEndRatio, lp.x, lp.y);
+    float3 shifted = ApplyGamma(ShiftToTargetLinear(src.rgb, targetLch, darkEndRatio, lp.x, lp.y), gamma);
     // α は触らない（透過マスク温存）
     Dst[id.xy] = float4(lerp(src.rgb, shifted, w), src.a);
 }

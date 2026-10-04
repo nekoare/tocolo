@@ -12,6 +12,10 @@ namespace Nekoare.ClickRecolor.Editor.Colors
         /// <summary>目標色の OKLCh（L, C, h ラジアン, 未使用）</summary>
         public Vector4 targetOklch;
         public float darkEndRatio;
+        /// <summary>ガンマ（ApplyGamma。1 で恒等）。compute の _Gamma</summary>
+        public float gamma;
+        /// <summary>色 2（箱の上端 t=1）のガンマ。useGradient のとき t で gamma と混ぜる。compute の _Gamma2</summary>
+        public float gamma2;
         public float lToTarget;
         public float chromaToTarget;
         public float hueRetain;
@@ -62,6 +66,8 @@ namespace Nekoare.ClickRecolor.Editor.Colors
                 targetOklch = new Vector4(lch.x, lch.y, lch.z, 0f),
                 darkEndRatio = edit.darkEndRatio,
                 darkEndRatio2 = gradient ? edit.gradientDarkEndRatio : edit.darkEndRatio,
+                gamma = edit.gamma,
+                gamma2 = gradient ? edit.gradientGamma : edit.gamma,
                 lToTarget = edit.lightnessToTarget,
                 chromaToTarget = edit.chromaToTarget,
                 hueRetain = edit.hueRetain,
@@ -109,6 +115,7 @@ namespace Nekoare.ClickRecolor.Editor.Colors
             float t = p.useGradient ? GradientT(p, position) : 0f;
             float strength = p.useGradient ? LerpUnclamped(p.strength, p.strength2, t) : p.strength;
             float darkEndRatio = p.useGradient ? LerpUnclamped(p.darkEndRatio, p.darkEndRatio2, t) : p.darkEndRatio;
+            float gamma = p.useGradient ? LerpUnclamped(p.gamma, p.gamma2, t) : p.gamma;
 
             float w = Mathf.Clamp01(mask * strength);
             // マスク外は元の値をそのまま返す（式の途中の誤差や NaN を持ち込まない。compute と同じ）
@@ -124,7 +131,7 @@ namespace Nekoare.ClickRecolor.Editor.Colors
                 if (targetLch.y < MinGradientChroma) targetLch.z = 0f;
             }
 
-            Vector3 shifted = ShiftToTargetLinear(new Vector3(srcLinear.r, srcLinear.g, srcLinear.b), targetLch, darkEndRatio, p);
+            Vector3 shifted = ApplyGamma(ShiftToTargetLinear(new Vector3(srcLinear.r, srcLinear.g, srcLinear.b), targetLch, darkEndRatio, p), gamma);
             return new Color(
                 srcLinear.r + (shifted.x - srcLinear.r) * w,
                 srcLinear.g + (shifted.y - srcLinear.g) * w,
@@ -181,6 +188,18 @@ namespace Nekoare.ClickRecolor.Editor.Colors
             // ガマット外は L と h を保って C だけ縮める。戻り値は sRGB なので線形に戻す
             Color srgb = OklabConverter.OklchToSRGBGamutMapped(new Vector3(newL, newC, newH));
             return OklabConverter.SRGBToLinear(srgb);
+        }
+
+        /// <summary>
+        /// ガンマ（ColorShift.compute の ApplyGamma と同じ式）。色を変えた後の線形 RGB の各チャンネルに pow(c, gamma) を掛ける
+        /// （lilToon の色調補正のガンマと同じ。lilToon も線形の色に掛ける）。1 なら恒等、小さいほど明るい。gamma は 0.01 未満にしない。
+        /// 0 以下は未設定（ShiftParams を手で作ったときの既定値）として恒等にする
+        /// </summary>
+        internal static Vector3 ApplyGamma(Vector3 lin, float gamma)
+        {
+            if (gamma <= 0f || Mathf.Approximately(gamma, 1f)) return lin;
+            float g = Mathf.Max(gamma, 0.01f);
+            return new Vector3(Mathf.Pow(Mathf.Abs(lin.x), g), Mathf.Pow(Mathf.Abs(lin.y), g), Mathf.Pow(Mathf.Abs(lin.z), g));
         }
 
         /// <summary>HLSL の lerp と同じく t を切り詰めない（n は選択外の画素で 0..1 をはみ出す）</summary>

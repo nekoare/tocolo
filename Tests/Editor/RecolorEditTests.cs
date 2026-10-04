@@ -119,6 +119,8 @@ namespace Nekoare.ClickRecolor.Tests
             // 画像（Object 参照）は EditorJsonUtility の往復で組み込みリソースを復元しないので見ない（既存の sourceTexture と同じ扱い）
             edit.decalSmooth = false;
             edit.decalNormal = false;
+            edit.gamma = 0.6f;
+            edit.gradientGamma = 1.4f;
             source.AddEdit(edit);
 
             var json = EditorJsonUtility.ToJson(source);
@@ -138,6 +140,8 @@ namespace Nekoare.ClickRecolor.Tests
             Assert.That(r.padding, Is.EqualTo(3));
             Assert.That(r.decalSmooth, Is.False, "既定（true）と違う値が往復で残る");
             Assert.That(r.decalNormal, Is.False, "既定（true）と違う値が往復で残る");
+            Assert.That(r.gamma, Is.EqualTo(0.6f).Within(1e-6f));
+            Assert.That(r.gradientGamma, Is.EqualTo(1.4f).Within(1e-6f));
         }
 
         [Test]

@@ -43,6 +43,7 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
             private readonly int _padding;
             private readonly bool _perSeedStats;
             private readonly bool _hasDecal;
+            private readonly bool _wholeTexture;
             private readonly int _size;
             private readonly int _usersHash;
 
@@ -82,6 +83,7 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
                 _perSeedStats = edit.perSeedStats;
                 // 画像入りなら部分（種ごと・パーツごと）を作らない（RecolorPipeline.PrepareJob）ので、画像を外したら作り直す
                 _hasDecal = edit.HasDecal;
+                _wholeTexture = edit.wholeTexture;
                 _size = size;
                 _usersHash = usersHash;
             }
@@ -106,6 +108,7 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
                 && _padding == other._padding
                 && _perSeedStats == other._perSeedStats
                 && _hasDecal == other._hasDecal
+                && _wholeTexture == other._wholeTexture
                 && _size == other._size
                 && _usersHash == other._usersHash;
 
@@ -134,6 +137,7 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
                     h = h * 397 ^ _padding;
                     h = h * 397 ^ (_perSeedStats ? 1 : 0);
                     h = h * 397 ^ (_hasDecal ? 1 : 0);
+                    h = h * 397 ^ (_wholeTexture ? 1 : 0);
                     h = h * 397 ^ _size;
                     h = h * 397 ^ _usersHash;
                     return h;

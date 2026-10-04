@@ -297,6 +297,12 @@ msgstr "선택 중: {0}"
 msgid "Scene:Panel:Mode"
 msgstr "영향 범위"
 
+msgid "Scene:Panel:SelectWholeTexture"
+msgstr "텍스처의 나머지 선택"
+
+msgid "Scene:Panel:SelectWholeTextureTooltip"
+msgstr "지금 선택한 편집의 범위를 그 텍스처를 쓰는 곳 전체로 넓혀요(Ctrl+Z나 영향 범위를 다시 고르면 돌아가요)"
+
 msgid "Scene:Panel:Mode:Island"
 msgstr "파츠"
 
@@ -411,8 +417,14 @@ msgstr "아바타 전체(무거울 수 있음)"
 msgid "Scene:Select:Cleanup"
 msgstr "잡티 제거"
 
+msgid "Scene:Color:ResetShadingTooltip"
+msgstr "음영 어둡기·음영 강조를 초기값으로 되돌려요"
+
 msgid "Scene:Color:AutoDarkEnd"
 msgstr "음영 어둡기 자동 조정"
+
+msgid "Scene:Color:Gamma"
+msgstr "감마"
 
 msgid "Scene:Color:DarkEnd"
 msgstr "음영 어둡기"

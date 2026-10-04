@@ -378,6 +378,26 @@ namespace Nekoare.ClickRecolor.Tests
         }
 
         [Test]
+        public void テクスチャの残りを選択すると別の島も範囲に入り_モードを選び直すと戻る()
+        {
+            RequireMaskGpu();
+            var (component, renderer, texture) = MakeChartAvatar();
+            var edit = RecolorSceneTool.CreateEditFromHit(component, MakeChartHit(renderer, texture, 0, ChartPx(20, 10)), null);
+            ToolPanelOverlay.ApplyTargetColor(component, edit, Color.blue);
+            Assert.That(RecolorSceneTool.FindEditContaining(component, MakeChartHit(renderer, texture, 2, ChartPx(46, 32))), Is.Null,
+                "前提: チャート B は範囲の外");
+
+            edit.wholeTexture = true;
+            Assert.That(RecolorSceneTool.FindEditContaining(component, MakeChartHit(renderer, texture, 2, ChartPx(46, 32))), Is.SameAs(edit),
+                "テクスチャ全体なら別のチャートも範囲");
+            // チャートの無い所（A の上の空き。はみ出し幅より離れている）は入らない
+            Assert.That(RecolorSceneTool.FindEditContaining(component, MakeChartHit(renderer, texture, 0, ChartPx(16, 50))), Is.Null);
+
+            RecolorSceneTool.ApplyPreset(edit, RangePreset.Island);
+            Assert.That(edit.wholeTexture, Is.False, "モードを選び直すと戻る");
+        }
+
+        [Test]
         public void 色未設定の編集は再クリックで返らない()
         {
             // マスクを作る前に弾くので GPU は要らない
@@ -1014,6 +1034,54 @@ namespace Nekoare.ClickRecolor.Tests
 
             Assert.That(edit.hasTarget, Is.False);
             Assert.That(edit.targetColor, Is.EqualTo(Color.green));
+        }
+
+        [Test]
+        public void 色のリセットでその色のガンマも1に戻る()
+        {
+            var component = MakeComponent();
+            var edit = RecolorSceneTool.CreateEditFromHit(component, MakeHit(_texture), Color.green);
+            ToolPanelOverlay.ApplyTargetColor(component, edit, Color.red);
+            ToolPanelOverlay.ApplyTargetColor(component, edit, Color.blue, gradientEnd: true);
+            edit.gradientEnabled = true;
+            edit.gamma = 0.5f;
+            edit.gradientGamma = 1.5f;
+
+            ToolPanelOverlay.ResetEditingColor(component, edit, end: true);
+            Assert.That(edit.gradientGamma, Is.EqualTo(1f), "色 2 のリセットで色 2 のガンマが戻る");
+            Assert.That(edit.gamma, Is.EqualTo(0.5f), "色 1 のガンマは変えない");
+
+            ToolPanelOverlay.ResetEditingColor(component, edit, end: false);
+            Assert.That(edit.gamma, Is.EqualTo(1f), "グラデーション中の色 1 のリセットで色 1 のガンマが戻る");
+
+            edit.gradientEnabled = false;
+            edit.gamma = 0.7f;
+            ToolPanelOverlay.ResetToOriginal(component, edit);
+            Assert.That(edit.gamma, Is.EqualTo(1f), "色の指定の取り消しでもガンマが戻る");
+        }
+
+        [Test]
+        public void 陰影のリセットで陰影の暗さは自動の値に_陰影の強調は0に戻り_不透明度は変えない()
+        {
+            var component = MakeComponent();
+            var edit = RecolorSceneTool.CreateEditFromHit(component, MakeHit(_texture), Color.green);
+            ToolPanelOverlay.ApplyTargetColor(component, edit, Color.red);
+            ToolPanelOverlay.ApplyTargetColor(component, edit, Color.blue, gradientEnd: true);
+            edit.darkEndRatio = 0.1f;
+            edit.shadingStretch = 0.8f;
+            edit.strength = 0.3f;
+            edit.gradientDarkEndRatio = 0.2f;
+            edit.gradientStrength = 0.4f;
+
+            ToolPanelOverlay.ResetShading(component, edit, end: false);
+            Assert.That(edit.darkEndRatio, Is.EqualTo(DarkEndAutoAdjust.Compute(Color.red)).Within(1e-6f));
+            Assert.That(edit.shadingStretch, Is.EqualTo(0f));
+            Assert.That(edit.strength, Is.EqualTo(0.3f), "不透明度は戻さない");
+            Assert.That(edit.gradientDarkEndRatio, Is.EqualTo(0.2f), "色 1 のリセットでは色 2 の値は変えない");
+
+            ToolPanelOverlay.ResetShading(component, edit, end: true);
+            Assert.That(edit.gradientDarkEndRatio, Is.EqualTo(DarkEndAutoAdjust.Compute(Color.blue)).Within(1e-6f));
+            Assert.That(edit.gradientStrength, Is.EqualTo(0.4f), "不透明度は戻さない");
         }
 
         [Test]

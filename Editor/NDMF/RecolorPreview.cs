@@ -710,6 +710,7 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
                 h = h * 31 + edit.seedOklab.GetHashCode();
                 h = h * 31 + (edit.groupId != null ? edit.groupId.GetHashCode() : 0);
                 h = h * 31 + (int)edit.mode;
+                h = h * 31 + (edit.wholeTexture ? 1 : 0);
                 h = h * 31 + (int)edit.scope;
                 h = h * 31 + edit.threshold.GetHashCode();
                 h = h * 31 + edit.feather.GetHashCode();
@@ -719,6 +720,7 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
                 h = h * 31 + edit.targetColor.GetHashCode();
                 h = h * 31 + (edit.hasTarget ? 1 : 0);
                 h = h * 31 + edit.darkEndRatio.GetHashCode();
+                h = h * 31 + edit.gamma.GetHashCode();
                 h = h * 31 + edit.lightnessToTarget.GetHashCode();
                 h = h * 31 + edit.chromaToTarget.GetHashCode();
                 h = h * 31 + edit.hueRetain.GetHashCode();
@@ -746,6 +748,7 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
                     h = h * 31 + edit.gradientBoxSize.GetHashCode();
                     h = h * 31 + (edit.gradientInsideOnly ? 1 : 0);
                     h = h * 31 + edit.gradientDarkEndRatio.GetHashCode();
+                    h = h * 31 + edit.gradientGamma.GetHashCode();
                     h = h * 31 + edit.gradientStrength.GetHashCode();
                 }
                 // 画像を入れる: 画像の中身・箱・比率・貼り方で結果が変わる（OFF なら含めない）

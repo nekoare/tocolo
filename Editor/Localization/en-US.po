@@ -297,6 +297,12 @@ msgstr "Selected: {0}"
 msgid "Scene:Panel:Mode"
 msgstr "Affected area"
 
+msgid "Scene:Panel:SelectWholeTexture"
+msgstr "Select rest of texture"
+
+msgid "Scene:Panel:SelectWholeTextureTooltip"
+msgstr "Expands the current edit to everything that uses its texture (undo with Ctrl+Z, or pick an influence range again)"
+
 msgid "Scene:Panel:Mode:Island"
 msgstr "Part"
 
@@ -411,8 +417,14 @@ msgstr "Whole avatar (may be slow)"
 msgid "Scene:Select:Cleanup"
 msgstr "Remove specks"
 
+msgid "Scene:Color:ResetShadingTooltip"
+msgstr "Resets shadow darkness and shading emphasis to their defaults"
+
 msgid "Scene:Color:AutoDarkEnd"
 msgstr "Auto-adjust shadow darkness"
+
+msgid "Scene:Color:Gamma"
+msgstr "Gamma"
 
 msgid "Scene:Color:DarkEnd"
 msgstr "Shadow darkness"

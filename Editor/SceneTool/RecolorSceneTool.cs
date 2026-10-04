@@ -575,6 +575,8 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             // グラデーション ON のときは 2 つの箱が重なって見づらいので、選択の箱はギズモごと出さない（ユーザー要望 2026-09-29）
             // 画像の箱の既定は選択範囲の外接なので、選択の箱と重なる。グラデーションの箱と同じく、出ている間は選択の箱を出さない
             if (edit.gradientEnabled || edit.decalEnabled) return;
+            // テクスチャ全体に広げている間は箱が範囲に関係しないので出さない
+            if (edit.wholeTexture) return;
 
             // 離したら、箱に触れるテクスチャのメンバーを増減してから Undo のまとめを締める（同じ 1 回の Undo に入れる）。
             // 離しの検知は s_boxDrag ではなく自分のフラグで行う（s_boxDrag は先に描くグラデーションの箱の関数が締めてしまい、
@@ -1703,6 +1705,8 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         /// </summary>
         internal static void ApplyPreset(RecolorEdit edit, RangePreset preset)
         {
+            // モードを選び直したら「テクスチャの残りを選択」で広げた範囲は戻す（範囲を選び直す意思とみなす）
+            edit.wholeTexture = false;
             switch (preset)
             {
                 case RangePreset.SameColor:

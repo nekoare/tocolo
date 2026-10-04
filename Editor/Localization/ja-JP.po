@@ -297,6 +297,12 @@ msgstr "選択中: {0}"
 msgid "Scene:Panel:Mode"
 msgstr "影響範囲"
 
+msgid "Scene:Panel:SelectWholeTexture"
+msgstr "テクスチャの残りを選択"
+
+msgid "Scene:Panel:SelectWholeTextureTooltip"
+msgstr "いま選んでいる編集の範囲を、そのテクスチャを使っている所すべてに広げます（Ctrl+Zか、影響範囲を選び直すと戻ります）"
+
 msgid "Scene:Panel:Mode:Island"
 msgstr "パーツ"
 
@@ -411,8 +417,14 @@ msgstr "アバター全体(重いかも)"
 msgid "Scene:Select:Cleanup"
 msgstr "ゴマ塩除去"
 
+msgid "Scene:Color:ResetShadingTooltip"
+msgstr "陰影の暗さ・陰影の強調を初期値に戻します"
+
 msgid "Scene:Color:AutoDarkEnd"
 msgstr "陰影の暗さを自動調整"
+
+msgid "Scene:Color:Gamma"
+msgstr "ガンマ"
 
 msgid "Scene:Color:DarkEnd"
 msgstr "陰影の暗さ"

@@ -277,6 +277,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             member.hasSeedOklab = anchor.hasSeedOklab;
             member.groupId = anchor.groupId;
             member.mode = anchor.mode;
+            member.wholeTexture = anchor.wholeTexture;
             member.scope = anchor.scope;
             member.threshold = anchor.threshold;
             member.feather = anchor.feather;
@@ -286,6 +287,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             member.hasTarget = anchor.hasTarget;
             member.confirmed = anchor.confirmed;
             member.darkEndRatio = anchor.darkEndRatio;
+            member.gamma = anchor.gamma;
             member.lightnessToTarget = anchor.lightnessToTarget;
             member.chromaToTarget = anchor.chromaToTarget;
             member.hueRetain = anchor.hueRetain;
@@ -296,6 +298,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             member.gradientEnabled = anchor.gradientEnabled;
             member.gradientColor = anchor.gradientColor;
             member.gradientDarkEndRatio = anchor.gradientDarkEndRatio;
+            member.gradientGamma = anchor.gradientGamma;
             member.gradientStrength = anchor.gradientStrength;
             member.gradientBoxPosition = anchor.gradientBoxPosition;
             member.gradientBoxRotation = anchor.gradientBoxRotation;
