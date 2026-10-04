@@ -126,6 +126,12 @@ msgstr "이 편집의 텍스처를 찾을 수 없어요(삭제되었을 수 있�
 msgid "Inspector:Edit:Mode:Box"
 msgstr "박스"
 
+msgid "Inspector:Edit:Decal"
+msgstr "이미지"
+
+msgid "Inspector:Edit:DecalMissingTooltip"
+msgstr "이미지를 찾을 수 없어요(삭제되었을 수 있어요). 이 편집은 반영되지 않아요"
+
 msgid "Inspector:Edit:DeleteAllConfirm"
 msgstr "모든 편집을 삭제할까요?"
 
@@ -167,6 +173,9 @@ msgstr "모든 텍스처"
 
 msgid "Inspector:Export:NoEdits"
 msgstr "내보낼 편집이 없어요"
+
+msgid "Inspector:Export:OverlayExcluded"
+msgstr "매끄럽게 붙이기 편집은 내보내기 대상이 아니에요(빌드에서 반영돼요)"
 
 msgid "Inspector:Export:Second"
 msgstr "2nd에 베이크"
@@ -243,11 +252,17 @@ msgstr "가려진 부분도 선택"
 msgid "Help:SelectHidden"
 msgstr "켜면 드래그 선택 시 다른 메시 뒤에 가려진 파츠도 드래그 범위 안에 있으면 선택해요. 끄면 Scene에서 보이는 면만 선택해요. Ctrl+클릭에는 적용되지 않아요."
 
+msgid "Scene:Panel:NoTextureMaterial"
+msgstr "텍스처가 없는 머티리얼은 색을 바꿀 수 없어요"
+
 msgid "Scene:Panel:CrossTextureOff"
 msgstr "'다른 머티리얼도 선택'이 꺼져 있어서 다른 텍스처의 파츠는 추가하지 않아요"
 
 msgid "Scene:Panel:CrossTextureOffRect"
 msgstr "다른 텍스처의 파츠({0}개)는 추가하지 않았어요('다른 머티리얼도 선택'이 꺼져 있음)"
+
+msgid "Scene:Panel:TexTransToolNotice"
+msgstr "이 아바타에는 TexTransTool이 있어요. 프리뷰에서는 TexTransTool의 효과가 이 색 변경 위에 표시되지 않아요. 업로드 후에는 TexTransTool의 효과가 이 색 변경 위에 적용돼요"
 
 msgid "Scene:Panel:HairToolNotice"
 msgstr "이 파츠는 Chimera Hair Master의 대상이에요. 업로드 시 Chimera Hair Master의 가공이 이 색 변경 위에 적용되므로, 먼저 Chimera Hair Master에서 내보낸 뒤 색을 바꿔 주세요"
@@ -417,11 +432,53 @@ msgstr "그라데이션"
 msgid "Scene:Color:GradientInsideOnly"
 msgstr "박스 안에만"
 
+msgid "Scene:Color:GradientBoxBlocked"
+msgstr "이미지 박스가 표시된 동안에는 움직일 수 없어요(이미지의 '박스 표시'를 끄면 움직일 수 있어요)"
+
 msgid "Scene:Color:ShowGradientBox"
 msgstr "박스 표시"
 
 msgid "Help:ShowGradientBox"
 msgstr "끄면 Scene의 박스와 핸들을 숨겨서 색을 확인하기 쉽게 해요. 이 편집을 선택한 동안만 적용돼요."
+
+msgid "Scene:Color:Decal"
+msgstr "이미지 넣기"
+
+msgid "Help:Decal"
+msgstr "켜면 Scene에 박스가 나타나고, 박스의 정면(이미지가 그려진 면)에서 이미지를 표면에 붙여요. 이 편집의 선택 범위 안에만 붙어요. 켜져 있는 동안 색·음영·불투명도·그라데이션 설정은 범위가 아니라 이미지에 적용돼요."
+
+msgid "Scene:Color:DecalTexture"
+msgstr "이미지"
+
+msgid "Scene:Color:DecalSmooth"
+msgstr "매끄럽게 붙이기(lilToon·Poiyomi)"
+
+msgid "Help:DecalSmooth"
+msgstr "켜면 텍스처에 굽지 않고 메시를 겹쳐서 이미지를 직접 표시해요. 가장자리가 매끄러워지고, 좌우가 UV를 공유하는 옷에서도 한쪽에만 붙일 수 있어요. lilToon과 잠기지 않은 Poiyomi 머티리얼에서 사용할 수 있어요."
+
+msgid "Scene:Color:DecalSmoothUnavailable"
+msgstr "lilToon·Poiyomi가 아닌 머티리얼(잠긴 Poiyomi 포함)에서는 구워서 붙여요"
+
+msgid "Scene:Color:DecalNormal"
+msgstr "노멀도 반영"
+
+msgid "Help:DecalNormal"
+msgstr "켜면 원래 머티리얼의 노멀 맵을 이미지 위치에 맞게 옮겨서 겹친 면에도 써요. 옷의 주름과 음영이 이미지에도 나타나요. 2nd 노멀(천의 결 등)도 원래 이미지 그대로 적용해요(원래 UV1을 쓰는 경우는 제외). 노멀 맵 1장만큼 텍스처가 늘어나요(크기는 원래 노멀 맵의 세밀함에 맞춰요). 원래 머티리얼에 노멀 맵이 없으면 아무것도 하지 않아요. Poiyomi는 옷의 노멀 맵을 그대로 쓰므로 텍스처가 늘지 않아요."
+
+msgid "Scene:Color:DecalKeepAspect"
+msgstr "비율 유지"
+
+msgid "Help:DecalKeepAspect"
+msgstr "켜면 이미지 비율을 유지해 박스에 맞춰요. 끄면 박스의 XY에 맞게 늘려요."
+
+msgid "Scene:Color:ShowDecalBox"
+msgstr "박스 표시"
+
+msgid "Help:ShowDecalBox"
+msgstr "끄면 Scene의 박스와 핸들을 숨겨서 붙인 이미지를 확인하기 쉽게 해요. 이 편집을 선택한 동안만 적용돼요."
+
+msgid "Scene:Color:DecalAdvanced"
+msgstr "고급 설정"
 
 msgid "Scene:Color:GradientPreview"
 msgstr "색 1 → 색 2"
@@ -549,8 +606,26 @@ msgstr "편집 '{0}'의 선택 범위를 만들 수 없어서 이 편집은 반�
 msgid "Error:ApplyFailed"
 msgstr "텍스처 '{0}'에 색 변경을 적용할 수 없어서 반영하지 않아요"
 
+msgid "Error:ProOutdated"
+msgstr "유료판이 오래되어 '매끄럽게 붙이기' 이미지는 업로드에 반영되지 않아요. 유료판을 업데이트해 주세요"
+
 msgid "Error:FreeEdition"
 msgstr "체험판이라 업로드에는 반영되지 않아요(유료판에서 반영할 수 있어요)"
 
 msgid "Error:OriginalTextureStillReferenced"
 msgstr "원본 텍스처 '{0}'이(가) 아직 참조되고 있어서 원본과 생성된 텍스처가 모두 업로드에 포함돼요(머티리얼 '{1}')"
+
+msgid "Error:OverlayMeshUnreadable"
+msgstr "메시 '{0}'은(는) Read/Write가 비활성화되어 있어서 이미지 매끄럽게 붙이기를 반영하지 않아요. 메시의 임포트 설정에서 Read/Write를 활성화해 주세요"
+
+msgid "Error:OverlayTooFewMaterials"
+msgstr "'{0}'은(는) 머티리얼 수가 서브메시 수보다 적어서 이미지 매끄럽게 붙이기를 반영하지 않아요"
+
+msgid "Error:OverlayImageFailed"
+msgstr "편집 '{0}'의 이미지를 만들 수 없어서 이 편집의 이미지는 반영하지 않아요(GPU 사용 불가 등)"
+
+msgid "Error:OverlayMaterialFailed"
+msgstr "'{0}'의 겹쳐 붙이기용 머티리얼을 만들 수 없어서 편집 '{1}'의 이미지는 이 Renderer에 반영하지 않아요"
+
+msgid "Error:OverlayApplyFailed"
+msgstr "'{0}'에 이미지 매끄럽게 붙이기를 반영할 수 없었어요(자세한 내용은 Console을 확인해 주세요)"

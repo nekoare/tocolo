@@ -94,6 +94,18 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
         /// 種ごとに色を揃えるなら種ごとに 1 つ。null・空なら (mask, stats) の 1 つとして扱う
         /// </summary>
         public IReadOnlyList<Part> parts;
+        /// <summary>
+        /// 「画像を入れる」のデカール層（ARGBHalf・Linear・ストレート α。作業 RT と同じ大きさ。画像の箱のドラッグ中は長辺 DecalLayerCache.DragMaxSize 以下に縮めたもの）。
+        /// DecalLayerCache 所有なので呼び出し側で解放しないこと。
+        /// null なら画像なし。画像入りなら色の設定はこの層に掛かり、元には「マスク × 層の α × 不透明度」で合成する（選択範囲の色は変えない）。
+        /// 画像入りの部分（parts）は合成マスク 1 つで、統計は層 ∩ マスクから取ったもの（MaskCache の部分は書き換えず、新しい一覧にする）
+        /// </summary>
+        public RenderTexture decal;
+        /// <summary>
+        /// 重ね貼りで貼る編集（DecalOverlayMaterial.UseOverlay）。テクスチャには何もしない（IsActive で素通し。デカール層も作らない）。
+        /// 選択マスクと部分は従来どおり持つ（重ね貼りの画像を作る DecalImageBuilder とハイライトが使う）
+        /// </summary>
+        public bool overlay;
 
         /// <summary>色を変える部分（parts が空なら (mask, stats) の 1 つ）</summary>
         internal IReadOnlyList<Part> ShiftParts =>
@@ -112,8 +124,11 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
 
         private static ComputeShader s_shader;
         private static int s_kernelShift;
+        private static int s_kernelComposite;
+        private static int s_kernelOverlayOpacity;
         private static bool s_warnedUnavailable;
         private static bool s_warnedLostMask;
+        private static bool s_warnedLostDecal;
         private static bool s_warnedMissingExtraSeed;
 
         private static readonly int SrcId = Shader.PropertyToID("Src");
@@ -151,6 +166,10 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
         private static readonly int BoxSizeId = Shader.PropertyToID("BoxSize");
         private static readonly int GradientInsideOnlyId = Shader.PropertyToID("GradientInsideOnly");
         private static readonly int TargetOklab2Id = Shader.PropertyToID("TargetOklab2");
+        private static readonly int LayerId = Shader.PropertyToID("Layer");
+        private static readonly int LayerWidthId = Shader.PropertyToID("LayerWidth");
+        private static readonly int LayerHeightId = Shader.PropertyToID("LayerHeight");
+        private static readonly int UseLayerId = Shader.PropertyToID("UseLayer");
 
         private static ComputeShader Compute
         {
@@ -163,6 +182,8 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
                     {
                         s_kernelShift = s_shader.FindKernel("CSShift");
                         s_kernelWeight = s_shader.FindKernel("CSWeight");
+                        s_kernelComposite = s_shader.FindKernel("CSComposite");
+                        s_kernelOverlayOpacity = s_shader.FindKernel("CSOverlayOpacity");
                     }
                 }
                 return s_shader;
@@ -199,6 +220,8 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
             MaskContext context = null)
         {
             if (edit == null || sourceAsset == null) return null;
+            // 画像の資産が消えた画像入りの編集は何もしない（範囲の色変えに化けさせない）
+            if (edit.HasMissingDecal) return null;
             // 共有の種色で選ぶ編集（アバター全体の連結）は種のメッシュを使わないので、種の Renderer が無くてもよい
             var seedMesh = RendererMeshAccess.GetSharedMesh(edit.seedRenderer);
             if (seedMesh == null && NeedsSeedRenderer(edit)) return null;
@@ -211,17 +234,19 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
             if (edit.mode == SelectionMode.Box) foldedHash = FoldBox(foldedHash, edit, sourceAsset, context);
             // 「元のグラデーションを打ち消す」は帯の統計を部分に持つので、向きと位置（姿勢）を鍵に畳み込む
             if (edit.flattenBase) foldedHash = FoldFlatten(foldedHash, edit, sourceAsset, context);
+            // 「画像を入れる」の画像と箱は選択マスクの鍵に入れない（層は DecalLayerCache に別に持つ。箱を動かしても選択マスクを作り直さない）
             var key = new MaskCache.Key(edit, sourceAsset, size, foldedHash, fromExport);
             if (MaskCache.TryGet(key, out var cachedMask, out var cachedParts))
             {
-                return NewJob(edit, cachedMask, cachedParts);
+                return WithDecalLayer(NewJob(edit, cachedMask, cachedParts, null), sourceAsset, size, fromExport, context, key);
             }
 
             // マスクの大きさは作業 RT と揃える
             var source = CreateSourceWorkTexture(sourceAsset, size);
             if (source == null) return null;
             // 種ごとに色を揃えるなら種ごとのマスクを残す（合成は最後に別の RT へ）。揃えないなら 1 枚へ順に合成する
-            bool perSeed = edit.perSeedStats && seeds.Count > 1;
+            // 画像入りなら統計は画像から取るので、種ごとの部分は要らない（部分は常に合成マスク 1 つ）
+            bool perSeed = edit.perSeedStats && seeds.Count > 1 && !edit.HasDecal;
             var seedMasks = new List<RenderTexture>();
             RenderTexture mask = null;
             try
@@ -239,7 +264,8 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
                     mask = BuildBoxMask(edit, sourceAsset, source, context, coverage);
                     if (mask == null) return null;
                     // パーツごとの統計は重いので、箱のドラッグ中は掛けない（離したときに掛ける。ユーザー要望 2026-09-29）
-                    if (edit.boxPerPartStats && !SceneTool.ToolSession.BoxDragging)
+                    // 画像入りなら統計は画像から取るので、パーツごとにも分けない（種ごとの部分と同じ理由）
+                    if (edit.boxPerPartStats && !edit.HasDecal && !SceneTool.ToolSession.BoxDragging)
                     {
                         var partMasks = SplitBoxMaskByChart(mask, users, source, coverage, edit);
                         if (partMasks.Count > 1)
@@ -289,7 +315,9 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
                     }
                 }
 
-                // 統計は色を変える前の作業 RT から取る（スライダーで揺れない）
+                // 統計は色を変える前の作業 RT から取る（スライダーで揺れない）。
+                // 画像入りの統計（画像から取る）は WithDecalLayer が層と一緒に別に取る
+                var statsSource = source;
                 List<EditJob.Part> parts;
                 if (seedMasks.Count == 1)
                 {
@@ -307,23 +335,23 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
                     parts = new List<EditJob.Part>(seedMasks.Count);
                     foreach (var seedMask in seedMasks)
                     {
-                        parts.Add(new EditJob.Part { mask = seedMask, stats = SelectionStats.Compute(source, seedMask) });
+                        parts.Add(new EditJob.Part { mask = seedMask, stats = SelectionStats.Compute(statsSource, seedMask) });
                     }
                 }
                 else
                 {
                     if (mask == null) return null;
-                    parts = new List<EditJob.Part> { new EditJob.Part { mask = mask, stats = SelectionStats.Compute(source, mask) } };
+                    parts = new List<EditJob.Part> { new EditJob.Part { mask = mask, stats = SelectionStats.Compute(statsSource, mask) } };
                 }
 
-                if (edit.flattenBase) AttachBandStats(edit, sourceAsset, source, context, parts);
+                if (edit.flattenBase) AttachBandStats(edit, sourceAsset, statsSource, context, parts);
 
                 MaskCache.Add(key, mask, parts);
-                var job = NewJob(edit, mask, parts);
+                var job = NewJob(edit, mask, parts, null);
                 // 所有権はキャッシュへ移った
                 mask = null;
                 seedMasks.Clear();
-                return job;
+                return WithDecalLayer(job, sourceAsset, size, fromExport, context, key);
             }
             finally
             {
@@ -333,8 +361,89 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
             }
         }
 
-        /// <summary>合成マスクと部分から EditJob を作る（stats は互換のため先頭の部分の統計）</summary>
-        private static EditJob NewJob(RecolorEdit edit, RenderTexture mask, IReadOnlyList<EditJob.Part> parts)
+        /// <summary>
+        /// 画像入り（HasDecal）の編集なら、デカール層とその統計（層 ∩ 選択マスク）を DecalLayerCache から取り（無ければ作り）、
+        /// 部分を「合成マスク 1 つ＋層の統計」にした Job を返す（MaskCache の部分の一覧は書き換えない）。画像なしなら job のまま。
+        /// 層の大きさは選択マスク（＝作業 RT）と同じ。画像の箱のドラッグ中（ToolSession.DecalBoxDragging）は長辺 DecalLayerCache.DragMaxSize 以下に縮める
+        /// （層は正規化座標で引くので小さくても合成できる。離したら鍵が変わってフル解像度で作り直す）。
+        /// 層が作れなければ decal は null のまま（その編集は IsActive で素通し）
+        /// </summary>
+        private static EditJob WithDecalLayer(
+            EditJob job, Texture2D sourceAsset, int size, bool fromExport, MaskContext context, in MaskCache.Key maskKey)
+        {
+            var edit = job.edit;
+            if (!edit.HasDecal || job.mask == null) return job;
+            // 重ね貼りの編集は画像を元テクスチャに焼き込まないので、デカール層を作らない（画像は DecalImageBuilder が画像の空間に作る）
+            if (IsOverlay(edit, context))
+            {
+                job.overlay = true;
+                return job;
+            }
+            var mask = job.mask;
+            int width = mask.width, height = mask.height;
+            // 書き出し・ビルドはドラッグ中のフラグが立っていても低解像度の層を焼かない（FoldDecal の鍵も同じ条件）
+            bool dragging = SceneTool.ToolSession.IsDecalBoxDraggingFor(edit) && !fromExport;
+            if (dragging) ScaleToFit(mask.width, mask.height, DecalLayerCache.DragMaxSize, out width, out height);
+
+            // 統計は層 ∩ 選択マスクから取るので、選択が変われば層の統計も変わる: 選択マスクの鍵も畳み込む
+            var decalKey = new DecalLayerCache.Key(
+                edit.id, sourceAsset.GetInstanceID(), size, fromExport, FoldDecal(maskKey.GetHashCode(), edit, sourceAsset, context, fromExport));
+            RenderTexture Build(out Stats stats, out BandStats bands)
+            {
+                stats = default;
+                bands = null;
+                // 画像の縁の 2 倍スーパーサンプリングはドラッグ中（低解像度の層）は掛けない（書き出しは常に掛ける）
+                var built = BuildDecalLayer(edit, sourceAsset, width, height, context, supersample: !dragging);
+                if (built == null) return null;
+                try
+                {
+                    // ドラッグ中は箱が動くたびに統計の読み戻し（GPU→CPU）をしない: 直前にフル解像度で取った統計を使い回す
+                    // （離したら鍵が変わって取り直す。レビュー指摘 2026-10-04）
+                    if (dragging && s_lastDecalStats.TryGetValue(edit.id, out var last) && last.flattenBase == edit.flattenBase)
+                    {
+                        stats = last.stats;
+                        bands = last.bands;
+                        return built;
+                    }
+                    // 色の設定は画像に掛かるので、統計は画像（デカール層）から取る。層とマスクの大きさは違ってよい（同じ大きさに縮めて読み戻す）
+                    var parts = new List<EditJob.Part> { new EditJob.Part { mask = mask, stats = SelectionStats.Compute(built, mask) } };
+                    if (edit.flattenBase) AttachBandStats(edit, sourceAsset, built, context, parts);
+                    stats = parts[0].stats;
+                    bands = parts[0].bands;
+                    if (!dragging && !fromExport) s_lastDecalStats[edit.id] = (stats, bands, edit.flattenBase);
+                    return built;
+                }
+                catch
+                {
+                    DestroyWorkTexture(built);
+                    throw;
+                }
+            }
+            var layer = DecalLayerCache.GetOrBuild(decalKey, Build, out var layerStats, out var layerBands);
+            if (layer == null) return job;
+            return NewJob(edit, mask, new List<EditJob.Part> { new EditJob.Part { mask = mask, stats = layerStats, bands = layerBands } }, layer);
+        }
+
+        /// <summary>
+        /// 編集 id → 最後にフル解像度の層から取った統計（画像の箱のドラッグ中に使い回す）。プレビュー専用の近似なので、ドメインリロードで消えてよい
+        /// </summary>
+        private static readonly Dictionary<string, (Stats stats, BandStats bands, bool flattenBase)> s_lastDecalStats =
+            new Dictionary<string, (Stats, BandStats, bool)>();
+
+        /// <summary>
+        /// 重ね貼りで貼る編集か（対象ルートの属するアバターから編集を持つ ClickRecolor を探し、DecalOverlayMaterial.UseOverlay を見る）。
+        /// 文脈が無ければ重ね貼りの判定ができないので false（従来どおり焼き込み）
+        /// </summary>
+        private static bool IsOverlay(RecolorEdit edit, MaskContext context)
+        {
+            if (context == null || context.root == null) return false;
+            // 基準は MaskContext の root（そのテクスチャに最初に効くコンポーネント）でなく編集を持つコンポーネント（全呼び手で判定を揃える）
+            var owner = Decal.DecalOverlayMaterial.FindOwner(edit, context.root);
+            return owner != null && Decal.DecalOverlayMaterial.UseOverlay(owner, edit);
+        }
+
+        /// <summary>合成マスクと部分（とデカール層）から EditJob を作る（stats は互換のため先頭の部分の統計）</summary>
+        private static EditJob NewJob(RecolorEdit edit, RenderTexture mask, IReadOnlyList<EditJob.Part> parts, RenderTexture decal)
         {
             return new EditJob
             {
@@ -342,15 +451,17 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
                 mask = mask,
                 stats = parts != null && parts.Count > 0 ? parts[0].stats : default,
                 parts = parts,
+                decal = decal,
             };
         }
 
         /// <summary>
         /// 連結（groupId）の全メンバーで明るさの統計を共有する編集か: 連結あり・各点の色を揃えない（perSeedStats = false）・目標色あり。
-        /// 目標色が未設定の編集（ハイライト中だけプレビューに入る）は、ビルドと結果を揃えるため共有に入れない
+        /// 目標色が未設定の編集（ハイライト中だけプレビューに入る）は、ビルドと結果を揃えるため共有に入れない。
+        /// 画像入り（HasDecal）の編集も共有に入れない: 色の設定は範囲でなく画像に掛かり、明るさの統計は画像から取るので、連結の他のメンバーの範囲と混ぜると結果がずれる
         /// </summary>
         internal static bool SharesGroupStats(RecolorEdit edit) =>
-            edit != null && !string.IsNullOrEmpty(edit.groupId) && !edit.perSeedStats && edit.hasTarget;
+            edit != null && !string.IsNullOrEmpty(edit.groupId) && !edit.perSeedStats && edit.hasTarget && !edit.HasDecal;
 
         /// <summary>
         /// 連結の統計を共有する: SharesGroupStats の編集の Job を groupId ごとに集め、全部の部分の統計を SelectionStats.Merge で
@@ -554,6 +665,47 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
                 Morphology.Blur1(mask, coverage, invertAllowed: true);
             }
             return mask;
+        }
+
+        /// <summary>
+        /// 「画像を入れる」の層の鍵（DecalLayerCache.Key の decalHash）: 画像（インスタンスと中身）・比率を保つか・画像の箱の位置・回転・大きさと、
+        /// 位置マップの中身を決める値（姿勢・除外後の Renderer）、画像の箱をドラッグ中か（層の大きさが変わる。書き出しは除く）。hash には選択マスクの鍵を渡す
+        /// </summary>
+        private static int FoldDecal(int hash, RecolorEdit edit, Texture2D sourceAsset, MaskContext context, bool fromExport)
+        {
+            unchecked
+            {
+                int h = hash;
+                h = h * 31 + edit.decalTexture.GetInstanceID();
+                // 画像を描き直して再インポートしたら作り直す
+                h = h * 31 + edit.decalTexture.imageContentsHash.GetHashCode();
+                h = h * 31 + (edit.decalKeepAspect ? 1 : 0);
+                h = h * 31 + edit.decalBoxPosition.GetHashCode();
+                h = h * 31 + edit.decalBoxRotation.GetHashCode();
+                h = h * 31 + edit.decalBoxSize.GetHashCode();
+                h = h * 31 + (context != null ? PositionMap.ContextHash(context.root, context.RenderersWithoutExcluded(), sourceAsset) : 0);
+                // ドラッグ中は低解像度の層なので別の鍵（書き出しは低解像度にしないので畳まない。WithDecalLayer と同じ条件）
+                h = h * 31 + (SceneTool.ToolSession.IsDecalBoxDraggingFor(edit) && !fromExport ? 1 : 0);
+                return h;
+            }
+        }
+
+        /// <summary>
+        /// 「画像を入れる」のデカール層（width×height。呼び出し側の所有、DestroyWorkTexture で破棄）。
+        /// 箱の中のマスクと同じく、除外リストの Renderer を外したスロットに描く。文脈が無い・描くスロットが無い・シェーダーが無ければ null。
+        /// supersample は画像の縁の 2 倍スーパーサンプリング（DecalLayerBuilder.Build）
+        /// </summary>
+        private static RenderTexture BuildDecalLayer(
+            RecolorEdit edit, Texture2D sourceAsset, int width, int height, MaskContext context, bool supersample)
+        {
+            if (context == null || context.root == null) return null;
+            var renderers = context.RenderersWithoutExcluded();
+            if (renderers == null || renderers.Count == 0) return null;
+            var slots = PositionMap.CollectSlots(renderers, sourceAsset);
+            if (slots.Count == 0) return null;
+            return DecalLayerBuilder.Build(
+                context.root, slots, width, height, edit.decalTexture,
+                edit.decalBoxPosition, edit.decalBoxRotation, edit.decalBoxSize, edit.decalKeepAspect, supersample);
         }
 
         /// <summary>
@@ -822,20 +974,44 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
         /// work（元テクスチャを写した作業 RT）に jobs を順に適用する。work の所有権を受け取り、結果の RT を返す
         /// （work そのものか、ping-pong のもう 1 枚。使わなかった方はここで破棄する）。
         /// ping-pong のもう 1 枚は work とミップの有無を揃え、ミップ付きなら結果のミップを作ってから返す。
-        /// 目標色が未設定・無効・マスクの無い編集は素通し（Dispatch しない）。適用する編集があるのに GPU が使えなければ null。
+        /// 目標色が未設定（画像入りを除く）・無効・マスクの無い編集は素通し（Dispatch しない）。適用する編集があるのに GPU が使えなければ null。
+        /// 画像入り（job.decal あり）の編集は範囲を色変えせず、画像を（色が決まっていれば色変えしてから）元の上に合成する。
         /// positionMap はグラデーションの位置マップ（null ならグラデーション ON の編集も t = 0 ＝「新しい色」で塗る）
         /// </summary>
+        /// <summary>
+        /// 適用の順番: 焼き込みで画像を貼る編集（画像入りで重ね貼りでないもの）を最後にし、それ以外は元の順番のまま（同じ種類どうしの順番も保つ）。
+        /// 画像の後にふつうの色変えを掛けると、その範囲に入る貼った画像まで色が変わるため（画像の色は画像の編集側で変える。ユーザー判断 2026-10-04）
+        /// </summary>
+        internal static List<EditJob> OrderForApply(IReadOnlyList<EditJob> jobs)
+        {
+            var result = new List<EditJob>(jobs?.Count ?? 0);
+            if (jobs == null) return result;
+            foreach (var job in jobs)
+            {
+                if (!IsBakedDecal(job)) result.Add(job);
+            }
+            foreach (var job in jobs)
+            {
+                if (IsBakedDecal(job)) result.Add(job);
+            }
+            return result;
+        }
+
+        private static bool IsBakedDecal(EditJob job) => job?.edit != null && job.edit.HasDecal && !job.overlay;
+
         internal static RenderTexture ApplyJobs(RenderTexture work, IReadOnlyList<EditJob> jobs, Texture positionMap = null)
         {
             if (work == null) return null;
             RenderTexture current = work;
             RenderTexture spare = null;
+            // 画像（デカール層）を色変えした一時 RT（層と同じ大きさ。画像入りで色が決まっている編集があるときだけ作り、層の大きさが同じなら使い回す）
+            RenderTexture decalScratch = null;
             bool succeeded = false;
             try
             {
                 if (jobs != null)
                 {
-                    foreach (var job in jobs)
+                    foreach (var job in OrderForApply(jobs))
                     {
                         if (!IsActive(job)) continue;
                         if (!IsShiftAvailable)
@@ -862,6 +1038,32 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
                                 p.bands = part.bands;
                                 p.flattenStrength = job.edit.flattenStrength;
                             }
+                            // IsActive 通過後なので Unity の == で十分（破棄済みの層はそこで弾いている）
+                            if (job.decal != null)
+                            {
+                                // 画像を入れる: 色が決まっていれば先に画像（デカール層）だけを色変えし（不透明度は合成で掛けるので 1）、
+                                // 元の上に合成する。選択範囲の色は変えない
+                                Texture layer = job.decal;
+                                if (job.edit.hasTarget)
+                                {
+                                    // 層はドラッグ中だけ作業 RT より小さい（DecalLayerCache.DragMaxSize）ので、大きさが変わったら作り直す
+                                    if (decalScratch == null || decalScratch.width != job.decal.width || decalScratch.height != job.decal.height)
+                                    {
+                                        DestroyWorkTexture(decalScratch);
+                                        decalScratch = CreateWorkTexture(job.decal.width, job.decal.height, "ClickRecolor_DecalShift");
+                                    }
+                                    var full = p;
+                                    full.strength = 1f;
+                                    full.strength2 = 1f;
+                                    // Width/Height は書き込み先（decalScratch）の大きさ。層は正規化座標で引かず Src として読むので、層と decalScratch は同じ大きさであること
+                                    // （マスク・位置マップは正規化座標で引くので大きさが違ってよい。合成（Composite）も層を正規化座標で引く）
+                                    Shift(job.decal, part.mask, decalScratch, full, positionMap);
+                                    layer = decalScratch;
+                                }
+                                Composite(current, layer, part.mask, spare, p, positionMap);
+                                (current, spare) = (spare, current);
+                                continue;
+                            }
                             Shift(current, part.mask, spare, p, positionMap);
                             (current, spare) = (spare, current);
                         }
@@ -875,14 +1077,32 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
             finally
             {
                 DestroyWorkTexture(spare);
+                DestroyWorkTexture(decalScratch);
                 if (!succeeded) DestroyWorkTexture(current);
             }
         }
 
         private static bool IsActive(EditJob job)
         {
-            if (job == null || job.edit == null || !job.edit.enabled || !job.edit.hasTarget) return false;
-            if (job.mask == null || !job.mask.IsCreated() || !ArePartMasksAlive(job))
+            if (job == null || job.edit == null || !job.edit.enabled) return false;
+            // 重ね貼りの編集はテクスチャを変えない（範囲の色も変えない約束）。層が無いのは意図どおりなので警告もしない
+            if (job.overlay) return false;
+            // 層を持つか（参照で見る。破棄済みの層は Unity の == で null に見えるが、下の解放済みの判定へ回す）
+            bool hasLayer = !ReferenceEquals(job.decal, null);
+            if (!hasLayer && (job.edit.HasDecal || !job.edit.hasTarget))
+            {
+                // 画像入りの編集は色の設定が画像にだけ掛かる約束なので、層が作れないときに範囲の色を変えてしまわない（素通し）。
+                // マスクだけ書き出し（AccumulateWeights）もここを通るので重みも 0 になる。黙って素通しにはしない
+                if (job.edit.HasDecal && !s_warnedLostDecal)
+                {
+                    s_warnedLostDecal = true;
+                    Debug.LogWarning("[Tocolo] 画像の層を作れなかった編集があります。その編集は反映されません（メッシュのRead/Writeが無効、GPUが使えない等）");
+                }
+                // 画像なしで色が未決定の編集は従来どおり素通し（画像入りなら色が未決定でも貼る）
+                return false;
+            }
+            if (job.mask == null || !job.mask.IsCreated() || !ArePartMasksAlive(job)
+                || (hasLayer && (job.decal == null || !job.decal.IsCreated())))
             {
                 // キャッシュの消去（リロード・シーン切替）の後に古い EditJob を使った等。黙って素通しにはしない
                 if (!s_warnedLostMask)
@@ -962,6 +1182,72 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
             shader.Dispatch(s_kernelShift, Groups(dst.width), Groups(dst.height), 1);
         }
 
+        /// <summary>
+        /// 「画像を入れる」の合成（CSComposite）: dst = src の上に layer（デカール層。ストレート α）を
+        /// マスク × 層の α × 不透明度（p.strength。グラデーションなら位置で p.strength2 と補間）で乗せたもの。α は src のまま。
+        /// src と dst は別のテクスチャで、dst は enableRandomWrite の RT。mask・layer・positionMap は src と別サイズでもよい（正規化座標で対応させる）
+        /// </summary>
+        internal static void Composite(Texture src, Texture layer, Texture mask, RenderTexture dst, in ShiftParams p, Texture positionMap = null)
+        {
+            var shader = Compute;
+            if (shader == null || src == null || layer == null || mask == null || dst == null) return;
+
+            shader.SetTexture(s_kernelComposite, SrcId, src);
+            shader.SetTexture(s_kernelComposite, MaskId, mask);
+            shader.SetTexture(s_kernelComposite, DstId, dst);
+            shader.SetTexture(s_kernelComposite, LayerId, layer);
+            shader.SetInt(WidthId, dst.width);
+            shader.SetInt(HeightId, dst.height);
+            shader.SetInt(MaskWidthId, mask.width);
+            shader.SetInt(MaskHeightId, mask.height);
+            shader.SetInt(LayerWidthId, layer.width);
+            shader.SetInt(LayerHeightId, layer.height);
+            shader.SetFloat(StrengthId, p.strength);
+            shader.SetFloat(Strength2Id, p.strength2);
+
+            // 位置マップはグラデーションを使わないときも何か束縛しておく（Shift と同じ）
+            bool gradient = p.useGradient && positionMap != null;
+            var pos = gradient ? positionMap : Texture2D.blackTexture;
+            shader.SetTexture(s_kernelComposite, PosMapId, pos);
+            shader.SetInt(PosWidthId, pos.width);
+            shader.SetInt(PosHeightId, pos.height);
+            shader.SetInt(UseGradientId, gradient ? 1 : 0);
+            shader.SetMatrix(WorldToBoxId, p.rootToBox);
+            shader.SetVector(BoxSizeId, p.boxSize);
+
+            shader.Dispatch(s_kernelComposite, Groups(dst.width), Groups(dst.height), 1);
+        }
+
+        /// <summary>
+        /// 重ね貼りの画像の不透明度（CSOverlayOpacity）: dst = (src.rgb, src.a × 不透明度)。不透明度は p.strength（グラデーションなら位置で p.strength2 と補間）。
+        /// src と dst は別のテクスチャで、dst は enableRandomWrite の RT。positionMap は画像の空間に描いた位置（別サイズでもよい。正規化座標で引く）。
+        /// p.useGradient でも positionMap が null ならグラデーションは掛けない（色 1 の不透明度）
+        /// </summary>
+        internal static void ApplyOverlayOpacity(RenderTexture src, RenderTexture dst, in ShiftParams p, Texture positionMap)
+        {
+            var shader = Compute;
+            if (shader == null || src == null || dst == null) return;
+
+            shader.SetTexture(s_kernelOverlayOpacity, SrcId, src);
+            shader.SetTexture(s_kernelOverlayOpacity, DstId, dst);
+            shader.SetInt(WidthId, dst.width);
+            shader.SetInt(HeightId, dst.height);
+            shader.SetFloat(StrengthId, p.strength);
+            shader.SetFloat(Strength2Id, p.strength2);
+
+            // 位置マップはグラデーションを使わないときも何か束縛しておく（Shift と同じ）
+            bool gradient = p.useGradient && positionMap != null;
+            var pos = gradient ? positionMap : Texture2D.blackTexture;
+            shader.SetTexture(s_kernelOverlayOpacity, PosMapId, pos);
+            shader.SetInt(PosWidthId, pos.width);
+            shader.SetInt(PosHeightId, pos.height);
+            shader.SetInt(UseGradientId, gradient ? 1 : 0);
+            shader.SetMatrix(WorldToBoxId, p.rootToBox);
+            shader.SetVector(BoxSizeId, p.boxSize);
+
+            shader.Dispatch(s_kernelOverlayOpacity, Groups(dst.width), Groups(dst.height), 1);
+        }
+
         private static int Groups(int size) => (size + ThreadGroupSize - 1) / ThreadGroupSize;
 
         /// <summary>
@@ -997,6 +1283,13 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
                     shader.SetMatrix(WorldToBoxId, p.rootToBox);
                     shader.SetVector(BoxSizeId, p.boxSize);
                     shader.SetInt(GradientInsideOnlyId, gradient && p.gradientInsideOnly ? 1 : 0);
+                    // 画像入りなら画像の α も重みに掛ける（透明な所は効かない）。使わないときも Layer は何か束縛しておく
+                    // IsActive 通過後なので Unity の == で十分
+                    Texture layer = job.decal != null ? job.decal : Texture2D.whiteTexture;
+                    shader.SetTexture(s_kernelWeight, LayerId, layer);
+                    shader.SetInt(LayerWidthId, layer.width);
+                    shader.SetInt(LayerHeightId, layer.height);
+                    shader.SetInt(UseLayerId, job.decal != null ? 1 : 0);
                     shader.Dispatch(s_kernelWeight, Groups(accumulate.width), Groups(accumulate.height), 1);
                 }
             }
@@ -1053,7 +1346,7 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
         /// width×height を、縦横比を保って長辺が maxSize 以下になるよう縮めた大きさ（maxSize ≤ 0 か、既に収まっていればそのまま）。
         /// 丸め方は SourceTextureLoader の縮小と同じ
         /// </summary>
-        private static void ScaleToFit(int width, int height, int maxSize, out int scaledWidth, out int scaledHeight)
+        internal static void ScaleToFit(int width, int height, int maxSize, out int scaledWidth, out int scaledHeight)
         {
             scaledWidth = width;
             scaledHeight = height;

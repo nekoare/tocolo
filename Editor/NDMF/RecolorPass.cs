@@ -20,6 +20,7 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
         protected override void Execute(BuildContext context)
         {
             var bake = RecolorBuildHook.Bake;
+            if (bake != null) WarnUnsupportedFeatures(context.AvatarRootObject, RecolorBuildHook.SupportedFeatures);
             int total = ExecuteCore(
                 context.AvatarRootObject,
                 bake != null ? () => bake(context) : (Func<int>)null);
@@ -41,6 +42,26 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
                 ErrorReport.ReportError(Locales.L, ErrorSeverity.NonFatal, "Error:FreeEdition", component);
             }
             return 0;
+        }
+
+        /// <summary>
+        /// 有料版が対応していない機能の編集があれば NonFatal で 1 回警告し、警告したら true（無料版だけ更新されて有料版が古いとき）。
+        /// 今は「なめらかに貼る」（重ね貼り）だけ: 古い有料版は重ね貼りを知らず焼き込みに回すが、無料版はその層を素通しするので画像が消える
+        /// </summary>
+        internal static bool WarnUnsupportedFeatures(GameObject avatarRoot, int supportedFeatures)
+        {
+            if (avatarRoot == null || (supportedFeatures & RecolorBuildHook.FeatureDecalOverlay) != 0) return false;
+            foreach (var component in avatarRoot.GetComponentsInChildren<ClickRecolor>(true))
+            {
+                if (component == null || !component.applyOnBuild || component.edits == null) continue;
+                foreach (var edit in component.edits)
+                {
+                    if (!RecolorPreview.IsPreviewTarget(edit) || !Decal.DecalOverlayMaterial.UseOverlay(component, edit)) continue;
+                    ErrorReport.ReportError(Locales.L, ErrorSeverity.NonFatal, "Error:ProOutdated", component);
+                    return true;
+                }
+            }
+            return false;
         }
 
         /// <summary>

@@ -20,7 +20,8 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
                 .BeforePlugin("net.rs64.tex-trans-tool")
                 .BeforePlugin("com.nekoare.chimera-hair-master")
                 .Run(RecolorPass.Instance)
-                .PreviewingWith(new RecolorPreview());
+                // 重ね貼り（画像のなめらかな貼り付け）は色変え後のマテリアルを複製元にするので、RecolorPreview の後に置く
+                .PreviewingWith(new RecolorPreview(), new DecalOverlayPreview());
 
             // コンポーネント削除は最適化系プラグイン（下の BeforePlugin）より前に行い、未知コンポーネント警告を避ける
             InPhase(BuildPhase.Optimizing)

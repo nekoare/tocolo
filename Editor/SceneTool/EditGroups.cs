@@ -305,6 +305,14 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             member.boxRotation = anchor.boxRotation;
             member.boxSize = anchor.boxSize;
             member.boxPerPartStats = anchor.boxPerPartStats;
+            member.decalEnabled = anchor.decalEnabled;
+            member.decalTexture = anchor.decalTexture;
+            member.decalKeepAspect = anchor.decalKeepAspect;
+            member.decalBoxPosition = anchor.decalBoxPosition;
+            member.decalBoxRotation = anchor.decalBoxRotation;
+            member.decalBoxSize = anchor.decalBoxSize;
+            member.decalSmooth = anchor.decalSmooth;
+            member.decalNormal = anchor.decalNormal;
             return member;
         }
     }

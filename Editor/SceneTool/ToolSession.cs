@@ -49,6 +49,54 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         public static bool BoxDragging { get; set; }
 
         /// <summary>
+        /// 画像の箱をドラッグ中か。ドラッグ中は、その箱の編集（IsDecalBoxDraggingFor）だけ画像の層を低解像度で作り、離したときにフル解像度で作り直す
+        /// （RecolorPipeline が見る。プレビューのハッシュにも入れて、離した瞬間に作り直す）。BeginDecalBoxDrag / EndDecalBoxDrag で変える
+        /// </summary>
+        public static bool DecalBoxDragging { get; private set; }
+
+        /// <summary>ドラッグ中の箱の編集の id と連結の id（連結は同じ箱を共有するので、連結の全メンバーをドラッグ中とみなす）</summary>
+        private static string s_decalDragEditId;
+        private static string s_decalDragGroupId;
+
+        /// <summary>
+        /// edit の画像の箱のドラッグを始めた（同じドラッグ中に何度呼んでもよい）。overlay はその編集が重ね貼りで表示されているか
+        /// （ドラッグ中の作り直しの要否に使う。ドラッグの始めに 1 回だけ判定して覚える）
+        /// </summary>
+        public static void BeginDecalBoxDrag(RecolorEdit edit, bool overlay = false)
+        {
+            DecalBoxDragging = edit != null;
+            s_decalDragEditId = edit?.id;
+            s_decalDragGroupId = edit != null && !string.IsNullOrEmpty(edit.groupId) ? edit.groupId : null;
+            DecalBoxDragIsOverlay = overlay;
+        }
+
+        /// <summary>
+        /// ドラッグ中の箱の編集が重ね貼りで表示されているか。重ね貼りなら色変えのプレビュー（RecolorPreview）はドラッグ中に作り直さない
+        /// （重ね貼りは表示用メッシュの UV の書き換えで追従する。焼き込みは箱の値で層を作り直す必要がある）
+        /// </summary>
+        public static bool DecalBoxDragIsOverlay { get; private set; }
+
+        /// <summary>画像の箱のドラッグを終えた</summary>
+        public static void EndDecalBoxDrag()
+        {
+            DecalBoxDragging = false;
+            DecalBoxDragIsOverlay = false;
+            s_decalDragEditId = null;
+            s_decalDragGroupId = null;
+        }
+
+        /// <summary>
+        /// edit の画像の箱がドラッグ中か（ドラッグ中の編集そのものか、同じ連結のメンバー）。
+        /// 関係ない画像入りの編集まで低解像度で作り直さないよう、ドラッグ中の印は編集ごとに見る（レビュー指摘 2026-10-04）
+        /// </summary>
+        public static bool IsDecalBoxDraggingFor(RecolorEdit edit)
+        {
+            if (!DecalBoxDragging || edit == null) return false;
+            if (edit.id == s_decalDragEditId) return true;
+            return s_decalDragGroupId != null && edit.groupId == s_decalDragGroupId;
+        }
+
+        /// <summary>
         /// グラデーションの箱を隠している編集の id（「箱を非表示」。ユーザー要望 2026-10-03）。コンポーネントには保存せず、
         /// その編集を選んでいる間だけ効く（別の編集を選ぶ・ツールを閉じると元に戻る）
         /// </summary>
@@ -57,6 +105,16 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         /// <summary>現在の編集のグラデーションの箱を隠しているか</summary>
         public static bool IsGradientBoxHidden =>
             GradientBoxHiddenEditId != null && GradientBoxHiddenEditId == CurrentEditId;
+
+        /// <summary>
+        /// 画像の箱を隠している編集の id（「箱を表示」を OFF。GradientBoxHiddenEditId と同じく、コンポーネントには保存せず、
+        /// その編集を選んでいる間だけ効く）
+        /// </summary>
+        public static string DecalBoxHiddenEditId { get; set; }
+
+        /// <summary>現在の編集の画像の箱を隠しているか</summary>
+        public static bool IsDecalBoxHidden =>
+            DecalBoxHiddenEditId != null && DecalBoxHiddenEditId == CurrentEditId;
 
         /// <summary>
         /// 最後のクリックが当たった、メッシュの Read/Write が無効で選べない Renderer。パネルに案内と［Read/Write を有効にする］を出す。
@@ -70,6 +128,9 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         /// </summary>
         public static Picking.LilToonLayerOverlap.Result LayerNotice { get; set; }
         public static string LayerNoticeEditId { get; set; }
+
+        /// <summary>最後のクリックの対象アバターに TexTransTool があるか（TexTransToolDetector）。LayerNoticeEditId の編集を選んでいる間だけ案内する</summary>
+        public static bool TexTransToolNotice { get; set; }
 
         /// <summary>最後にクリックした結果（Repaint で描く）。ドメインリロードで消えてよい</summary>
         public static PickHit? LastPick;
@@ -288,8 +349,11 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             LastPickColor = null;
             UnreadableRenderer = null;
             GradientBoxHiddenEditId = null;
+            DecalBoxHiddenEditId = null;
+            EndDecalBoxDrag();
             LayerNotice = default;
             LayerNoticeEditId = null;
+            TexTransToolNotice = false;
             HoverPick = null;
             EyedropperActive = false;
             HideHighlight();

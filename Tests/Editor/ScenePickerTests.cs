@@ -86,16 +86,35 @@ namespace Nekoare.ClickRecolor.Tests
         }
 
         [Test]
-        public void テクスチャが無いマテリアルでもヒットは返す()
+        public void テクスチャが無いマテリアルは対象にせず奥のテクスチャのある面を返す()
+        {
+            // FakeShadow など、前髪と同じ形を重ねて描くテクスチャ無しのマテリアルに前髪のクリックを取られないように
+            var near = MakeQuad("near", 1f);
+            var far = MakeQuad("far", 3f);
+            var tex = new Texture2D(4, 4); _cleanup.Add(tex);
+            far.sharedMaterial.SetTexture("_MainTex", tex);
+            var picker = new ScenePicker();
+            var ray = new Ray(new Vector3(0.25f, -0.25f, -1f), Vector3.forward);
+
+            bool ok = picker.TryPick(ray, new[] { near, far }, null, out var hit);
+
+            Assert.That(ok, Is.True);
+            Assert.That(hit.renderer, Is.SameAs(far));
+            Assert.That(picker.LastSkippedTextureless, Is.True);
+            // 素通りした手前の面（near: z = 1、レイは z = -1 から）までの距離を覚える（見えている物がテクスチャ無しのときの判定に使う）
+            Assert.That(picker.LastSkippedTexturelessDistance, Is.EqualTo(2f).Within(1e-4f));
+            picker.Dispose();
+        }
+
+        [Test]
+        public void テクスチャが無いマテリアルにだけ当たったら_false()
         {
             var quad = MakeQuad("q", 1f);
             var picker = new ScenePicker();
             var ray = new Ray(new Vector3(0.25f, -0.25f, -1f), Vector3.forward);
 
-            bool ok = picker.TryPick(ray, new[] { quad }, null, out var hit);
-
-            Assert.That(ok, Is.True);
-            Assert.That(hit.hasMainTexture, Is.False);
+            Assert.That(picker.TryPick(ray, new[] { quad }, null, out _), Is.False);
+            Assert.That(picker.LastSkippedTextureless, Is.True, "案内を出せるように素通りしたことを覚える");
             picker.Dispose();
         }
 

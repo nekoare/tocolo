@@ -116,6 +116,9 @@ namespace Nekoare.ClickRecolor.Tests
             edit.hasTarget = true;
             edit.targetColor = Color.red;
             edit.padding = 3;
+            // 画像（Object 参照）は EditorJsonUtility の往復で組み込みリソースを復元しないので見ない（既存の sourceTexture と同じ扱い）
+            edit.decalSmooth = false;
+            edit.decalNormal = false;
             source.AddEdit(edit);
 
             var json = EditorJsonUtility.ToJson(source);
@@ -133,6 +136,21 @@ namespace Nekoare.ClickRecolor.Tests
             Assert.That(r.hasTarget, Is.True);
             Assert.That(r.targetColor, Is.EqualTo(Color.red));
             Assert.That(r.padding, Is.EqualTo(3));
+            Assert.That(r.decalSmooth, Is.False, "既定（true）と違う値が往復で残る");
+            Assert.That(r.decalNormal, Is.False, "既定（true）と違う値が往復で残る");
+        }
+
+        [Test]
+        public void 画像入りの編集は色が未決定でも_IsKept()
+        {
+            var edit = RecolorEdit.CreateNew();
+            Assert.That(edit.IsKept, Is.False);
+            edit.decalEnabled = true;
+            Assert.That(edit.HasDecal, Is.False, "画像が無ければデカール扱いにしない");
+            Assert.That(edit.IsKept, Is.False);
+            edit.decalTexture = Texture2D.whiteTexture;
+            Assert.That(edit.HasDecal, Is.True);
+            Assert.That(edit.IsKept, Is.True);
         }
     }
 }

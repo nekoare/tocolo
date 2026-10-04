@@ -1,0 +1,156 @@
+// 「画像を入れる」のデカール層（DecalLayerBuilder）の縁埋め: α = 0 の画素（描かれていない画素）を、3×3 近傍で α が最大の画素の色（RGBA そのまま）で埋める。
+// GPU のラスタライズは三角形の縁の画素（画素中心が三角形の外）を塗り残すので、UV の切れ目に沿って透明な線が出るのを防ぐ
+// （BoxMaskBuilder が描いた後に Morphology.Dilate を掛けるのと同じ事情。こちらは色を運ぶので RGBA 用に別にした）。
+// α > 0 の画素はそのまま。DecalLayer.shader は描いた画素の α を CoverageFloor 以上にするので、画像の透明な部分（描かれたが α ≈ 0）は埋めない。
+// 乗算済みのまま走らせる（RGBA をそのままコピーするので乗算済みでも問題ない）。1 回で 1 画素ずつ広がるので、DecalLayerBuilder が ping-pong で N 回走らせる。
+// 近傍 8 画素は読みやすさのため手で並べる（[unroll] は付けない）。
+// 座標は clamp で画像内に収める（端の画素は自分や隣を重ねて見るだけで、結果は変わらない）
+// CSFinalize: 縁埋めの後、乗算済みの層をストレート α に割り戻す。α が CoverageThreshold 未満（画像の α が CoverageFloor 未満で描いた画素や、
+// そこから縁埋めで写った画素）は (0,0,0,0) に落として描いた印を消す。それ以外は rgb / a（α はそのまま。α ≥ CoverageFloor の画素は α が元のままなので正しく割り戻せる）
+// CSDownsample2x: 2 倍で描いた層（スーパーサンプリング）を等倍に縮める。出力 1 画素 = 入力 2×2（Width/Height は出力の大きさ）。
+// α > 0 のサブ画素だけで乗算済み RGBA を平均する（和 ÷ α > 0 の個数。全部 α = 0 なら (0,0,0,0)）。
+// α = 0 が残るのは三角形の外（チャートの縁の塗り残し）だけなので（箱の外・比率の余り・画像の透明な部分は描いた印 CoverageFloor）、
+// 未描画を平均から外せばチャートの縁の画素が薄まらない。画像の縁・箱の縁の中間 α は印と不透明の平均として残る。
+// 4 つとも未描画の画素は 0 のままなので、縮めた後の等倍の CSDilate が従来どおり埋める
+#pragma kernel CSDilate
+#pragma kernel CSFinalize
+#pragma kernel CSDownsample2x
+#pragma kernel CSClearBorder
+#pragma kernel CSBleedColor
+#pragma kernel CSClearBorderAlpha
+
+Texture2D<float4> In;
+RWTexture2D<float4> Out;
+int Width;
+int Height;
+
+// 描いた印の α の下限と、それを消すしきい値（CoverageFloor は DecalLayer.shader と揃えること）
+static const float CoverageFloor = 1.0 / 1024.0;
+// しきい値は下限の 8 倍: 同じ UV に描いた印（透明な画素）が最大 7 枚重なっても α が下限の和で残らないように。画像の α が 8/1024 未満の画素は切れる（2 倍で描いて縮めるときは、1 サブ画素だけ半透明で他が印の画素は約 31/1024 未満で切れる。見た目に差はない）
+static const float CoverageThreshold = CoverageFloor * 8.0;
+
+float4 Fetch(int2 p)
+{
+    return In[clamp(p, int2(0, 0), int2(Width - 1, Height - 1))];
+}
+
+// best より α の大きい q なら q を返す
+float4 PickMaxAlpha(float4 best, float4 q)
+{
+    return q.a > best.a ? q : best;
+}
+
+[numthreads(16, 16, 1)]
+void CSDilate(uint3 id : SV_DispatchThreadID)
+{
+    if ((int)id.x >= Width || (int)id.y >= Height) return;
+
+    int2 p = int2(id.xy);
+    float4 center = In[p];
+    if (center.a > 0.0)
+    {
+        Out[p] = center;
+        return;
+    }
+
+    float4 best = float4(0.0, 0.0, 0.0, 0.0);
+    best = PickMaxAlpha(best, Fetch(p + int2(-1, -1)));
+    best = PickMaxAlpha(best, Fetch(p + int2( 0, -1)));
+    best = PickMaxAlpha(best, Fetch(p + int2( 1, -1)));
+    best = PickMaxAlpha(best, Fetch(p + int2(-1,  0)));
+    best = PickMaxAlpha(best, Fetch(p + int2( 1,  0)));
+    best = PickMaxAlpha(best, Fetch(p + int2(-1,  1)));
+    best = PickMaxAlpha(best, Fetch(p + int2( 0,  1)));
+    best = PickMaxAlpha(best, Fetch(p + int2( 1,  1)));
+    Out[p] = best;
+}
+
+[numthreads(16, 16, 1)]
+void CSFinalize(uint3 id : SV_DispatchThreadID)
+{
+    if ((int)id.x >= Width || (int)id.y >= Height) return;
+
+    float4 c = In[id.xy];
+    if (c.a < CoverageThreshold)
+    {
+        Out[id.xy] = float4(0.0, 0.0, 0.0, 0.0);
+        return;
+    }
+    Out[id.xy] = float4(c.rgb / c.a, c.a);
+}
+
+[numthreads(16, 16, 1)]
+void CSDownsample2x(uint3 id : SV_DispatchThreadID)
+{
+    if ((int)id.x >= Width || (int)id.y >= Height) return;
+
+    int2 p = int2(id.xy) * 2;
+    float4 sum = float4(0.0, 0.0, 0.0, 0.0);
+    float count = 0.0;
+    float4 c;
+    c = In[p];               if (c.a > 0.0) { sum += c; count += 1.0; }
+    c = In[p + int2(1, 0)];  if (c.a > 0.0) { sum += c; count += 1.0; }
+    c = In[p + int2(0, 1)];  if (c.a > 0.0) { sum += c; count += 1.0; }
+    c = In[p + int2(1, 1)];  if (c.a > 0.0) { sum += c; count += 1.0; }
+    Out[id.xy] = count > 0.0 ? sum / count : float4(0.0, 0.0, 0.0, 0.0);
+}
+
+// CSClearBorder: 外周 1 テクセルを (0,0,0,0) にする（Out をその場で書き換える。In は使わない）。
+// 重ね貼りの画像（DecalImageBuilder）用: 重ね貼りマテリアルは画像を Clamp で引くので、外周が不透明だと箱の外へ 1 テクセルの筋が伸びる。
+// 三角形が覆わない外周の画素も縁埋め（CSDilate）で不透明になるので、割り戻した後に明示的に消す
+[numthreads(16, 16, 1)]
+void CSClearBorder(uint3 id : SV_DispatchThreadID)
+{
+    if ((int)id.x >= Width || (int)id.y >= Height) return;
+    if ((int)id.x > 0 && (int)id.y > 0 && (int)id.x < Width - 1 && (int)id.y < Height - 1) return;
+    Out[id.xy] = float4(0.0, 0.0, 0.0, 0.0);
+}
+
+// CSClearBorderAlpha: 外周 1 テクセルの α だけを 0 にする（rgb は残す）。重ね貼りの画像のミップ用:
+// ミップを作ると透明な外周と内側の不透明な画素が平均され、外周が半透明以上になって Clamp で箱の外へ伸びる（実機 2026-10-04「端のピクセルが広がる」）。
+// rgb は平均された縁の色のままにして、bilinear で透明と混ざっても暗い縁が出ないようにする（CSBleedColor の代わり）
+[numthreads(16, 16, 1)]
+void CSClearBorderAlpha(uint3 id : SV_DispatchThreadID)
+{
+    if ((int)id.x >= Width || (int)id.y >= Height) return;
+    if ((int)id.x > 0 && (int)id.y > 0 && (int)id.x < Width - 1 && (int)id.y < Height - 1) return;
+    Out[id.xy] = float4(Out[id.xy].rgb, 0.0);
+}
+
+// 色を持つか（α > 0 か、前の回で滲ませた色を持つ透明な画素か）。割り戻し後の透明な画素は (0,0,0,0) なので rgb で見分ける
+bool HasColor(float4 c)
+{
+    return c.a > 0.0 || any(c.rgb > 0.0);
+}
+
+// CSBleedColor: ストレート α の画像で、α = 0 の画素の rgb を近傍の色で埋める（α は 0 のまま）。
+// 重ね貼りマテリアルは画像を bilinear・ストレート α で引くので、透明な画素の rgb が黒だと境界に暗い縁が出る。
+// 近傍 3×3 に α > 0 の画素があれば α が最大のものの rgb、無ければ前の回で滲ませた色を持つ画素の rgb。1 回で 1 画素ずつ広がる
+[numthreads(16, 16, 1)]
+void CSBleedColor(uint3 id : SV_DispatchThreadID)
+{
+    if ((int)id.x >= Width || (int)id.y >= Height) return;
+
+    int2 p = int2(id.xy);
+    float4 center = In[p];
+    if (HasColor(center))
+    {
+        Out[p] = center;
+        return;
+    }
+
+    float4 best = float4(0.0, 0.0, 0.0, 0.0);
+    float4 bled = float4(0.0, 0.0, 0.0, 0.0);
+    for (int dy = -1; dy <= 1; dy++)
+    {
+        for (int dx = -1; dx <= 1; dx++)
+        {
+            if (dx == 0 && dy == 0) continue;
+            float4 q = Fetch(p + int2(dx, dy));
+            best = PickMaxAlpha(best, q);
+            if (q.a <= 0.0 && any(q.rgb > 0.0)) bled = q;
+        }
+    }
+    float3 rgb = best.a > 0.0 ? best.rgb : bled.rgb;
+    Out[p] = float4(rgb, 0.0);
+}

@@ -28,6 +28,8 @@ namespace Nekoare.ClickRecolor.Editor.Picking
 
     /// <summary>
     /// アバター配下の Renderer 群にレイを当て、最も手前の「見えている」面を返す。
+    /// メインテクスチャの無いマテリアルの面は色を変えられないので素通りして奥の面を拾う（FakeShadow など、前髪と同じ形を重ねて描く
+    /// テクスチャ無しのマテリアルが手前と判定されて前髪を選べなかった。透過で作られたものもあるので名前でなくテクスチャの有無で見る。ユーザー判断 2026-10-04）。
     /// Scene ビューには依存しない（レイと Renderer を渡す）。
     /// SkinnedMeshRenderer の BakeMesh は重いので短時間キャッシュする。
     /// </summary>
@@ -66,10 +68,18 @@ namespace Nekoare.ClickRecolor.Editor.Picking
         /// <summary>読み取り不可の警告を出済みの Renderer（InstanceID）。クリックのたびに同じ警告を出さないため</summary>
         private readonly HashSet<int> _warnedUnreadable = new HashSet<int>();
 
+        /// <summary>直前の TryPick で、メインテクスチャの無い面を素通りしたか（何も拾えなかったときの案内用）</summary>
+        public bool LastSkippedTextureless { get; private set; }
+
+        /// <summary>直前の TryPick で素通りしたテクスチャ無しの面のうち、最も手前の距離（素通りしていなければ +∞）</summary>
+        public float LastSkippedTexturelessDistance { get; private set; } = float.PositiveInfinity;
+
         /// <param name="alphaSampler">ヒット位置のテクスチャ α を返す（null なら透明スキップをしない）</param>
         public bool TryPick(Ray ray, IReadOnlyList<Renderer> renderers, Func<PickHit, float> alphaSampler, out PickHit result)
         {
             result = default;
+            LastSkippedTextureless = false;
+            LastSkippedTexturelessDistance = float.PositiveInfinity;
             _hits.Clear();
             for (int i = 0; i < renderers.Count; i++)
             {
@@ -91,6 +101,12 @@ namespace Nekoare.ClickRecolor.Editor.Picking
             foreach (int index in _order)
             {
                 var candidate = Build(_hits[index]);
+                if (!candidate.hasMainTexture)
+                {
+                    if (!LastSkippedTextureless) LastSkippedTexturelessDistance = candidate.distance;
+                    LastSkippedTextureless = true;
+                    continue;
+                }
                 if (alphaSampler != null && candidate.hasMainTexture && alphaSampler(candidate) < AlphaThreshold) continue;
                 result = candidate;
                 return true;

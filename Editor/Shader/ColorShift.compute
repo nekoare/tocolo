@@ -9,6 +9,8 @@
 // ※ Editor/Colors/ColorShiftCpu.cs に同じ 1 画素の式がある。片方だけ変えると GPU/CPU 一致テストが落ちる
 #pragma kernel CSShift
 #pragma kernel CSWeight
+#pragma kernel CSComposite
+#pragma kernel CSOverlayOpacity
 
 #include "OklabConverter.hlsl"
 
@@ -182,8 +184,14 @@ void CSShift(uint3 id : SV_DispatchThreadID)
     Dst[id.xy] = float4(lerp(src.rgb, shifted, w), src.a);
 }
 
+// 「画像を入れる」のデカール層（ストレート α）。CSComposite が元の上に乗せ、CSWeight は α を重みに掛ける。Src と別サイズでもよい
+Texture2D<float4> Layer;
+int LayerWidth;
+int LayerHeight;
+int UseLayer;             // CSWeight 用: 0 以外なら Layer の α も重みに掛ける（使わないときも Layer は何か束縛する）
+
 // マスクだけ書き出し用: 色は変えず、この編集が実際に効く重み（マスク × 不透明度。グラデーションなら位置で色 1・色 2 の不透明度を補間、
-// 「箱の中だけ」の外は 0）を WeightOut に max で積む。Width/Height は WeightOut の大きさ（CSShift と同じくマスク・位置マップは正規化座標で引く）
+// 「箱の中だけ」の外は 0。画像入りは画像の α も掛け、箱の外も 0 にしない）を WeightOut に max で積む。Width/Height は WeightOut の大きさ（CSShift と同じくマスク・位置マップは正規化座標で引く）
 RWTexture2D<float> WeightOut;
 
 [numthreads(16, 16, 1)]
@@ -197,13 +205,67 @@ void CSWeight(uint3 id : SV_DispatchThreadID)
         int2 pq = int2((float2(id.xy) + 0.5) * float2(PosWidth, PosHeight) / float2(Width, Height));
         pq = clamp(pq, int2(0, 0), int2(PosWidth - 1, PosHeight - 1));
         float4 position = PosMap[pq];
-        if (GradientOutsideBox(position)) return; // 箱の外は色変えしない＝重み 0（積まない）
+        // 箱の外は色変えしない＝重み 0（積まない）。ただし画像入り（UseLayer）は画像を箱の外にも貼るので、重みも M × α × 不透明度で積む
+        // （「箱の中だけ」は画像の色変えにしか効かない。CSComposite と同じ）
+        if (UseLayer == 0 && GradientOutsideBox(position)) return;
         t = GradientT(position);
     }
     float strength = UseGradient != 0 ? lerp(_Strength, _Strength2, t) : _Strength;
 
     int2 q = int2((float2(id.xy) + 0.5) * float2(MaskWidth, MaskHeight) / float2(Width, Height));
     q = clamp(q, int2(0, 0), int2(MaskWidth - 1, MaskHeight - 1));
-    float w = saturate(Mask[q] * strength);
+    float layerAlpha = 1.0;
+    if (UseLayer != 0)
+    {
+        // 画像入りの編集は画像の透明な所では効かない（CSComposite と同じ重み）
+        int2 lq = int2((float2(id.xy) + 0.5) * float2(LayerWidth, LayerHeight) / float2(Width, Height));
+        lq = clamp(lq, int2(0, 0), int2(LayerWidth - 1, LayerHeight - 1));
+        layerAlpha = saturate(Layer[lq].a);
+    }
+    float w = saturate(Mask[q] * layerAlpha * strength);
     WeightOut[id.xy] = max(WeightOut[id.xy], w);
+}
+
+// 「画像を入れる」の合成: Dst = Src（元）の上に Layer（デカール層。CSShift で色変え済みでもよい。ストレート α）を
+// w = マスク × 層の α × 不透明度（グラデーションなら位置で色 1・色 2 の不透明度を補間）で乗せる。α は元のまま（画像の透明は元を見せる）。
+// 「箱の中だけ」の外でも貼る（箱の外は CSShift が画像を元の色のまま返している）
+[numthreads(16, 16, 1)]
+void CSComposite(uint3 id : SV_DispatchThreadID)
+{
+    if ((int)id.x >= Width || (int)id.y >= Height) return;
+    float4 src = Src[id.xy];
+    float t = 0.0;
+    if (UseGradient != 0)
+    {
+        int2 pq = int2((float2(id.xy) + 0.5) * float2(PosWidth, PosHeight) / float2(Width, Height));
+        pq = clamp(pq, int2(0, 0), int2(PosWidth - 1, PosHeight - 1));
+        t = GradientT(PosMap[pq]);
+    }
+    float strength = UseGradient != 0 ? lerp(_Strength, _Strength2, t) : _Strength;
+    int2 q = int2((float2(id.xy) + 0.5) * float2(MaskWidth, MaskHeight) / float2(Width, Height));
+    q = clamp(q, int2(0, 0), int2(MaskWidth - 1, MaskHeight - 1));
+    int2 lq = int2((float2(id.xy) + 0.5) * float2(LayerWidth, LayerHeight) / float2(Width, Height));
+    lq = clamp(lq, int2(0, 0), int2(LayerWidth - 1, LayerHeight - 1));
+    float4 layer = Layer[lq];
+    float w = saturate(Mask[q] * saturate(layer.a) * strength);
+    Dst[id.xy] = float4(lerp(src.rgb, layer.rgb, w), src.a);
+}
+
+// 「画像を入れる」の重ね貼りの画像（DecalImageBuilder。画像の空間・ストレート α）に不透明度を掛ける: Dst = (Src.rgb, Src.a × 不透明度)。
+// 不透明度はグラデーションなら位置で色 1・色 2 を補間する（CSComposite と同じ）。位置マップは正規化座標で引く（画像の空間に描いたもの）。
+// 重ね貼りは元テクスチャに合成しないので、CSComposite の「マスク × 層の α × 不透明度」のうち不透明度をここで画像の α に入れる
+[numthreads(16, 16, 1)]
+void CSOverlayOpacity(uint3 id : SV_DispatchThreadID)
+{
+    if ((int)id.x >= Width || (int)id.y >= Height) return;
+    float4 src = Src[id.xy];
+    float t = 0.0;
+    if (UseGradient != 0)
+    {
+        int2 pq = int2((float2(id.xy) + 0.5) * float2(PosWidth, PosHeight) / float2(Width, Height));
+        pq = clamp(pq, int2(0, 0), int2(PosWidth - 1, PosHeight - 1));
+        t = GradientT(PosMap[pq]);
+    }
+    float strength = UseGradient != 0 ? lerp(_Strength, _Strength2, t) : _Strength;
+    Dst[id.xy] = float4(src.rgb, src.a * saturate(strength));
 }

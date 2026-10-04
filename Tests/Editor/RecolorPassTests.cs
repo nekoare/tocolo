@@ -99,5 +99,21 @@ namespace Nekoare.ClickRecolor.Tests
             Assert.That(count, Is.EqualTo(3));
             Assert.That(errors, Is.Empty);
         }
+
+        [Test]
+        public void 有料版がなめらかに貼るに未対応でも_重ね貼りの編集が無ければ警告しない()
+        {
+            // 無料版だけ更新されて有料版が古いときの警告（WarnUnsupportedFeatures）は、重ね貼りの編集があるときだけ出す
+            MakeAvatarWithEdit();
+            bool warned = true;
+            var errors = ErrorReport.CaptureErrors(() => warned = RecolorPass.WarnUnsupportedFeatures(_root, 0));
+            Assert.That(warned, Is.False);
+            Assert.That(errors, Is.Empty);
+
+            warned = true;
+            errors = ErrorReport.CaptureErrors(() => warned = RecolorPass.WarnUnsupportedFeatures(_root, RecolorBuildHook.FeatureDecalOverlay));
+            Assert.That(warned, Is.False, "対応していれば見ない");
+            Assert.That(errors, Is.Empty);
+        }
     }
 }

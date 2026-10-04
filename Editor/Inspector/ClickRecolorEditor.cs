@@ -373,6 +373,8 @@ namespace Nekoare.ClickRecolor.Editor.Inspector
                 var unused = RowUnusedTexture(index, groupIndices, out bool textureDeleted);
                 if (textureDeleted) warnTooltip = Locales.Tr("Inspector:Edit:TextureMissingTooltip");
                 else if (unused != null) warnTooltip = Locales.Tr("Inspector:Edit:TextureUnusedTooltip", unused.name);
+                // 画像が消えた編集も同じ印で知らせる。画像を入れ直せば効くので「見つからない編集を削除」の対象にはしない
+                else if (RowHasMissingDecal(index, groupIndices)) warnTooltip = Locales.Tr("Inspector:Edit:DecalMissingTooltip");
             }
             if (warnTooltip != null)
             {
@@ -428,6 +430,8 @@ namespace Nekoare.ClickRecolor.Editor.Inspector
                 SelectionMode.Box => Locales.Tr("Inspector:Edit:Mode:Box"),
                 _ => Locales.Tr("Inspector:Edit:Mode:Island"),
             };
+            // 「画像を入れる」ON の編集は、範囲の色でなく画像を貼る編集なので、範囲の種類の代わりに「画像」と出す（ユーザー要望 2026-10-04）
+            if (element.FindPropertyRelative(nameof(RecolorEdit.decalEnabled)).boolValue) modeLabel = Locales.Tr("Inspector:Edit:Decal");
             EditorGUI.LabelField(modeRect, modeLabel);
 
             // 開始ボタンと同じ条件で無効化する（Project の Prefab アセット／Play 中）
@@ -494,6 +498,20 @@ namespace Nekoare.ClickRecolor.Editor.Inspector
             }
             return false;
         }
+
+        /// <summary>行 index（連結なら groupIndices の全編集）に、「画像を入れる」ON で画像が削除された編集があるか</summary>
+        private bool RowHasMissingDecal(int index, List<int> groupIndices)
+        {
+            if (groupIndices == null) return IsDecalMissing(GetEdit(index));
+            foreach (int i in groupIndices)
+            {
+                if (IsDecalMissing(GetEdit(i))) return true;
+            }
+            return false;
+        }
+
+        private static bool IsDecalMissing(RecolorEdit edit) =>
+            edit != null && edit.HasMissingDecal;
 
         /// <summary>
         /// 標準の削除に加え、消した編集がパネルで選ばれていれば選択を外す。

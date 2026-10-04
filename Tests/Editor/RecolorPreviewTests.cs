@@ -147,6 +147,20 @@ namespace Nekoare.ClickRecolor.Tests
             Assert.That(RecolorPreview.ComputeTextureHash(edits, users), Is.Not.EqualTo(before));
         }
 
+        [Test]
+        public void 画像の箱を動かすとテクスチャのハッシュが変わる()
+        {
+            var edit = RecolorEdit.CreateNew();
+            edit.sourceTexture = Texture2D.whiteTexture;
+            edit.decalEnabled = true;
+            edit.decalTexture = Texture2D.blackTexture;
+            var users = new List<(Mesh mesh, int submesh, Vector2 uvScale, Vector2 uvOffset)>();
+            int before = RecolorPreview.ComputeTextureHash(new List<RecolorEdit> { edit }, users);
+            edit.decalBoxPosition += Vector3.up;
+            int after = RecolorPreview.ComputeTextureHash(new List<RecolorEdit> { edit }, users);
+            Assert.That(after, Is.Not.EqualTo(before));
+        }
+
         // ── IsPreviewTarget（ハイライト込み）──
 
         [Test]
@@ -170,6 +184,18 @@ namespace Nekoare.ClickRecolor.Tests
             edit.sourceTexture = Track(new Texture2D(4, 4));
 
             Assert.That(RecolorPreview.IsPreviewTarget(edit, default), Is.True);
+        }
+
+        [Test]
+        public void 画像入りの編集は色が未決定でもプレビューの対象()
+        {
+            var edit = RecolorEdit.CreateNew();
+            edit.sourceTexture = Texture2D.whiteTexture;
+            edit.decalEnabled = true;
+            edit.decalTexture = Texture2D.blackTexture;
+            Assert.That(RecolorPreview.IsPreviewTarget(edit), Is.True);
+            edit.decalTexture = null;
+            Assert.That(RecolorPreview.IsPreviewTarget(edit), Is.False);
         }
 
         // ── CollectRenderers ──

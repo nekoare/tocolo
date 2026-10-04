@@ -65,5 +65,25 @@ namespace Nekoare.ClickRecolor.Tests
 
             Assert.That(ToolSession.Mode, Is.EqualTo(SelectionMode.Color));
         }
+
+        [Test]
+        public void Clear_で_DecalBoxHiddenEditId_が消える()
+        {
+            ToolSession.DecalBoxHiddenEditId = "edit-1";
+
+            ToolSession.Clear();
+
+            Assert.That(ToolSession.DecalBoxHiddenEditId, Is.Null);
+        }
+
+        [Test]
+        public void Clear_で_DecalBoxDragging_が_false_になる()
+        {
+            ToolSession.BeginDecalBoxDrag(new RecolorEdit());
+
+            ToolSession.Clear();
+
+            Assert.That(ToolSession.DecalBoxDragging, Is.False);
+        }
     }
 }

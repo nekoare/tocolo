@@ -126,6 +126,12 @@ msgstr "この編集のテクスチャが見つかりません（削除された
 msgid "Inspector:Edit:Mode:Box"
 msgstr "箱"
 
+msgid "Inspector:Edit:Decal"
+msgstr "画像"
+
+msgid "Inspector:Edit:DecalMissingTooltip"
+msgstr "画像が見つかりません（削除された可能性があります）。この編集は反映されません"
+
 msgid "Inspector:Edit:DeleteAllConfirm"
 msgstr "すべての編集を削除しますか？"
 
@@ -167,6 +173,9 @@ msgstr "すべてのテクスチャ"
 
 msgid "Inspector:Export:NoEdits"
 msgstr "書き出す編集がありません"
+
+msgid "Inspector:Export:OverlayExcluded"
+msgstr "なめらかに貼るの編集は書き出しの対象外です（ビルドで反映）"
 
 msgid "Inspector:Export:Second"
 msgstr "2ndに焼き込み"
@@ -243,11 +252,17 @@ msgstr "隠れている範囲も選ぶ"
 msgid "Help:SelectHidden"
 msgstr "オンにすると、ドラッグ選択で他のメッシュの奥に隠れているパーツも、ドラッグ範囲に入っていれば選びます。オフではSceneで見えている面だけを選びます。Ctrl＋クリックには効きません。"
 
+msgid "Scene:Panel:NoTextureMaterial"
+msgstr "テクスチャの無いマテリアルは色を変えられません"
+
 msgid "Scene:Panel:CrossTextureOff"
 msgstr "「マテリアルをまたいで選ぶ」がオフなので、別のテクスチャのパーツは足しません"
 
 msgid "Scene:Panel:CrossTextureOffRect"
 msgstr "別のテクスチャのパーツ（{0}個）は足しませんでした（「マテリアルをまたいで選ぶ」がオフ）"
+
+msgid "Scene:Panel:TexTransToolNotice"
+msgstr "このアバターにはTexTransToolがあります。プレビューではTexTransToolの効果がこの色変えの上に表示されません。アップロード後はTexTransToolの効果がこの色変えの上に掛かります"
 
 msgid "Scene:Panel:HairToolNotice"
 msgstr "このパーツはキメラヘアマスターの対象です。アップロード時はキメラヘアマスターの加工がこの色変えの上に掛かるため、先にキメラヘアマスターでエクスポートしてから色を変えてください"
@@ -417,11 +432,53 @@ msgstr "グラデーション"
 msgid "Scene:Color:GradientInsideOnly"
 msgstr "箱の中だけ"
 
+msgid "Scene:Color:GradientBoxBlocked"
+msgstr "画像の箱を表示している間は動かせません（画像の「箱を表示」をオフにすると動かせます）"
+
 msgid "Scene:Color:ShowGradientBox"
 msgstr "箱を表示"
 
 msgid "Help:ShowGradientBox"
 msgstr "オフにするとSceneの箱とハンドルを隠して、色を確認しやすくします。この編集を選んでいる間だけ効きます。"
+
+msgid "Scene:Color:Decal"
+msgstr "画像を入れる"
+
+msgid "Help:Decal"
+msgstr "オンにするとSceneに箱が出て、箱の正面（画像が描かれている面）から画像を表面に貼ります。貼られるのはこの編集の選択範囲の中だけです。オンの間、新しい色・暗部・不透明度・グラデーションは範囲ではなく画像に掛かります。"
+
+msgid "Scene:Color:DecalTexture"
+msgstr "画像"
+
+msgid "Scene:Color:DecalSmooth"
+msgstr "なめらかに貼る（lilToon・Poiyomi）"
+
+msgid "Help:DecalSmooth"
+msgstr "オンだと、テクスチャに焼き込まずにメッシュを重ねて画像を直接表示します。縁がなめらかになり、左右でUVを共有する服でも片側だけに貼れます。lilToonとPoiyomi（ロックしていないもの）のマテリアルで使えます。"
+
+msgid "Scene:Color:DecalSmoothUnavailable"
+msgstr "lilToon・Poiyomi以外のマテリアル（ロック済みのPoiyomiを含む）では焼き込みで貼ります"
+
+msgid "Scene:Color:DecalNormal"
+msgstr "ノーマルも反映"
+
+msgid "Help:DecalNormal"
+msgstr "オンだと、元のマテリアルの法線マップを画像の位置に写し直して重ねた面にも使います。服のしわや陰影が画像にも乗ります。2ndノーマル（布目など）も元の画像のまま効かせます（元がUV1で引いているときは除く）。法線マップ1枚ぶんテクスチャが増えます（大きさは元の法線マップの細かさに合わせます）。元のマテリアルに法線マップが無いときは何もしません。Poiyomiは服と同じ法線マップをそのまま使うので、テクスチャは増えません。"
+
+msgid "Scene:Color:DecalKeepAspect"
+msgstr "比率を保つ"
+
+msgid "Help:DecalKeepAspect"
+msgstr "オンだと画像の縦横比を保って箱に収めます。オフだと箱のXYいっぱいに引き伸ばします。"
+
+msgid "Scene:Color:ShowDecalBox"
+msgstr "箱を表示"
+
+msgid "Help:ShowDecalBox"
+msgstr "オフにするとSceneの箱とハンドルを隠して、貼った画像を確認しやすくします。この編集を選んでいる間だけ効きます。"
+
+msgid "Scene:Color:DecalAdvanced"
+msgstr "詳細設定"
 
 msgid "Scene:Color:GradientPreview"
 msgstr "色1 → 色2"
@@ -549,8 +606,26 @@ msgstr "編集「{0}」の選択範囲を作れなかったため、この編集
 msgid "Error:ApplyFailed"
 msgstr "テクスチャ「{0}」に色変えを適用できなかったため、反映しません"
 
+msgid "Error:ProOutdated"
+msgstr "有料版が古いため、「なめらかに貼る」の画像はアップロードに反映されません。有料版を更新してください"
+
 msgid "Error:FreeEdition"
 msgstr "体験版のためアップロードには反映されません（有料版で反映できます）"
 
 msgid "Error:OriginalTextureStillReferenced"
 msgstr "元テクスチャ「{0}」がまだ参照されているため、元と生成の両方がアップロードに含まれます（マテリアル「{1}」）"
+
+msgid "Error:OverlayMeshUnreadable"
+msgstr "メッシュ「{0}」はRead/Writeが無効なため、画像のなめらかな貼り付けを反映しません。メッシュのインポート設定でRead/Writeを有効にしてください"
+
+msgid "Error:OverlayTooFewMaterials"
+msgstr "「{0}」はマテリアルの数がサブメッシュの数より少ないため、画像のなめらかな貼り付けを反映しません"
+
+msgid "Error:OverlayImageFailed"
+msgstr "編集「{0}」の画像を作れなかったため、この編集の画像は反映しません（GPUが使えない等）"
+
+msgid "Error:OverlayMaterialFailed"
+msgstr "「{0}」の重ね貼り用マテリアルを作れなかったため、編集「{1}」の画像はこのRendererに反映しません"
+
+msgid "Error:OverlayApplyFailed"
+msgstr "「{0}」に画像のなめらかな貼り付けを反映できませんでした（詳しくはConsoleを見てください）"

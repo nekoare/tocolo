@@ -126,6 +126,12 @@ msgstr "This edit's texture can't be found. It may have been deleted. This edit 
 msgid "Inspector:Edit:Mode:Box"
 msgstr "Box"
 
+msgid "Inspector:Edit:Decal"
+msgstr "Image"
+
+msgid "Inspector:Edit:DecalMissingTooltip"
+msgstr "The image was not found (it may have been deleted). This edit is not applied"
+
 msgid "Inspector:Edit:DeleteAllConfirm"
 msgstr "Delete all edits?"
 
@@ -167,6 +173,9 @@ msgstr "All textures"
 
 msgid "Inspector:Export:NoEdits"
 msgstr "Nothing to export"
+
+msgid "Inspector:Export:OverlayExcluded"
+msgstr "Edits that use Place smoothly are not exported (they are applied at build)."
 
 msgid "Inspector:Export:Second"
 msgstr "Bake to 2nd"
@@ -243,11 +252,17 @@ msgstr "Select hidden parts too"
 msgid "Help:SelectHidden"
 msgstr "When on, drag selection also picks parts (UV islands) hidden behind other meshes if they fall inside the dragged area. When off, only surfaces visible in the Scene are picked. Does not affect Ctrl+click."
 
+msgid "Scene:Panel:NoTextureMaterial"
+msgstr "Materials without a texture can't be recolored"
+
 msgid "Scene:Panel:CrossTextureOff"
 msgstr "'Select across materials' is off, so parts on other textures are not added"
 
 msgid "Scene:Panel:CrossTextureOffRect"
 msgstr "{0} part(s) on other textures were not added ('Select across materials' is off)"
+
+msgid "Scene:Panel:TexTransToolNotice"
+msgstr "This avatar uses TexTransTool. In the preview, TexTransTool effects are not shown on top of this recolor. After upload, TexTransTool effects are applied on top of it."
 
 msgid "Scene:Panel:HairToolNotice"
 msgstr "This part is handled by Chimera Hair Master. On upload its processing is applied on top of this recolor, so export from Chimera Hair Master first, then recolor."
@@ -417,11 +432,53 @@ msgstr "Gradient"
 msgid "Scene:Color:GradientInsideOnly"
 msgstr "Inside box only"
 
+msgid "Scene:Color:GradientBoxBlocked"
+msgstr "Can't be moved while the image box is shown (turn off 'Show box' for the image to move it)"
+
 msgid "Scene:Color:ShowGradientBox"
 msgstr "Show box"
 
 msgid "Help:ShowGradientBox"
 msgstr "Turn off to hide the box and its handles in the Scene so you can check the colors. Only while this edit is selected."
+
+msgid "Scene:Color:Decal"
+msgstr "Place an image"
+
+msgid "Help:Decal"
+msgstr "Turns on a box in the Scene and projects the image onto the surface from the box's front face (the one showing the image). The image is applied only inside this edit's range. While on, the color, shading, opacity and gradient settings apply to the image, not to the range."
+
+msgid "Scene:Color:DecalTexture"
+msgstr "Image"
+
+msgid "Scene:Color:DecalSmooth"
+msgstr "Place smoothly (lilToon/Poiyomi)"
+
+msgid "Help:DecalSmooth"
+msgstr "On shows the image directly on an overlaid mesh instead of baking it into the texture. Edges stay smooth, and you can place it on just one side of clothes whose left and right share UVs. Works with lilToon and unlocked Poiyomi materials."
+
+msgid "Scene:Color:DecalSmoothUnavailable"
+msgstr "Materials other than lilToon/Poiyomi (including locked Poiyomi) get the image baked in"
+
+msgid "Scene:Color:DecalNormal"
+msgstr "Apply normal map"
+
+msgid "Help:DecalNormal"
+msgstr "When on, the original material's normal map is remapped to the image position and used on the overlaid surface, so the fabric's wrinkles and shading also appear on the image. The 2nd normal map (such as fabric weave) is kept as is, unless it uses UV1. This adds one normal-map texture (sized to match the original normal map's detail). Does nothing if the original material has no normal map. Poiyomi uses the clothing's own normal maps directly, so no texture is added."
+
+msgid "Scene:Color:DecalKeepAspect"
+msgstr "Keep aspect ratio"
+
+msgid "Help:DecalKeepAspect"
+msgstr "On keeps the image's aspect ratio inside the box. Off stretches it to fill the box's XY."
+
+msgid "Scene:Color:ShowDecalBox"
+msgstr "Show box"
+
+msgid "Help:ShowDecalBox"
+msgstr "Turn off to hide the box and handles in the Scene so you can check the placed image. Applies only while this edit is selected."
+
+msgid "Scene:Color:DecalAdvanced"
+msgstr "Advanced settings"
 
 msgid "Scene:Color:GradientPreview"
 msgstr "Color 1 → Color 2"
@@ -549,8 +606,26 @@ msgstr "Could not build the selection for edit '{0}' (for example, mesh Read/Wri
 msgid "Error:ApplyFailed"
 msgstr "Could not apply recoloring to texture '{0}', so it is skipped."
 
+msgid "Error:ProOutdated"
+msgstr "The paid edition is outdated, so images placed with 'Place smoothly' are not applied on upload. Please update the paid edition."
+
 msgid "Error:FreeEdition"
 msgstr "Trial edition: not applied on upload (available in the paid edition)."
 
 msgid "Error:OriginalTextureStillReferenced"
 msgstr "Original texture '{0}' is still referenced (material '{1}'), so both the original and the generated texture will be included in the upload."
+
+msgid "Error:OverlayMeshUnreadable"
+msgstr "Mesh '{0}' has Read/Write disabled, so the smoothly placed image is not applied. Enable Read/Write in the mesh's import settings."
+
+msgid "Error:OverlayTooFewMaterials"
+msgstr "'{0}' has fewer materials than submeshes, so the smoothly placed image is not applied."
+
+msgid "Error:OverlayImageFailed"
+msgstr "Could not create the image for edit '{0}' (for example, the GPU is unavailable), so this edit's image is skipped."
+
+msgid "Error:OverlayMaterialFailed"
+msgstr "Could not create the overlay material for '{0}', so the image of edit '{1}' is not applied to this Renderer."
+
+msgid "Error:OverlayApplyFailed"
+msgstr "Could not apply the smoothly placed image to '{0}' (see the Console for details)."

@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Nekoare.ClickRecolor.Editor.Colors;
+using Nekoare.ClickRecolor.Editor.Decal;
 using Nekoare.ClickRecolor.Editor.Localization;
 using UnityEditor;
 using UnityEditor.Overlays;
@@ -251,6 +252,9 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         /// </summary>
         private static readonly Color GradientBlockColor = new Color(0.7875f, 0.525f, 0.315f, 0.18f); // 色ブロック（0.75,0.50,0.30）と同じ色相で 5% 明るく
         private static readonly Color GradientBlockBorder = new Color(0.8269f, 0.5513f, 0.3308f, 0.50f); // 背景よりさらに 5% 明るく
+        // 「画像を入れる」の枠。グラデーションの枠と区別するため色相を変える（青緑）
+        private static readonly Color DecalBlockColor = new Color(0.30f, 0.55f, 0.60f, 0.18f);
+        private static readonly Color DecalBlockBorder = new Color(0.33f, 0.58f, 0.63f, 0.50f);
 
         /// <summary>見出しの無い入れ子ブロック（背景＋1px の枠）。色ブロックの中でグラデーションの項目をまとめるのに使う</summary>
         private readonly struct SubBlockScope : System.IDisposable
@@ -349,6 +353,9 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         private const int SliderModeHsv = 0;
         private const int SliderModeRgb = 1;
         private static readonly string[] s_sliderModeNames = { "HSV", "RGB" };
+
+        /// <summary>「画像を入れる」の詳細設定を開いているか（SessionState）</summary>
+        private const string DecalAdvancedOpenKey = "ClickRecolor.DecalAdvancedOpen";
 
         /// <summary>グラデーション ON のとき、ホイール・スライダー・最近の色の書き込み先を「終了色」にするか（SessionState。0 = 新しい色、1 = 終了色）</summary>
         private const string ColorEditTargetKey = "ClickRecolor.ColorEditTarget";
@@ -453,6 +460,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                         Locales.Tr(layerNotice.poiyomi ? "Scene:Panel:PoiColorAdjust" : "Scene:Panel:LilColorAdjust"), MessageType.Info);
                 }
                 if (layerNotice.mainColorTint) EditorGUILayout.HelpBox(Locales.Tr("Scene:Panel:MainColorTint"), MessageType.Info);
+                if (ToolSession.TexTransToolNotice) EditorGUILayout.HelpBox(Locales.Tr("Scene:Panel:TexTransToolNotice"), MessageType.Warning);
             }
             // Ctrl＋クリックで種を足せなかった理由など（数秒で消える）
             string notice = ToolSession.TransientNotice;
@@ -608,6 +616,115 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             // グラデーションの項目は暗めの赤の枠でまとめる（ユーザー要望 2026-09-25）。上の不透明度スライダーと詰まらないよう少し空ける
             EditorGUILayout.Space(6);
             using (new SubBlockScope(GradientBlockColor, GradientBlockBorder)) DrawGradient(component, edit);
+
+            // 画像を入れる（グラデーションと同じく編集ごとの付属設定＋専用の箱）
+            EditorGUILayout.Space(6);
+            using (new SubBlockScope(DecalBlockColor, DecalBlockBorder)) DrawDecal(component, edit);
+        }
+
+        /// <summary>
+        /// 「画像を入れる」トグルと、ON のときの画像・箱を表示・詳細設定（なめらかに貼る・ノーマルも反映・比率を保つ）。
+        /// ON にすると Scene に箱が出る（RecolorSceneTool.DrawDecalBox）。連結なら連結の全編集に効かせる（DrawGradient と同じ構造）
+        /// </summary>
+        private static void DrawDecal(ClickRecolor component, RecolorEdit edit)
+        {
+            // トグルを押したイベントの中で部品の数が変わらないよう、押す前の値で後半を出すか決める
+            bool wasEnabled = edit.decalEnabled;
+            bool enabled = WithHelp("Help:Decal",
+                () => EditorGUILayout.ToggleLeft(Locales.Tr("Scene:Color:Decal"), wasEnabled));
+            if (enabled != wasEnabled) DecalBox.SetEnabled(component, edit, enabled);
+            if (!wasEnabled) return;
+
+            using (new EditorGUILayout.HorizontalScope())
+            {
+            GUILayout.Space(16);
+            using (new EditorGUILayout.VerticalScope())
+            {
+            var texture = (Texture2D)EditorGUILayout.ObjectField(
+                Locales.Tr("Scene:Color:DecalTexture"), edit.decalTexture, typeof(Texture2D), false);
+            // 消えた画像（参照切れ）は Unity の == で null と等しいので、None を選び直しても != では変化に見えない。参照が変わったかも見る
+            // （触っていなければ ObjectField は渡した物をそのまま返すので、毎フレーム書き込むことはない）
+            if (!ReferenceEquals(texture, edit.decalTexture) && (texture != edit.decalTexture || edit.HasMissingDecal))
+            {
+                DecalBox.SetTexture(component, edit, texture);
+            }
+
+            // 箱を表示（既定 ON。OFF はその編集を選んでいる間だけで、コンポーネントには保存しない。グラデーションの箱と同じ）
+            bool wasShown = !ToolSession.IsDecalBoxHidden;
+            bool shown = WithHelp("Help:ShowDecalBox",
+                () => EditorGUILayout.ToggleLeft(Locales.Tr("Scene:Color:ShowDecalBox"), wasShown));
+            if (shown != wasShown)
+            {
+                ToolSession.DecalBoxHiddenEditId = shown ? null : edit.id;
+                SceneView.RepaintAll();
+            }
+            }
+            }
+
+            // 画像と箱の表示以外は「詳細設定」に畳む。三角は「画像を入れる」のトグルと同じ列（字下げしない）、中身は 1 段字下げ（既定は閉じる。開閉は Unity を閉じるまで覚える。ユーザー要望 2026-10-04）
+            bool advancedOpen = SessionState.GetBool(DecalAdvancedOpenKey, false);
+            bool advanced = EditorGUILayout.Foldout(advancedOpen, Locales.Tr("Scene:Color:DecalAdvanced"), true);
+            if (advanced != advancedOpen) SessionState.SetBool(DecalAdvancedOpenKey, advanced);
+            // 押したイベントの中で部品の数が変わらないよう、押す前の値で中身を出すか決める（「画像を入れる」と同じ）
+            if (advancedOpen)
+            {
+                using (new EditorGUILayout.HorizontalScope())
+                {
+                    GUILayout.Space(16);
+                    using (new EditorGUILayout.VerticalScope())
+                    {
+                        // なめらかに貼る（重ね貼り）。lilToon 以外のマテリアルが混ざると重ね貼りできず焼き込みになるので、そのときは無効にして理由を出す
+                        bool canOverlay = DecalOverlayMaterial.CanOverlayForUi(component, edit);
+                        // 無効にするのはトグルだけ（「？」は押せるようにして、なぜ使えないかを読めるようにする）
+                        bool smooth = WithHelp("Help:DecalSmooth", () =>
+                        {
+                            using (new EditorGUI.DisabledScope(!canOverlay))
+                            {
+                                return EditorGUILayout.ToggleLeft(Locales.Tr("Scene:Color:DecalSmooth"), edit.decalSmooth);
+                            }
+                        });
+                        if (smooth != edit.decalSmooth)
+                        {
+                            Undo.RecordObject(component, "Tocolo: なめらかに貼るを変更");
+                            EditGroups.ForEachInGroup(component, edit, e => e.decalSmooth = smooth);
+                            EditorUtility.SetDirty(component);
+                        }
+                        if (!canOverlay) GUILayout.Label(Locales.Tr("Scene:Color:DecalSmoothUnavailable"), EditorStyles.miniLabel);
+
+                        // ノーマルも反映（なめらかに貼るの中の設定。焼き込みでは効かないので、なめらかに貼れるときだけ押せる）
+                        // 字下げは他の入れ子と同じく 横並び＋空白＋縦並び（縦並びが無いと「？」の説明が横に並んで細長く潰れる: 実機 2026-10-04）
+                        using (new EditorGUILayout.HorizontalScope())
+                        {
+                            GUILayout.Space(16);
+                            using (new EditorGUILayout.VerticalScope())
+                            {
+                                bool normal = WithHelp("Help:DecalNormal", () =>
+                                {
+                                    using (new EditorGUI.DisabledScope(!canOverlay || !edit.decalSmooth))
+                                    {
+                                        return EditorGUILayout.ToggleLeft(Locales.Tr("Scene:Color:DecalNormal"), edit.decalNormal);
+                                    }
+                                });
+                                if (normal != edit.decalNormal)
+                                {
+                                    Undo.RecordObject(component, "Tocolo: ノーマルも反映を変更");
+                                    EditGroups.ForEachInGroup(component, edit, e => e.decalNormal = normal);
+                                    EditorUtility.SetDirty(component);
+                                }
+                            }
+                        }
+
+                        bool keepAspect = WithHelp("Help:DecalKeepAspect",
+                            () => EditorGUILayout.ToggleLeft(Locales.Tr("Scene:Color:DecalKeepAspect"), edit.decalKeepAspect));
+                        if (keepAspect != edit.decalKeepAspect)
+                        {
+                            Undo.RecordObject(component, "Tocolo: 比率を保つを変更");
+                            EditGroups.ForEachInGroup(component, edit, e => e.decalKeepAspect = keepAspect);
+                            EditorUtility.SetDirty(component);
+                        }
+                    }
+                }
+            }
         }
 
         /// <summary>
@@ -659,6 +776,11 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             {
                 ToolSession.GradientBoxHiddenEditId = shown ? null : edit.id;
                 SceneView.RepaintAll();
+            }
+            // 押したイベントの中で部品の数が変わらないよう、押す前の値で出すか決める
+            if (wasShown && RecolorSceneTool.IsGradientBoxBlockedByDecal(edit))
+            {
+                GUILayout.Label(Locales.Tr("Scene:Color:GradientBoxBlocked"), EditorStyles.wordWrappedMiniLabel);
             }
             }
             }

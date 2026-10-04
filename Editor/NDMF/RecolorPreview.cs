@@ -238,11 +238,17 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
                     // 再インポート（画素の変更）でも作り直す
                     context.Observe(texture, t => t.imageContentsHash);
                     var plan = plans[texture];
+                    // 「画像を入れる」の画像も、描き直して再インポートしたら作り直す
+                    // （HashEdit に畳むだけでは、コンポーネントが変わったときにしか観測されない）
+                    foreach (var edit in plan.edits)
+                    {
+                        if (edit != null && edit.HasDecal) context.Observe(edit.decalTexture, t => t.imageContentsHash);
+                    }
                     var users = CollectUsers(originals, texture);
                     usersOf[texture] = users;
                     WarnUnreadableUsers(texture, users);
 
-                    var key = new PreviewTextureCache.Key(texture, ComputeTextureHash(plan.edits, users, groupMembers), plan.size);
+                    var key = new PreviewTextureCache.Key(texture, ComputeTextureHash(plan.edits, users, groupMembers, plan.overlay), plan.size);
                     var entry = PreviewTextureCache.TryAcquire(key);
                     if (entry != null)
                     {
@@ -390,6 +396,8 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
             /// <summary>グラデーションの位置の基準（そのテクスチャに最初に効くコンポーネントの Transform）</summary>
             public Transform root;
             public readonly List<RecolorEdit> edits = new List<RecolorEdit>();
+            /// <summary>edits のうち重ね貼りで貼る編集（ハイライト中だけ入る。結果 RT を変えないのでハッシュに入れない）</summary>
+            public readonly HashSet<RecolorEdit> overlay = new HashSet<RecolorEdit>();
         }
 
         /// <summary>
@@ -412,7 +420,7 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
 
                 foreach (var edit in component.edits)
                 {
-                    if (!IsPreviewTarget(edit, highlight)) continue;
+                    if (!IsTexturePreviewTarget(component, edit, highlight, out bool overlay)) continue;
                     if (!plans.TryGetValue(edit.sourceTexture, out var plan))
                     {
                         plan = new TexturePlan { size = (int)component.previewResolution, root = component.transform };
@@ -420,6 +428,7 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
                         order.Add(edit.sourceTexture);
                     }
                     plan.edits.Add(edit);
+                    if (overlay) plan.overlay.Add(edit);
                 }
             }
             return plans;
@@ -440,12 +449,13 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
         }
 
         /// <summary>
-        /// プレビューに効く編集か: 有効・対象テクスチャあり・目標色あり。
+        /// プレビューに効く編集か: 有効・対象テクスチャあり・目標色あり（または画像入り）。
         /// 目標色が未設定の編集は見た目を変えないので、そのテクスチャは差し替えない（縮小した作業解像度の画像に置き換えない）。
+        /// 画像入り（HasDecal）の編集は画像を貼るだけで見た目が変わるので、目標色が未設定でも対象にする。
         /// ビルド（RecolorPass）も同じ条件を使う（プレビューとビルドで効く編集を揃える）
         /// </summary>
         internal static bool IsPreviewTarget(RecolorEdit edit) =>
-            edit != null && edit.enabled && edit.hasTarget && edit.sourceTexture != null;
+            edit != null && edit.enabled && (edit.hasTarget || edit.HasDecal) && edit.sourceTexture != null && !edit.HasMissingDecal;
 
         /// <summary>
         /// プレビューで扱う編集か: IsPreviewTarget に加えて、ハイライト中の編集なら目標色が未設定でも対象にする
@@ -459,13 +469,27 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
                 && highlight.enabled && highlight.Contains(edit.id);
         }
 
-        /// <summary>プレビューで扱う編集（ハイライト中の色未設定の編集を含む）の対象テクスチャを textures に足す</summary>
+        /// <summary>
+        /// その編集の対象テクスチャを作業解像度の結果 RT に差し替えるか: IsPreviewTarget(edit, highlight) のうち、
+        /// 重ね貼りで貼る編集（DecalOverlayMaterial.UseOverlay）はハイライト中だけ（範囲のハイライトは元テクスチャに出す）。
+        /// 重ね貼りはテクスチャに何もしないので、ハイライト中でなければテクスチャを差し替えない（縮小した複製に置き換えない）。
+        /// overlay はその編集が重ね貼りか
+        /// </summary>
+        private static bool IsTexturePreviewTarget(ClickRecolor component, RecolorEdit edit, in HighlightState highlight, out bool overlay)
+        {
+            overlay = false;
+            if (!IsPreviewTarget(edit, highlight)) return false;
+            overlay = Decal.DecalOverlayMaterial.UseOverlay(component, edit);
+            return !overlay || (highlight.enabled && highlight.Contains(edit.id));
+        }
+
+        /// <summary>プレビューで扱う編集（ハイライト中の色未設定の編集を含む。重ね貼りの編集はハイライト中だけ）の対象テクスチャを textures に足す</summary>
         private static void CollectTargetTextures(ClickRecolor component, HashSet<Texture2D> textures, in HighlightState highlight)
         {
             if (!component.previewEnabled || component.edits == null) return;
             foreach (var edit in component.edits)
             {
-                if (!IsPreviewTarget(edit, highlight)) continue;
+                if (!IsTexturePreviewTarget(component, edit, highlight, out _)) continue;
                 textures.Add(edit.sourceTexture);
             }
         }
@@ -669,7 +693,7 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
             }
         }
 
-        private static int HashEdit(int h, RecolorEdit edit)
+        internal static int HashEdit(int h, RecolorEdit edit)
         {
             unchecked
             {
@@ -724,6 +748,26 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
                     h = h * 31 + edit.gradientDarkEndRatio.GetHashCode();
                     h = h * 31 + edit.gradientStrength.GetHashCode();
                 }
+                // 画像を入れる: 画像の中身・箱・比率・貼り方で結果が変わる（OFF なら含めない）
+                h = h * 31 + (edit.decalEnabled ? 1 : 0);
+                if (edit.decalEnabled)
+                {
+                    h = h * 31 + (edit.decalTexture != null ? edit.decalTexture.GetInstanceID() : 0);
+                    h = h * 31 + (edit.decalTexture != null ? edit.decalTexture.imageContentsHash.GetHashCode() : 0);
+                    h = h * 31 + (edit.decalKeepAspect ? 1 : 0);
+                    // 重ね貼りで表示している編集は、ドラッグ中は箱の値を畳まない（DecalOverlayPreview がメッシュを作り直さず投影 UV だけ書き換えて追従させる。
+                    // 毎フレーム作り直すと追従しない。実機 2026-10-04）。焼き込みの編集はドラッグ中も箱の値で層を作り直す
+                    if (!(SceneTool.ToolSession.IsDecalBoxDraggingFor(edit) && SceneTool.ToolSession.DecalBoxDragIsOverlay))
+                    {
+                        h = h * 31 + edit.decalBoxPosition.GetHashCode();
+                        h = h * 31 + edit.decalBoxRotation.GetHashCode();
+                        h = h * 31 + edit.decalBoxSize.GetHashCode();
+                    }
+                    h = h * 31 + (edit.decalSmooth ? 1 : 0);
+                    h = h * 31 + (edit.decalNormal ? 1 : 0);
+                    // ドラッグ中は層を低解像度で作るので、離した瞬間にフル解像度で作り直せるようドラッグ状態も含める
+                    h = h * 31 + (SceneTool.ToolSession.IsDecalBoxDraggingFor(edit) ? 1 : 0);
+                }
                 return h;
             }
         }
@@ -731,22 +775,24 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
         /// <summary>
         /// 1 テクスチャの結果を決めるもののハッシュ: そのテクスチャに効く編集（適用順）と利用者の組
         /// （メッシュ・サブメッシュ・Tiling/Offset。はみ出し防止の被覆と種の Tiling/Offset が変わるため）。
-        /// 編集は目標色を決めた（hasTarget）ものだけ含める。色未設定の編集はパイプラインが素通しするので結果 RT を変えない
+        /// 編集は目標色を決めた（hasTarget）もの、または画像入り（HasDecal）のものだけ含める。色未設定で画像も無い編集はパイプラインが素通しするので結果 RT を変えない
         /// （ハイライト中の色未設定の編集のしきい値をドラッグしても結果 RT を作り直さない。ハイライトのマスクは MaskCache が別の鍵で持つ）。
         /// groupMembers（全テクスチャの、連結の統計を共有する編集。CollectGroupStatsMembers）を渡すと、
         /// 統計を共有する編集ごとに、同じ連結の他のメンバーの中身と対象テクスチャの中身も含める
-        /// （連結の統計は他のメンバーの選択範囲にも依存するため）
+        /// （連結の統計は他のメンバーの選択範囲にも依存するため）。
+        /// overlayEdits（重ね貼りで貼る編集）は含めない: パイプラインが素通しして結果 RT を変えない（ハイライト中に画像の箱を動かしても作り直さない）
         /// </summary>
         internal static int ComputeTextureHash(
             List<RecolorEdit> edits, List<(Mesh mesh, int submesh, Vector2 uvScale, Vector2 uvOffset)> users,
-            IReadOnlyList<RecolorEdit> groupMembers = null)
+            IReadOnlyList<RecolorEdit> groupMembers = null, ICollection<RecolorEdit> overlayEdits = null)
         {
             unchecked
             {
                 int h = 17;
                 foreach (var edit in edits)
                 {
-                    if (edit == null || !edit.hasTarget) continue;
+                    if (edit == null || (!edit.hasTarget && !edit.HasDecal)) continue;
+                    if (overlayEdits != null && overlayEdits.Contains(edit)) continue;
                     h = HashEdit(h, edit);
                     if (groupMembers == null || !RecolorPipeline.SharesGroupStats(edit)) continue;
                     foreach (var member in groupMembers)
@@ -824,7 +870,7 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
         }
 
         /// <summary>
-        /// プレビュー・マスク・島マスク・被覆・位置マップ・チャート表のキャッシュを全部消す。
+        /// プレビュー・マスク・画像の層・島マスク・被覆・位置マップ・チャート表のキャッシュを全部消す。
         /// destroyInUse = false のとき、表示中のノードが使っている結果 RT はキャッシュから外すだけにして、ノードの破棄で解放する
         /// （他のシーンのアバターのプレビューが消えないように）
         /// </summary>
@@ -832,12 +878,14 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
         {
             PreviewTextureCache.Clear(destroyInUse);
             MaskCache.ClearCache();
+            DecalLayerCache.ClearCache();
             IslandMaskCache.ClearCache();
             CoverageMask.ClearCache();
             PositionMap.ClearCache();
             UvChartDetector.ClearCache();
             UvTwinDetector.ClearCache();
             s_warned.Clear();
+            DecalOverlayPreview.ClearWarnings();
         }
 
         // ── ノード ──

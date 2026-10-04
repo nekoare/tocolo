@@ -69,8 +69,11 @@ namespace Nekoare.ClickRecolor
         /// </summary>
         public bool confirmed;
 
-        /// <summary>選択範囲を残す編集か（色が決まっている、または一度でも色を決めた）。false なら自動で捨ててよい仮の編集</summary>
-        public bool IsKept => hasTarget || confirmed;
+        /// <summary>
+        /// 選択範囲を残す編集か（色が決まっている、または一度でも色を決めた、または画像入り）。false なら自動で捨ててよい仮の編集。
+        /// 画像入りも残す: 画像を入れた時点で見た目が変わるので、新しい色が未決定でも捨てない
+        /// </summary>
+        public bool IsKept => hasTarget || confirmed || HasDecal;
         [Range(0f, 1f)] public float darkEndRatio = 0.7f;
         [Range(0f, 1f)] public float lightnessToTarget = 1f;
         [Range(0f, 1f)] public float chromaToTarget = 1f;
@@ -119,6 +122,42 @@ namespace Nekoare.ClickRecolor
         /// false（既定）なら箱の中全体で 1 つの分布（パーツどうしの明るさの差が残る）。true は箱のドラッグ中は掛けず、離したときに掛ける（重いため）
         /// </summary>
         public bool boxPerPartStats;
+
+        // ── 画像を入れる（デカール。設計 docs/plans/2026-10-04-tocolo-decal-design.md）──
+        /// <summary>true なら decalTexture を専用の箱で表面に投影して貼る。ON の間、色の設定（新しい色・暗部・不透明度・グラデーション）は範囲でなく画像に掛かる</summary>
+        public bool decalEnabled;
+        /// <summary>貼る画像（Project の Texture2D）。null なら何も貼らない</summary>
+        public Texture2D decalTexture;
+        /// <summary>true なら画像の縦横比を保って箱の XY に内接させる。false なら箱の XY いっぱいに引き伸ばす</summary>
+        public bool decalKeepAspect = true;
+        /// <summary>画像の箱の中心（対象ルートのローカル）。+Z 面から −Z 方向へ投影する</summary>
+        public Vector3 decalBoxPosition;
+        /// <summary>画像の箱の回転（対象ルートのローカル）</summary>
+        public Quaternion decalBoxRotation = Quaternion.identity;
+        /// <summary>画像の箱の大きさ（対象ルートのローカル。負なら反転）</summary>
+        public Vector3 decalBoxSize = Vector3.one;
+        /// <summary>
+        /// なめらかに貼る。lilToon・Poiyomi Toon（ロックなし）のマテリアルでは焼き込まずに、箱に入る三角形を複製したサブメッシュとして重ね、
+        /// 元マテリアルの複製（透過）で画像を直接サンプリングする（焼き込みは貼る場所のテクスチャ密度より細かくなれないため）。
+        /// それ以外のマテリアルが混ざると効かず焼き込みになる（DecalOverlayMaterial.CanOverlay）
+        /// </summary>
+        public bool decalSmooth = true;
+        /// <summary>
+        /// 「ノーマルも反映」: なめらかに貼るとき、元の法線マップを画像の座標へ写し直して重ね貼りの面にも使う（服のしわ・陰影が画像に乗る）。
+        /// 法線マップ 1 枚ぶんテクスチャが増える（大きさは元の法線マップの密度に合わせる）。焼き込みでは効かない
+        /// </summary>
+        public bool decalNormal = true;
+
+        /// <summary>画像を貼る編集か（ON かつ画像あり）</summary>
+        public bool HasDecal => decalEnabled && decalTexture != null;
+
+        /// <summary>
+        /// 画像を入れる ON で、入れていた画像の資産が消えた（参照切れ）か。この編集は何もしない（範囲の色変えにも化けさせない。
+        /// 色の設定は画像に掛けるつもりで決めているため）。一覧に警告アイコンを出す。
+        /// 未設定（None）とは区別する: Unity は未設定の欄も偽の null で埋めることがあるが、その InstanceID は 0
+        /// </summary>
+        public bool HasMissingDecal =>
+            decalEnabled && !ReferenceEquals(decalTexture, null) && decalTexture.GetInstanceID() != 0 && decalTexture == null;
 
         public static string NewId() => Guid.NewGuid().ToString("N");
 

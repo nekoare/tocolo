@@ -40,6 +40,18 @@ namespace Nekoare.ClickRecolor.Editor.Colors
         /// <summary>Editor/Shader/BoxMask.shader（影響範囲「箱の中」のマスク。UV 空間に描く）</summary>
         internal const string BoxMaskGuid = "28e04ae44c244f389dabfca44561e714";
 
+        /// <summary>Editor/Shader/DecalLayer.shader（「画像を入れる」のデカール層。箱の +Z から投影した画像を UV 空間に描く。通常のシェーダー）</summary>
+        internal const string DecalLayerGuid = "aac1fd974c294b7695e508dc2ed40712";
+
+        /// <summary>Editor/Shader/DecalImage.shader（「画像を入れる」の重ね貼りの画像。重ね貼りメッシュを投影 UV の位置に描き、画像 × 選択マスクを作る。通常のシェーダー）</summary>
+        internal const string DecalImageGuid = "fce0319e45f249a3a6b78e7cbb0b7189";
+
+        /// <summary>Editor/Shader/DecalDilate.compute（デカール層の縁埋め。α = 0 の画素を近傍の色で埋める）</summary>
+        internal const string DecalDilateGuid = "b294bfc706d6440b8223990887eda9c2";
+
+        /// <summary>Editor/Shader/DecalGizmo.shader（Scene で画像の箱の +Z 面に画像を薄く描く。通常のシェーダー）</summary>
+        internal const string DecalGizmoGuid = "60a7f497df474d7bbd595e5b709c7c21";
+
         /// <summary>Editor/Icons/click-recolor-tool.png（ツールバーのアイコン 16×16。シェーダーではないが固定 GUID の同梱アセットなのでここに置く）</summary>
         internal const string IconGuid = "ebc1a884da954d1cb9d18887a57d60fa";
 

@@ -14,7 +14,8 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
     /// スライダーを動かしてもマスクと統計は作り直さない（選択が揺れない）。
     /// 返す RT はキャッシュ所有なので、呼び出し側で解放しないこと。
     /// 枚数は Capacity までに抑える（編集が多いとあふれた分は捨て、次に PrepareJob されたときに作り直す）。
-    /// 現在の編集（ToolSession.CurrentEditId）のマスクは Trim で捨てない
+    /// 現在の編集（ToolSession.CurrentEditId）のマスクは Trim で捨てない。
+    /// 「画像を入れる」のデカール層は別のキャッシュ（DecalLayerCache）が持つ（画像の箱を動かしても選択マスクを作り直さないため）
     /// </summary>
     internal static class MaskCache
     {
@@ -41,6 +42,7 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
             private readonly int _cleanupRadius;
             private readonly int _padding;
             private readonly bool _perSeedStats;
+            private readonly bool _hasDecal;
             private readonly int _size;
             private readonly int _usersHash;
 
@@ -78,6 +80,8 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
                 _padding = edit.padding;
                 // 種ごとに色を揃えるかで、部分（種ごとのマスクと統計）の作り方が変わる
                 _perSeedStats = edit.perSeedStats;
+                // 画像入りなら部分（種ごと・パーツごと）を作らない（RecolorPipeline.PrepareJob）ので、画像を外したら作り直す
+                _hasDecal = edit.HasDecal;
                 _size = size;
                 _usersHash = usersHash;
             }
@@ -101,6 +105,7 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
                 && _cleanupRadius == other._cleanupRadius
                 && _padding == other._padding
                 && _perSeedStats == other._perSeedStats
+                && _hasDecal == other._hasDecal
                 && _size == other._size
                 && _usersHash == other._usersHash;
 
@@ -128,6 +133,7 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
                     h = h * 397 ^ _cleanupRadius;
                     h = h * 397 ^ _padding;
                     h = h * 397 ^ (_perSeedStats ? 1 : 0);
+                    h = h * 397 ^ (_hasDecal ? 1 : 0);
                     h = h * 397 ^ _size;
                     h = h * 397 ^ _usersHash;
                     return h;
@@ -159,9 +165,7 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
         /// <summary>キャッシュ中の枚数（テスト用）</summary>
         internal static int Count => s_entries.Count;
 
-        /// <summary>
-        /// 鍵が一致し、合成マスクと部分のマスクがすべてまだ生きていれば返す（最近使ったものとして並べ替える）
-        /// </summary>
+        /// <summary>鍵が一致し、合成マスクと部分のマスクがすべてまだ生きていれば返す（最近使ったものとして並べ替える）</summary>
         internal static bool TryGet(in Key key, out RenderTexture mask, out IReadOnlyList<EditJob.Part> parts)
         {
             for (int i = 0; i < s_entries.Count; i++)
@@ -214,7 +218,9 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
             return true;
         }
 
-        /// <summary>entry の RT（合成マスクと部分のマスク）を解放する。keep が持っている RT は残す（同じ RT を二重に解放しない）</summary>
+        /// <summary>
+        /// entry の RT（合成マスクと部分のマスク）を解放する。keep が持っている RT は残す（同じ RT を二重に解放しない）
+        /// </summary>
         private static void Release(Entry entry, Entry keep = null)
         {
             var released = new HashSet<RenderTexture>();
@@ -240,9 +246,14 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
 
         /// <summary>
         /// Capacity 枚まで減らす（古いものから解放。現在の編集 ToolSession.CurrentEditId のマスクは残す）。
-        /// 1 回の Run に渡すマスクを捨てないよう、PrepareJob → Run を終えてから呼ぶこと
+        /// 1 回の Run に渡すマスクを捨てないよう、PrepareJob → Run を終えてから呼ぶこと。
+        /// 「画像を入れる」の層（DecalLayerCache）も同じ時機に減らす（PrepareJob の約束を呼び出し側で増やさないため）
         /// </summary>
-        internal static void Trim() => Trim(Capacity, ToolSession.CurrentEditId);
+        internal static void Trim()
+        {
+            Trim(Capacity, ToolSession.CurrentEditId);
+            DecalLayerCache.Trim();
+        }
 
         /// <summary>
         /// 最近使った keep 枚まで減らす（古いものから解放）。pinnedEditId の編集のマスクは捨てない（keep の枚数には数える。
@@ -266,10 +277,12 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
 
         /// <summary>
         /// 書き出しで作ったマスク（ファイル解像度で大きい）をすべて解放する。書き出しの後に残さない。
-        /// プレビューのマスクは（プレビュー解像度が Full でも）残す（取得済みの書き出しの EditJob のマスクはこれ以降使えない）
+        /// プレビューのマスクは（プレビュー解像度が Full でも）残す（取得済みの書き出しの EditJob のマスクはこれ以降使えない）。
+        /// 書き出しで作った「画像を入れる」の層（DecalLayerCache）も捨てる
         /// </summary>
         internal static void RemoveExportMasks()
         {
+            DecalLayerCache.RemoveExportLayers();
             for (int i = s_entries.Count - 1; i >= 0; i--)
             {
                 if (!s_entries[i].key.FromExport) continue;

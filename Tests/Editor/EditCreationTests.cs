@@ -405,6 +405,83 @@ namespace Nekoare.ClickRecolor.Tests
             Assert.That(found, Is.SameAs(second));
         }
 
+        /// <summary>
+        /// チャート A（x = 4..28 px, y = 4..30 px）を囲む画像入りの編集にする。画像は u &lt; 0.5 が不透明、u ≥ 0.5 が透明。
+        /// 投影の u は x と逆向き（u = 0.5 − x / size.x）なので、チャート A の右側（x &gt; 16 px）が不透明、左側が透明の所に写る
+        /// </summary>
+        private RecolorEdit MakeDecalEdit(ClickRecolor component, MeshRenderer renderer, Texture2D texture)
+        {
+            var edit = RecolorSceneTool.CreateEditFromHit(component, MakeChartHit(renderer, texture, 0, ChartPx(20, 10)), null);
+            var image = Track(new Texture2D(8, 8, TextureFormat.RGBA32, false));
+            var pixels = new Color[64];
+            for (int y = 0; y < 8; y++)
+            {
+                for (int x = 0; x < 8; x++) pixels[y * 8 + x] = x < 4 ? Color.red : Color.clear;
+            }
+            image.SetPixels(pixels);
+            image.Apply();
+            edit.decalEnabled = true;
+            edit.decalTexture = image;
+            edit.decalKeepAspect = false;
+            edit.decalBoxPosition = new Vector3(16f / ChartSize, 17f / ChartSize, 0f);
+            edit.decalBoxRotation = Quaternion.identity;
+            edit.decalBoxSize = new Vector3(24f / ChartSize, 26f / ChartSize, 0.2f);
+            edit.confirmed = true;
+            return edit;
+        }
+
+        /// <summary>MakeChartHit に、ルート原点のメッシュ上の位置（= UV）と箱の正面（+Z）を向いた法線を足す</summary>
+        private static PickHit MakeChartHitAt(MeshRenderer renderer, Texture2D texture, int triangle, Vector2 uv)
+        {
+            var hit = MakeChartHit(renderer, texture, triangle, uv);
+            hit.worldPosition = new Vector3(uv.x, uv.y, 0f);
+            hit.worldNormal = Vector3.forward;
+            return hit;
+        }
+
+        [Test]
+        public void 画像の上をクリックすると後ろのふつうの編集より画像の編集が返る()
+        {
+            RequireMaskGpu();
+            var (component, renderer, texture) = MakeChartAvatar();
+            var decal = MakeDecalEdit(component, renderer, texture);
+            var plain = RecolorSceneTool.CreateEditFromHit(component, MakeChartHit(renderer, texture, 1, ChartPx(8, 20)), null);
+            ToolPanelOverlay.ApplyTargetColor(component, plain, Color.blue);
+            Assert.That(component.edits.IndexOf(plain), Is.GreaterThan(component.edits.IndexOf(decal)), "前提: ふつうの編集が後ろ");
+
+            var found = RecolorSceneTool.FindEditContaining(component, MakeChartHitAt(renderer, texture, 0, ChartPx(24, 17)));
+
+            Assert.That(found, Is.SameAs(decal));
+        }
+
+        [Test]
+        public void 画像の透明な所をクリックするとふつうの編集が返り_無ければ新しく作れる()
+        {
+            RequireMaskGpu();
+            var (component, renderer, texture) = MakeChartAvatar();
+            MakeDecalEdit(component, renderer, texture);
+
+            // 範囲（チャート A）の中だが画像の透明な所: 画像の編集は選ばない（呼び出し側が新しい編集を作る）
+            Assert.That(RecolorSceneTool.FindEditContaining(component, MakeChartHitAt(renderer, texture, 1, ChartPx(8, 17))), Is.Null);
+
+            var plain = RecolorSceneTool.CreateEditFromHit(component, MakeChartHit(renderer, texture, 1, ChartPx(8, 20)), null);
+            ToolPanelOverlay.ApplyTargetColor(component, plain, Color.blue);
+            Assert.That(RecolorSceneTool.FindEditContaining(component, MakeChartHitAt(renderer, texture, 1, ChartPx(8, 17))), Is.SameAs(plain));
+        }
+
+        [Test]
+        public void 箱の裏を向いた面は画像の上とみなさない()
+        {
+            RequireMaskGpu();
+            var (component, renderer, texture) = MakeChartAvatar();
+            var decal = MakeDecalEdit(component, renderer, texture);
+            var hit = MakeChartHitAt(renderer, texture, 0, ChartPx(24, 17));
+            Assert.That(RecolorSceneTool.IsOnDecalImage(component.transform, decal, hit), Is.True, "前提: 正面なら画像の上");
+            hit.worldNormal = Vector3.back;
+
+            Assert.That(RecolorSceneTool.IsOnDecalImage(component.transform, decal, hit), Is.False);
+        }
+
         // ── 既存を選ぶか新規か（ResolveEdit）──
 
         [Test]

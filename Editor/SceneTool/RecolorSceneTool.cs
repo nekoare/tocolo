@@ -75,6 +75,8 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
 
         private ScenePicker _picker;
         private readonly List<Renderer> _renderers = new List<Renderer>();
+        /// <summary>クリック位置に Scene で描かれている Renderer（CollectVisibleRenderers の結果。TryPickVisible の作業用）</summary>
+        private readonly List<Renderer> _visibleRenderers = new List<Renderer>();
         /// <summary>前回ホバーを判定した時刻（EditorApplication.timeSinceStartup）</summary>
         private double _lastHoverPickTime;
 
@@ -175,6 +177,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             ToolSession.LastPickColor = null;
             ToolSession.UnreadableRenderer = null;
             ToolSession.GradientBoxHiddenEditId = null;
+            ToolSession.DecalBoxHiddenEditId = null;
             ToolSession.HoverPick = null;
             SceneView.RepaintAll();
         }
@@ -232,6 +235,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
 
             // グラデーションの箱のハンドル。Layout でも呼んで距離を登録する（ハンドルに近いクリックはハンドルが取り、Pick に来ない）
             DrawGradientBox();
+            DrawDecalBox();
             DrawSelectionBox();
             // 箱のハンドルなど他のコントロールがマウスを掴んでいる間は、クリック・ドラッグを処理しない
             if (e.isMouse && GUIUtility.hotControl != 0 && GUIUtility.hotControl != controlId) return;
@@ -383,9 +387,17 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 Quaternion rotation = Quaternion.Normalize(edit.gradientBoxRotation);
                 Vector3 size = edit.gradientBoxSize;
 
+                // 画像の箱も出ている間は、グラデーションの箱は形だけ描いてギズモを出さない（どちらも既定は選択範囲の外接で、
+                // ギズモが同じ位置に重なりどちらを動かしているか分からないため。画像の「箱を表示」をオフにすると動かせる）
+                if (IsGradientBoxBlockedByDecal(edit))
+                {
+                    if (e.type == EventType.Repaint) DrawBoxShape(position, rotation, size, edit.targetColor, edit.gradientColor, edit.gradientInsideOnly);
+                    return;
+                }
+
                 EditorGUI.BeginChangeCheck();
                 // 全体のギズモに加えて、各面のつまみでも伸縮できる（「箱の中」と同じ。ユーザー要望 2026-09-29）
-                DrawBoxWithFaceHandles(ref position, ref rotation, ref size, s_gradientBoxHandle, ref s_gradientDragging, ref s_gradientDragOrigin);
+                DrawBoxWithFaceHandles(ref position, ref rotation, ref size, s_gradientBoxHandle, ref s_gradientDragging, ref s_gradientDragOrigin, SelectionBoxHandleColor);
                 if (EditorGUI.EndChangeCheck())
                 {
                     if (GUIUtility.hotControl != 0 && !s_boxDrag.IsActive) s_boxDrag.Begin("Tocolo: グラデーションの箱を変更");
@@ -403,6 +415,10 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             }
         }
 
+        /// <summary>画像の箱が出ていて、グラデーションの箱のギズモを出さないか（DrawGradientBox・パネルの案内で共用）</summary>
+        internal static bool IsGradientBoxBlockedByDecal(RecolorEdit edit) =>
+            edit != null && edit.gradientEnabled && edit.decalEnabled && !ToolSession.IsDecalBoxHidden;
+
         /// <summary>
         /// 箱のワイヤーと、下端（startColor）・上端（endColor）の面の薄い塗り。insideOnly（箱の中だけ）なら側面 4 面も灰色で薄く塗る。
         /// Handles.matrix（ルートのローカル）の中で呼ぶ
@@ -419,6 +435,88 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 // 面の中央付近に「色1」「色2」の札（どちらの面がどちらの色か分かるように。ユーザー要望 2026-10-03）
                 DrawFaceLabel(new Vector3(0f, -half.y, 0f), startColor, Locales.Tr("Scene:Color:EditTarget:Start"));
                 DrawFaceLabel(new Vector3(0f, half.y, 0f), endColor, Locales.Tr("Scene:Color:EditTarget:End"));
+            }
+        }
+
+        /// <summary>
+        /// 現在の編集が「画像を入れる」ON なら、Scene に画像の箱（対象ルートのローカル座標）を出す: 移動・回転・拡縮のハンドルと各面のつまみ、
+        /// ワイヤーの箱、+Z 面（投影する側）に画像を半透明で描く（DrawGradientBox と同じ流れ）。
+        /// ハンドルの操作は Undo 1 回にまとめ（s_boxDrag はグラデーションと共用。同時に 2 つの箱を掴むことはない）、連結なら連結の全編集に同じ箱を入れる
+        /// </summary>
+        private static void DrawDecalBox()
+        {
+            if (s_boxDrag.IsActive && GUIUtility.hotControl == 0) s_boxDrag.End();
+            // 離した: 層をフル解像度で作り直させる（プレビューのハッシュにドラッグ状態が入っている）。
+            // 編集の切り替え・画像 OFF の後でも低解像度のまま残らないよう、編集を引く前に下ろす
+            if (ToolSession.DecalBoxDragging && GUIUtility.hotControl == 0)
+            {
+                ToolSession.EndDecalBoxDrag();
+                // 離したことをプレビュー（NDMF）に確実に知らせる: ドラッグ状態はコンポーネントの外にあり、ハッシュを見直させるには
+                // 変更通知が要る（最後のドラッグの変更通知の順序に頼らない。レビュー指摘 2026-10-04）
+                if (ToolSession.TryGetActiveRoot(out var releasedRoot))
+                {
+                    var releasedComponent = releasedRoot.GetComponent<ClickRecolor>();
+                    if (releasedComponent != null) nadena.dev.ndmf.preview.ChangeNotifier.NotifyObjectUpdate(releasedComponent);
+                }
+                SceneView.RepaintAll();
+            }
+
+            if (!ToolSession.TryGetActiveRoot(out var root)) return;
+            var component = root.GetComponent<ClickRecolor>();
+            var edit = component != null ? component.FindEdit(ToolSession.CurrentEditId) : null;
+            if (edit == null || !edit.decalEnabled) return;
+            if (s_decalDragging && GUIUtility.hotControl == 0) s_decalDragging = false;
+            // 「箱を表示」OFF なら箱・つまみ・ギズモ・画像を出さない（貼った結果を確認しやすくする）
+            if (ToolSession.IsDecalBoxHidden) return;
+
+            var e = Event.current;
+            using (new Handles.DrawingScope(component.transform.localToWorldMatrix))
+            {
+                Vector3 position = edit.decalBoxPosition;
+                Quaternion rotation = Quaternion.Normalize(edit.decalBoxRotation);
+                Vector3 size = edit.decalBoxSize;
+
+                EditorGUI.BeginChangeCheck();
+                DrawBoxWithFaceHandles(ref position, ref rotation, ref size, s_decalBoxHandle, ref s_decalDragging, ref s_decalDragOrigin, DecalBoxColor);
+                if (EditorGUI.EndChangeCheck())
+                {
+                    if (GUIUtility.hotControl != 0)
+                    {
+                        if (!s_boxDrag.IsActive) s_boxDrag.Begin("Tocolo: 画像の箱を変更");
+                        // ドラッグ中は層を低解像度で作る（離したら上でフル解像度に戻す）
+                        if (s_decalDragging && !ToolSession.IsDecalBoxDraggingFor(edit))
+                        {
+                            // 重ね貼りかはドラッグの始めに 1 回だけ判定する（アバター全体を走査するので毎イベントはしない）
+                            ToolSession.BeginDecalBoxDrag(edit, Decal.DecalOverlayMaterial.UseOverlay(component, edit));
+                        }
+                    }
+                    Undo.RecordObject(component, "Tocolo: 画像の箱を変更");
+                    EditGroups.ForEachInGroup(component, edit, m =>
+                    {
+                        m.decalBoxPosition = position;
+                        m.decalBoxRotation = rotation;
+                        m.decalBoxSize = size;
+                    });
+                    EditorUtility.SetDirty(component);
+                }
+
+                if (e.type == EventType.Repaint) DrawDecalBoxShape(position, rotation, size, edit.decalTexture, edit.decalKeepAspect);
+            }
+        }
+
+        /// <summary>画像の箱の +Z 面に描く画像の不透明度（下のモデルが透けて見え、貼られる位置が分かる程度。0.6 から半分に: ユーザー要望 2026-10-04）</summary>
+        private const float DecalGizmoAlpha = 0.3f;
+
+        /// <summary>画像の箱のワイヤーとつまみの色。グラデーション・選択の箱（橙のつまみ）と区別するため、パネルの「画像を入れる」の枠と同じ青緑系</summary>
+        private static readonly Color DecalBoxColor = new Color(0.35f, 0.75f, 0.85f, 1f);
+
+        /// <summary>画像の箱のワイヤーと、+Z 面の画像（DecalGizmo）。Handles.matrix（ルートのローカル）の中で、Repaint のときだけ呼ぶ</summary>
+        private static void DrawDecalBoxShape(Vector3 position, Quaternion rotation, Vector3 size, Texture2D image, bool keepAspect)
+        {
+            using (new Handles.DrawingScope(DecalBoxColor, Handles.matrix * Matrix4x4.TRS(position, rotation, Vector3.one)))
+            {
+                Handles.DrawWireCube(Vector3.zero, size);
+                DecalGizmo.DrawImage(size, image, keepAspect, DecalGizmoAlpha);
             }
         }
 
@@ -475,7 +573,8 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             var edit = component != null ? component.FindEdit(ToolSession.CurrentEditId) : null;
             if (edit == null || edit.mode != SelectionMode.Box) return;
             // グラデーション ON のときは 2 つの箱が重なって見づらいので、選択の箱はギズモごと出さない（ユーザー要望 2026-09-29）
-            if (edit.gradientEnabled) return;
+            // 画像の箱の既定は選択範囲の外接なので、選択の箱と重なる。グラデーションの箱と同じく、出ている間は選択の箱を出さない
+            if (edit.gradientEnabled || edit.decalEnabled) return;
 
             // 離したら、箱に触れるテクスチャのメンバーを増減してから Undo のまとめを締める（同じ 1 回の Undo に入れる）。
             // 離しの検知は s_boxDrag ではなく自分のフラグで行う（s_boxDrag は先に描くグラデーションの箱の関数が締めてしまい、
@@ -499,7 +598,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 // 箱全体の移動・回転・拡大縮小はグラデーションの箱と同じハンドル。加えて各面のつまみで、その面だけを軸ごとに引ける
                 // （比率は保たない。両方残す: ユーザー要望 2026-09-29）
                 bool dragging = ToolSession.BoxDragging;
-                DrawBoxWithFaceHandles(ref position, ref rotation, ref size, s_selectionBoxHandle, ref dragging, ref s_boxDragOrigin);
+                DrawBoxWithFaceHandles(ref position, ref rotation, ref size, s_selectionBoxHandle, ref dragging, ref s_boxDragOrigin, SelectionBoxHandleColor);
                 if (EditorGUI.EndChangeCheck())
                 {
                     if (GUIUtility.hotControl != 0)
@@ -534,9 +633,19 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             };
         private static bool s_gradientDragging;
         private static Vector3 s_gradientDragOrigin;
+        /// <summary>画像の箱の面のつまみと、そのドラッグ状態・開始時の中心（グラデーションの箱と同じ作り）</summary>
+        private static readonly UnityEditor.IMGUI.Controls.BoxBoundsHandle s_decalBoxHandle =
+            new UnityEditor.IMGUI.Controls.BoxBoundsHandle
+            {
+                wireframeColor = Color.clear,
+                midpointHandleSizeFunction = p => HandleUtility.GetHandleSize(p) * 0.18f,
+                midpointHandleDrawFunction = DrawSelectionBoxKnob,
+            };
+        private static bool s_decalDragging;
+        private static Vector3 s_decalDragOrigin;
 
         /// <summary>
-        /// 箱のギズモ（移動・回転・全体の拡大縮小）と各面のつまみ（その面だけ伸縮）を描き、position / rotation / size を更新する。
+        /// 箱のギズモ（移動・回転・全体の拡大縮小。DrawFixedAxisTransformHandle）と各面のつまみ（その面だけ伸縮）を描き、position / rotation / size を更新する。
         /// Handles.matrix（ルートのローカル）の中で呼ぶ。EditorGUI.BeginChangeCheck の内側で呼ぶこと。
         /// 面のつまみ（1 軸スライダー）はドラッグ開始位置を Handles.matrix のローカルで覚えるので、ドラッグ中に matrix の原点（箱の中心）を
         /// 動かすと基準がずれて約 2 倍動く（実機 2026-09-29）。dragging の間は原点を dragOrigin（掴んだときの中心）に固定し、
@@ -544,10 +653,10 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         /// </summary>
         private static void DrawBoxWithFaceHandles(
             ref Vector3 position, ref Quaternion rotation, ref Vector3 size,
-            UnityEditor.IMGUI.Controls.BoxBoundsHandle handle, ref bool dragging, ref Vector3 dragOrigin)
+            UnityEditor.IMGUI.Controls.BoxBoundsHandle handle, ref bool dragging, ref Vector3 dragOrigin, Color handleColor)
         {
             Vector3 positionBefore = position;
-            Handles.TransformHandle(ref position, ref rotation, ref size);
+            DrawFixedAxisTransformHandle(ref position, ref rotation, ref size);
             Vector3 origin = dragging ? dragOrigin : position;
             using (new Handles.DrawingScope(Handles.matrix * Matrix4x4.TRS(origin, rotation, Vector3.one)))
             {
@@ -555,7 +664,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 var fedCenter = Quaternion.Inverse(rotation) * (position - origin);
                 handle.center = fedCenter;
                 handle.size = fed;
-                handle.SetColor(SelectionBoxHandleColor);
+                handle.SetColor(handleColor);
                 handle.DrawHandle();
                 // 面を引いたときだけ反映する（全体のギズモの結果を上書きしない）。中心は箱のローカルなのでルートのローカルへ戻す
                 if (handle.center != fedCenter || handle.size != fed)
@@ -573,6 +682,43 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 dragging = true;
             }
         }
+        /// <summary>回転の輪の今の向き（ドラッグしていない間は単位。ドラッグ中は輪が返した向きを持ち、前フレームとの差を箱に足す）</summary>
+        private static Quaternion s_rotationHandleRotation = Quaternion.identity;
+
+        /// <summary>
+        /// 箱全体の移動・回転・拡大縮小のギズモ。標準の TransformHandle は矢印と輪を箱の向きに合わせて描くので、箱を回すと矢印も傾いて動かしにくい
+        /// （ユーザー要望 2026-10-04）。矢印と輪は常に Handles.matrix（対象ルート）の向きで描き、回転は輪を回した差を箱の向きに足す。
+        /// 真ん中のつまみは標準と同じく全体の拡大縮小（比率と符号＝反転は保つ）
+        /// </summary>
+        private static void DrawFixedAxisTransformHandle(ref Vector3 position, ref Quaternion rotation, ref Vector3 size)
+        {
+            position = Handles.PositionHandle(position, Quaternion.identity);
+
+            // 輪は掴んだ時点からの回転を返すもの（円）と、前フレームからの回転を返すもの（自由回転）があるので、
+            // 前フレームに渡した向きとの差を毎フレーム足す（どちらでも合計が掴んでからの回転になる）
+            if (GUIUtility.hotControl == 0) s_rotationHandleRotation = Quaternion.identity;
+            var handleRotation = Handles.RotationHandle(s_rotationHandleRotation, position);
+            if (handleRotation != s_rotationHandleRotation)
+            {
+                rotation = Quaternion.Normalize(handleRotation * Quaternion.Inverse(s_rotationHandleRotation) * rotation);
+                s_rotationHandleRotation = handleRotation;
+            }
+
+            float magnitude = size.magnitude;
+            if (magnitude > 1e-6f)
+            {
+                // ScaleValueHandle は渡した大きさに 0.15 を掛けて四角を描くので、ギズモの大きさをそのまま渡す（標準の拡大縮小ツールと同じ。
+                // こちらでも縮めると矢印の根元に埋もれて見えなくなった: 実機 2026-10-04）
+                float scaled;
+                using (new Handles.DrawingScope(Handles.centerColor))
+                {
+                    scaled = Handles.ScaleValueHandle(magnitude, position, Quaternion.identity,
+                        HandleUtility.GetHandleSize(position), Handles.CubeHandleCap, 0f);
+                }
+                if (scaled != magnitude && scaled > 1e-6f) size *= scaled / magnitude;
+            }
+        }
+
         /// <summary>面のつまみの色。箱の水色の上でも見えるよう補色寄りの橙（ユーザー要望 2026-09-29）</summary>
         private static readonly Color SelectionBoxHandleColor = new Color(1f, 0.6f, 0.1f, 1f);
         /// <summary>面のつまみにマウスが乗った・掴んだときの色（明るい黄）</summary>
@@ -898,7 +1044,9 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 if (IsPickable(r)) _renderers.Add(r);
             }
             var ray = HandleUtility.GUIPointToWorldRay(mousePosition);
-            if (!_picker.TryPick(ray, _renderers, null, out var hit)) return false;
+            // Scene に描かれている物（他ツールのプレビューで隠れた物・消した面を除く）を優先する
+            CollectVisibleRenderers(mousePosition, null, _visibleRenderers);
+            if (!TryPickVisible(_visibleRenderers, ray, out var hit)) return false;
 
             root = TargetResolver.ResolveRoot(hit.renderer.gameObject);
             if (root == null) return false;
@@ -918,7 +1066,8 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             // Read/Write 無効のメッシュは自前のレイ判定に乗らず、クリックが奥の物に抜けてしまう。
             // Unity の Scene ピック（GPU で描いて判定するので Read/Write に関係なく当たる）で手前の物を調べ、
             // それが選べないメッシュなら編集は作らずパネルに案内を出す
-            var unreadable = FindClickedUnreadable(root, mousePosition);
+            var picked = CollectVisibleRenderers(mousePosition, root, _visibleRenderers);
+            var unreadable = FindClickedUnreadable(root, picked, mousePosition);
             ToolSession.UnreadableRenderer = unreadable;
             if (unreadable != null)
             {
@@ -928,7 +1077,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 return;
             }
             var ray = HandleUtility.GUIPointToWorldRay(mousePosition);
-            if (_picker.TryPick(ray, _renderers, null, out var hit))
+            if (TryPickVisible(_visibleRenderers, ray, out var hit))
             {
                 ToolSession.LastPick = hit;
                 // 見本色はクリック時に 1 回だけ取る（Repaint ごとに GetPixel しない）
@@ -936,6 +1085,8 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 // lilToon の 2nd／3rd が上に重なっているか（色が変わって見えにくい場所の案内。ユーザー判断 2026-10-01）
                 ToolSession.LayerNotice = LilToonLayerOverlap.Check(hit.material, hit.uv0, hit.uv);
                 ToolSession.LayerNoticeEditId = null;
+                // TexTransTool の効果はプレビューでこの色変えの上に乗らない（アップロード時は乗る）ので案内する
+                ToolSession.TexTransToolNotice = TexTransToolDetector.HasActive(root);
 
                 // Ctrl＋クリック: 現在の編集があればその種を足す／外す。無ければ通常のクリックとして扱う
                 if (toggleSeed)
@@ -966,6 +1117,9 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 ToolSession.LastPickColor = null;
                 ToolSession.LayerNotice = default;
                 ToolSession.LayerNoticeEditId = null;
+                ToolSession.TexTransToolNotice = false;
+                // テクスチャの無いマテリアルにだけ当たった（素通りした先に何も無い）ときは、無反応にせず理由を出す
+                if (_pickBlockedByTextureless || _picker.LastSkippedTextureless) ToolSession.ShowTransientNotice("Scene:Panel:NoTextureMaterial");
             }
         }
 
@@ -1013,7 +1167,8 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             if (_picker == null) _picker = new ScenePicker(); // ドメインリロード直後の保険
             CollectPickRenderers(root);
             var ray = HandleUtility.GUIPointToWorldRay(mousePosition);
-            if (!_picker.TryPick(ray, _renderers, null, out var hit)) return;
+            CollectVisibleRenderers(mousePosition, root, _visibleRenderers);
+            if (!TryPickVisible(_visibleRenderers, ray, out var hit)) return;
             var color = SampleSwatchColor(hit);
             if (!color.HasValue) return;
 
@@ -1030,14 +1185,15 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         /// Scene ピックが別の物（NDMF プレビューの代わりの物など）を返したときは、レイが境界箱に当たる選べないメッシュのうち
         /// 自前のレイ判定の当たりより手前のものを返す
         /// </summary>
-        private Renderer FindClickedUnreadable(GameObject root, Vector2 mousePosition)
+        private Renderer FindClickedUnreadable(GameObject root, GameObject picked, Vector2 mousePosition)
         {
             var component = root.GetComponent<ClickRecolor>();
-            var picked = HandleUtility.PickGameObject(mousePosition, false);
             if (picked != null && picked.transform.IsChildOf(root.transform))
             {
                 var renderer = picked.GetComponent<Renderer>();
                 if (renderer == null || !IsPickable(renderer) || (component != null && component.IsExcluded(renderer))) return null;
+                // テクスチャの無いマテリアルだけの物（FakeShadow など）は選ぶ対象でないので、Read/Write が無効でも案内しない（奥の前髪を選べるように）
+                if (!HasAnyMainTexture(renderer)) return null;
                 return MeshReadWriteFixer.IsUnreadable(renderer) ? renderer : null;
             }
 
@@ -1057,6 +1213,88 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 bestDistance = distance;
             }
             return best;
+        }
+
+        /// <summary>1 回のクリックで Scene ピックをやり直す回数の上限（重なっている物が多くても重くならないように）</summary>
+        private const int MaxVisiblePicks = 8;
+
+        private static readonly List<GameObject> s_pickIgnore = new List<GameObject>();
+
+        /// <summary>
+        /// mousePosition の位置に Scene で描かれている、当てられる Renderer（root 配下。root が null ならシーン全体。除外リスト外・IsPickable）を result に集め、
+        /// 最初に Scene ピックが返した物（手前に写っている物。無ければ null）を返す。
+        /// Unity の Scene ピックは実際に描かれた物で判定し、NDMF プレビューの代わりの物は元の物に読み替えられるので、他ツールのプレビュー
+        /// （MA の Object Toggle で隠した物、メッシュの一部を消すツールなど）を反映した「見えている物」になる（ユーザー要望 2026-10-04）。
+        /// ピックは 1 つしか返さず、半透明（奥行きを書かない）マテリアルは奥の物に負けて返らないことがあるので（実機 2026-10-04: 半透明の lilToon の
+        /// クリックが奥に吸われた）、返った物を除いてピックし直し、その位置に描かれている物をすべて集める。
+        /// Hierarchy で非アクティブな物（プレビューでだけ表示されている物）は集めない: 範囲を作る側（CollectPreviewRenderers 等）が有効な Renderer しか見ないため
+        /// </summary>
+        private static GameObject CollectVisibleRenderers(Vector2 mousePosition, GameObject root, List<Renderer> result)
+        {
+            result.Clear();
+            s_pickIgnore.Clear();
+            GameObject first = null;
+            var component = root != null ? root.GetComponent<ClickRecolor>() : null;
+            for (int i = 0; i < MaxVisiblePicks; i++)
+            {
+                var picked = HandleUtility.PickGameObject(mousePosition, false, s_pickIgnore.ToArray());
+                if (picked == null || s_pickIgnore.Contains(picked)) break;
+                s_pickIgnore.Add(picked);
+                if (first == null) first = picked;
+                if (root != null && !picked.transform.IsChildOf(root.transform)) continue;
+                var renderer = picked.GetComponent<Renderer>();
+                if (!IsPickable(renderer) || (component != null && component.IsExcluded(renderer))) continue;
+                if (!result.Contains(renderer)) result.Add(renderer);
+            }
+            return first;
+        }
+
+        /// <summary>
+        /// レイを当てる: Scene に描かれている Renderer（visible。CollectVisibleRenderers）があればそれらだけに当て、最も手前の当たりを採る。
+        /// テクスチャ無しの面（ScenePicker が素通りする）がその当たりより明らかに手前にあれば、見えているのはテクスチャ無しの物（単色の服など）なので
+        /// 奥の物は選ばずに止める（同じ形を重ねて描いた FakeShadow などはほぼ同じ距離なので通す。レビュー指摘 2026-10-04）。
+        /// 描かれている物に当たらなければ（形がずれている等）、または Scene ピックが何も返さなければ（ピック無効など）、従来どおり _renderers 全体に当てる
+        /// </summary>
+        private bool TryPickVisible(List<Renderer> visible, Ray ray, out PickHit hit)
+        {
+            _pickBlockedByTextureless = false;
+            if (visible != null && visible.Count > 0)
+            {
+                if (_picker.TryPick(ray, visible, null, out hit))
+                {
+                    if (_picker.LastSkippedTextureless
+                        && _picker.LastSkippedTexturelessDistance < hit.distance - CoincidentTolerance(hit.distance))
+                    {
+                        hit = default;
+                        _pickBlockedByTextureless = true;
+                        return false;
+                    }
+                    return true;
+                }
+                if (_picker.LastSkippedTextureless)
+                {
+                    // 描かれている物がテクスチャ無しの面だけ
+                    _pickBlockedByTextureless = true;
+                    return false;
+                }
+            }
+            return _picker.TryPick(ray, _renderers, null, out hit);
+        }
+
+        /// <summary>直前の TryPickVisible が、見えているテクスチャ無しの面で止まったか（案内を出すため）</summary>
+        private bool _pickBlockedByTextureless;
+
+        /// <summary>同じ形を重ねて描いた面とみなす距離の差（2mm か、距離の 0.2% の大きいほう）</summary>
+        private static float CoincidentTolerance(float distance) => Mathf.Max(0.002f, distance * 0.002f);
+
+        /// <summary>renderer のマテリアルのどれかにメインテクスチャがあるか</summary>
+        private static bool HasAnyMainTexture(Renderer renderer)
+        {
+            foreach (var material in renderer.sharedMaterials)
+            {
+                if (MaterialTextureResolver.TryGetMainTexture(material, out _)) return true;
+            }
+            return false;
         }
 
         /// <summary>root 配下のクリック・矩形選択の対象の Renderer（IsPickable）を _renderers に入れ直す</summary>
@@ -1334,7 +1572,9 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         /// hit の位置を選択範囲に含む編集を返す（無ければ null）。対象は目標色を決めた（hasTarget）編集で、
         /// 対象テクスチャが hit のメインテクスチャと同じもの。後ろの編集ほど上に重なって効くので末尾から探す。
         /// 判定は編集の選択マスク（プレビューと同じ作業解像度。MaskCache にあればそれ、無ければ PrepareJob で作る）の
-        /// hit.uv の画素が 0.5 を超えるか。マスクが作れない編集は飛ばす
+        /// hit.uv の画素が 0.5 を超えるか。マスクが作れない編集は飛ばす。
+        /// 画像入り（HasDecal）の編集は、範囲に入っていても画像の上（IsOnDecalImage）でなければ選ばない（画像の外のクリックはふつうの色変えにする）。
+        /// 画像の上なら、一覧で後ろにあるふつうの編集より優先する（画像はふつうの色変えより上に見えるため。ユーザー要望 2026-10-04）
         /// </summary>
         internal static RecolorEdit FindEditContaining(ClickRecolor component, in PickHit hit)
         {
@@ -1345,6 +1585,8 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             List<(Mesh, int, Vector2, Vector2)> users = null;
             List<Renderer> renderers = null;
             int prepared = 0;
+            // 範囲に入ったふつうの編集のうち最も後ろのもの（画像の上の編集が見つからなければこれを返す）
+            RecolorEdit plain = null;
             try
             {
                 for (int i = component.edits.Count - 1; i >= 0; i--)
@@ -1353,6 +1595,8 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                     // 無効化した編集は拾わない（選んでも縞が出ず、色を変えても見た目が変わらないため。レビュー指摘 2026-09-25）
                     // 色の指定を取り消した編集（confirmed）も選び直せるようにする
                 if (edit == null || !edit.enabled || !edit.IsKept || edit.sourceTexture != texture) continue;
+                    // ふつうの編集が見つかった後は、画像入りの編集だけ調べる（マスクを作る手間を省く）
+                    if (plain != null && !edit.HasDecal) continue;
 
                     // 利用者はプレビューと同じ集め方にする（マスクの鍵が揃い、プレビューが作ったマスクに当たる）
                     renderers ??= CollectPreviewRenderers(component.gameObject);
@@ -1361,15 +1605,40 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                         context: MaskContext.For(component, renderers));
                     if (job?.mask == null) continue;
                     prepared++;
-                    if (IsSelectedAt(job.mask, hit.uv)) return edit;
+                    if (!IsSelectedAt(job.mask, hit.uv)) continue;
+                    if (!edit.HasDecal) plain = edit;
+                    else if (IsOnDecalImage(component.transform, edit, hit)) return edit;
                 }
-                return null;
+                return plain;
             }
             finally
             {
                 // PrepareJob の約束どおり、使い終わったら 1 回だけ減らす
                 if (prepared > 0) MaskCache.Trim();
             }
+        }
+
+        /// <summary>画像の上とみなす画像の不透明度の下限（これ未満の透明な所は画像の外としてふつうの色変えにする）</summary>
+        private const float DecalImageAlphaThreshold = 0.5f;
+
+        /// <summary>
+        /// hit が画像入りの編集 edit の画像の上か: 箱の中で、箱の正面（+Z）を向いた面で、投影した画像の位置の不透明度が DecalImageAlphaThreshold 以上。
+        /// root は箱の座標の基準（編集を持つコンポーネントの Transform）。画像を CPU で読めなければ（形式など）画像の長方形の中なら画像の上とみなす
+        /// </summary>
+        internal static bool IsOnDecalImage(Transform root, RecolorEdit edit, in PickHit hit)
+        {
+            if (root == null || edit == null || !edit.HasDecal) return false;
+            var worldToBox = BoxMaskBuilder.RootToBox(edit.decalBoxPosition, edit.decalBoxRotation) * root.worldToLocalMatrix;
+            var p = worldToBox.MultiplyPoint3x4(hit.worldPosition);
+            var safeSize = DecalLayerBuilder.SafeSize(edit.decalBoxSize);
+            var half = new Vector3(Mathf.Abs(safeSize.x), Mathf.Abs(safeSize.y), Mathf.Abs(safeSize.z)) * 0.5f;
+            if (Mathf.Abs(p.x) > half.x || Mathf.Abs(p.y) > half.y || Mathf.Abs(p.z) > half.z) return false;
+            // 箱の正面を向いた面にだけ貼られる（DecalProjection.IsFrontFacing）。hit の法線はカメラ側を向けてあるので、見えている面の向き
+            if (worldToBox.MultiplyVector(hit.worldNormal).z <= 0f) return false;
+            var uv = Decal.DecalProjection.ProjectUv(p, safeSize, DecalLayerBuilder.FitScale(edit.decalTexture, edit.decalBoxSize, edit.decalKeepAspect));
+            if (uv.x < 0f || uv.x > 1f || uv.y < 0f || uv.y > 1f) return false;
+            var color = SampleSwatchColor(edit.decalTexture, uv);
+            return !color.HasValue || color.Value.a >= DecalImageAlphaThreshold;
         }
 
         /// <summary>root 配下の、プレビューが対象にする Renderer（MeshRenderer / SkinnedMeshRenderer、Hierarchy 上で有効なもの）</summary>
