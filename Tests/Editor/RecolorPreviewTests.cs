@@ -126,6 +126,77 @@ namespace Nekoare.ClickRecolor.Tests
             Assert.That(afterEnabled, Is.Not.EqualTo(afterResolution));
         }
 
+        /// <summary>
+        /// 重ね貼りできるシェーダー（lilToon か Poiyomi Toon）のマテリアルを持つ Renderer を子に置いたアバターに、画像入りの編集を 1 つ足す
+        /// （そのシェーダーが無い環境では Ignore）
+        /// </summary>
+        private (ClickRecolor component, RecolorEdit edit) MakeDecalAvatar(bool smooth, bool poiyomi = false)
+        {
+            Shader shader;
+            if (poiyomi)
+            {
+                shader = Shader.Find(Editor.Decal.DecalOverlayPoiyomi.ShaderName);
+                if (shader == null) Assert.Ignore("Poiyomi Toon が入っていない環境です");
+            }
+            else
+            {
+                shader = Shader.Find("lilToon");
+                if (shader == null) Assert.Ignore("lilToon が入っていない環境です");
+                if (!Editor.Decal.DecalOverlayMaterial.IsApiAvailable) Assert.Ignore("lilToon のエディタ API が見つからない環境です");
+            }
+            var texture = Track(new Texture2D(4, 4));
+            var material = Track(new Material(shader));
+            material.SetTexture("_MainTex", texture);
+            var renderer = MakeRenderer("Body", MakeMesh(1), material);
+            var edit = MakeEdit(Color.red);
+            edit.sourceTexture = texture;
+            edit.decalEnabled = true;
+            edit.decalTexture = Track(new Texture2D(4, 4));
+            edit.decalSmooth = smooth;
+            var component = MakeComponent(edit);
+            renderer.transform.SetParent(component.transform, false);
+            return (component, edit);
+        }
+
+        [Test]
+        public void 重ね貼りで表示する編集は色を変えてもハッシュが変わらず_形を変えると変わる()
+        {
+            var (component, edit) = MakeDecalAvatar(smooth: true);
+            Assert.That(Editor.Decal.DecalOverlayMaterial.UseOverlay(component, edit), Is.True, "前提: lilToon なので重ね貼り");
+            int before = RecolorPreview.ComputeEditsHash(component);
+
+            edit.targetColor = Color.blue;
+            edit.strength = 0.5f;
+            Assert.That(RecolorPreview.ComputeEditsHash(component), Is.EqualTo(before), "重ね貼りの色はこのフィルタの結果を変えないので作り直さない");
+
+            edit.decalBoxPosition = new Vector3(0.1f, 0f, 0f);
+            Assert.That(RecolorPreview.ComputeEditsHash(component), Is.Not.EqualTo(before), "形はハイライトの範囲に効くので畳む");
+        }
+
+        [Test]
+        public void Poiyomiで重ね貼りする編集も色を変えてもハッシュが変わらない()
+        {
+            var (component, edit) = MakeDecalAvatar(smooth: true, poiyomi: true);
+            Assert.That(Editor.Decal.DecalOverlayMaterial.UseOverlay(component, edit), Is.True, "前提: ロックしていない Poiyomi Toon なので重ね貼り");
+            int before = RecolorPreview.ComputeEditsHash(component);
+
+            edit.targetColor = Color.blue;
+            edit.strength = 0.5f;
+
+            Assert.That(RecolorPreview.ComputeEditsHash(component), Is.EqualTo(before));
+        }
+
+        [Test]
+        public void 焼き込みで貼る編集は色を変えるとハッシュが変わる()
+        {
+            var (component, edit) = MakeDecalAvatar(smooth: false);
+            int before = RecolorPreview.ComputeEditsHash(component);
+
+            edit.targetColor = Color.blue;
+
+            Assert.That(RecolorPreview.ComputeEditsHash(component), Is.Not.EqualTo(before));
+        }
+
         // ── ComputeTextureHash ──
 
         [Test]

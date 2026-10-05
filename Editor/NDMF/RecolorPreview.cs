@@ -671,7 +671,10 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
 
         /// <summary>
         /// プレビューに影響するコンポーネントの状態のハッシュ（順序依存）。編集の出力に関わる全フィールドと
-        /// previewResolution・previewEnabled を含む（表示専用の name・seedColor は含めない）
+        /// previewResolution・previewEnabled を含む（表示専用の name・seedColor は含めない）。
+        /// 重ね貼りで表示する編集（DecalOverlayMaterial.UseOverlay）は「形」だけ畳む: パイプラインが素通しし、ハイライトも範囲だけなので、
+        /// 色の設定はこのフィルタの結果を変えない。畳むと色のスライダー 1 目盛りごとにこのフィルタと下流の重ね貼りのマテリアルが作り直される
+        /// （ユーザー要望 2026-10-06。重ね貼りの色の変更は DecalOverlayPreview が画像の色だけ掛け直す）
         /// </summary>
         internal static int ComputeEditsHash(ClickRecolor component)
         {
@@ -690,12 +693,20 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
                 var edits = component.edits;
                 if (edits == null) return h;
                 h = h * 31 + edits.Count;
-                foreach (var edit in edits) h = HashEdit(h, edit);
+                foreach (var edit in edits)
+                {
+                    h = Decal.DecalOverlayMaterial.UseOverlay(component, edit) ? HashEditShape(h, edit) : HashEdit(h, edit);
+                }
                 return h;
             }
         }
 
-        internal static int HashEdit(int h, RecolorEdit edit)
+        internal static int HashEdit(int h, RecolorEdit edit) => HashEditLook(HashEditShape(h, edit), edit);
+
+        /// <summary>
+        /// 編集の「形」: 範囲・画像・箱・貼り方など、色の設定以外。重ね貼り（DecalOverlayPreview）では、ここが変わると表示用メッシュと画像の下地を作り直す
+        /// </summary>
+        internal static int HashEditShape(int h, RecolorEdit edit)
         {
             unchecked
             {
@@ -719,17 +730,8 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
                 h = h * 31 + edit.cleanupRadius;
                 h = h * 31 + edit.padding;
                 h = h * 31 + (edit.perSeedStats ? 1 : 0);
-                h = h * 31 + edit.targetColor.GetHashCode();
-                h = h * 31 + (edit.hasTarget ? 1 : 0);
-                h = h * 31 + edit.darkEndRatio.GetHashCode();
-                h = h * 31 + edit.gamma.GetHashCode();
-                h = h * 31 + edit.lightnessToTarget.GetHashCode();
-                h = h * 31 + edit.chromaToTarget.GetHashCode();
-                h = h * 31 + edit.hueRetain.GetHashCode();
-                h = h * 31 + edit.strength.GetHashCode();
-                h = h * 31 + edit.shadingStretch.GetHashCode();
+                // 打ち消し・グラデーションの ON/OFF は画像の下地に位置マップが要るかを決める（DecalImageBuilder.BuildBase）ので形の側
                 h = h * 31 + (edit.flattenBase ? 1 : 0);
-                if (edit.flattenBase) h = h * 31 + edit.flattenStrength.GetHashCode();
                 h = h * 31 + (edit.gradientEnabled ? 1 : 0);
                 // 「箱の中」は箱で範囲が決まる（他のモードでは箱を変えても結果が変わらないので含めない）
                 if (edit.mode == SelectionMode.Box)
@@ -740,18 +742,6 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
                     // ドラッグ中はパーツごとの統計とスーパーサンプリングを掛けないので、離した瞬間に作り直せるようドラッグ状態も含める
                     h = h * 31 + (edit.boxPerPartStats ? 1 : 0);
                     h = h * 31 + (SceneTool.ToolSession.BoxDragging ? 1 : 0);
-                }
-                // グラデーション OFF のときは終了色・箱を変えても結果が変わらないので含めない（無駄に作り直さない）
-                if (edit.gradientEnabled)
-                {
-                    h = h * 31 + edit.gradientColor.GetHashCode();
-                    h = h * 31 + edit.gradientBoxPosition.GetHashCode();
-                    h = h * 31 + edit.gradientBoxRotation.GetHashCode();
-                    h = h * 31 + edit.gradientBoxSize.GetHashCode();
-                    h = h * 31 + (edit.gradientInsideOnly ? 1 : 0);
-                    h = h * 31 + edit.gradientDarkEndRatio.GetHashCode();
-                    h = h * 31 + edit.gradientGamma.GetHashCode();
-                    h = h * 31 + edit.gradientStrength.GetHashCode();
                 }
                 // 画像を入れる: 画像の中身・箱・比率・貼り方で結果が変わる（OFF なら含めない）
                 h = h * 31 + (edit.decalEnabled ? 1 : 0);
@@ -772,6 +762,41 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
                     h = h * 31 + (edit.decalNormal ? 1 : 0);
                     // ドラッグ中は層を低解像度で作るので、離した瞬間にフル解像度で作り直せるようドラッグ状態も含める
                     h = h * 31 + (SceneTool.ToolSession.IsDecalBoxDraggingFor(edit) ? 1 : 0);
+                }
+                return h;
+            }
+        }
+
+        /// <summary>
+        /// 編集の「見た目」: 色・陰影・ガンマ・不透明度・打ち消す強さ・グラデーションの色と箱。
+        /// 重ね貼り（DecalOverlayPreview）では、ここだけ変わったときは画像の色の段（DecalImageBuilder.ApplyLook）だけやり直す（ユーザー要望 2026-10-06）
+        /// </summary>
+        internal static int HashEditLook(int h, RecolorEdit edit)
+        {
+            unchecked
+            {
+                if (edit == null) return h;
+                h = h * 31 + edit.targetColor.GetHashCode();
+                h = h * 31 + (edit.hasTarget ? 1 : 0);
+                h = h * 31 + edit.darkEndRatio.GetHashCode();
+                h = h * 31 + edit.gamma.GetHashCode();
+                h = h * 31 + edit.lightnessToTarget.GetHashCode();
+                h = h * 31 + edit.chromaToTarget.GetHashCode();
+                h = h * 31 + edit.hueRetain.GetHashCode();
+                h = h * 31 + edit.strength.GetHashCode();
+                h = h * 31 + edit.shadingStretch.GetHashCode();
+                if (edit.flattenBase) h = h * 31 + edit.flattenStrength.GetHashCode();
+                // グラデーション OFF のときは終了色・箱を変えても結果が変わらないので含めない（無駄に作り直さない）
+                if (edit.gradientEnabled)
+                {
+                    h = h * 31 + edit.gradientColor.GetHashCode();
+                    h = h * 31 + edit.gradientBoxPosition.GetHashCode();
+                    h = h * 31 + edit.gradientBoxRotation.GetHashCode();
+                    h = h * 31 + edit.gradientBoxSize.GetHashCode();
+                    h = h * 31 + (edit.gradientInsideOnly ? 1 : 0);
+                    h = h * 31 + edit.gradientDarkEndRatio.GetHashCode();
+                    h = h * 31 + edit.gradientGamma.GetHashCode();
+                    h = h * 31 + edit.gradientStrength.GetHashCode();
                 }
                 return h;
             }

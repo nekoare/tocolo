@@ -28,6 +28,29 @@ namespace Nekoare.ClickRecolor.Editor.Decal
     }
 
     /// <summary>
+    /// 重ね貼りの画像の下地（DecalImageBuilder.BuildBase）。色の設定を掛ける前の画像（ARGBHalf・ミップなし・ストレート α）と位置マップ（無ければ null）、
+    /// 返す RT の作り方（ミップ・補間・異方性）、一度取った明るさの統計。プレビューは色・グラデーションだけ変わったとき、これから ApplyLook だけやり直す
+    /// </summary>
+    internal sealed class DecalImageBase : IDisposable
+    {
+        public RenderTexture color;
+        public RenderTexture positionMap;
+        public bool mips;
+        public FilterMode filterMode;
+        public int anisoLevel;
+        public bool hasStats;
+        public Stats stats;
+
+        public void Dispose()
+        {
+            RecolorPipeline.DestroyWorkTexture(color);
+            PositionMap.Destroy(positionMap);
+            color = null;
+            positionMap = null;
+        }
+    }
+
+    /// <summary>
     /// 「画像を入れる」第 2 段（重ね貼り。設計 docs/plans/2026-10-04-tocolo-decal-overlay-design.md §2）の画像。
     /// 重ね貼りマテリアルは画像を UV0（投影 UV）で直接引くので、元テクスチャの UV 空間（第 1 段の DecalLayerBuilder）ではなく
     /// 画像の空間に「画像 × 選択マスク」を作り、色の設定と不透明度もここで画像に掛けておく（元テクスチャには何もしない）。
@@ -85,9 +108,36 @@ namespace Nekoare.ClickRecolor.Editor.Decal
         /// 画像の大きさ（長辺 maxSize まで縮める）の RT に、parts の重ね貼りサブメッシュを投影 UV の位置に描き、
         /// 「画像 × 選択マスク」を作る。色が決まっていれば画像だけに色変え（Shift）を掛け、不透明度（グラデーションなら位置で補間）を α に掛ける。
         /// 返すのはストレート α の ARGBHalf RT（呼び出し側所有。RecolorPipeline.DestroyWorkTexture で破棄）。描けなければ null。
-        /// selectionMask は元テクスチャの UV 空間の選択マスク（EditJob.mask。大きさは画像と違ってよい。元の UV0 × Tiling/Offset で引く）
+        /// selectionMask は元テクスチャの UV 空間の選択マスク（EditJob.mask。大きさは画像と違ってよい。元の UV0 × Tiling/Offset で引く）。
+        /// 中身は BuildBase（色に関係ない下地）→ CreateResult → ApplyLook（色の段）で、下地はここで捨てる
         /// </summary>
         internal static RenderTexture Build(Transform root, IReadOnlyList<OverlayPart> parts, Texture2D image, RenderTexture selectionMask,
+            RecolorEdit edit, int maxSize = MaxSize)
+        {
+            using (var imageBase = BuildBase(root, parts, image, selectionMask, edit, maxSize))
+            {
+                if (imageBase == null) return null;
+                var result = CreateResult(imageBase);
+                try
+                {
+                    if (ApplyLook(imageBase, edit, result)) return result;
+                }
+                catch
+                {
+                    RecolorPipeline.DestroyWorkTexture(result);
+                    throw;
+                }
+                RecolorPipeline.DestroyWorkTexture(result);
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// 画像の下地: 投影して選択マスクで切り、縁埋め・外周の消去・透明な画素への色の滲ませまで済ませた画像（色の設定は掛けない）と、
+        /// グラデーション・帯の打ち消しに使う位置マップ。色・グラデーションだけ変わったときは、プレビューがこれから ApplyLook だけやり直す
+        /// （表示用メッシュ・選択マスクの読み戻し・投影を作り直さない。ユーザー要望 2026-10-06）。描けなければ null。呼び出し側所有（Dispose）
+        /// </summary>
+        internal static DecalImageBase BuildBase(Transform root, IReadOnlyList<OverlayPart> parts, Texture2D image, RenderTexture selectionMask,
             RecolorEdit edit, int maxSize = MaxSize)
         {
             if (root == null || parts == null || parts.Count == 0 || image == null || selectionMask == null || edit == null) return null;
@@ -98,12 +148,17 @@ namespace Nekoare.ClickRecolor.Editor.Decal
             if (!DecalLayerBuilder.IsDilateAvailable || !RecolorPipeline.IsShiftAvailable) return null;
 
             RecolorPipeline.ScaleToFit(image.width, image.height, maxSize, out int width, out int height);
-            // 作業用（color/spare）はミップなし。統計（SelectionStats/BandStats）は内部で Blit 縮小（サンプラー経由）するので、
-            // ミップ付きだと未生成のミップを読みうる。返す RT だけ最後にミップ付きで作って mip 0 を写す
-            var color = RecolorPipeline.CreateWorkTexture(width, height, "ClickRecolor_DecalImage");
-            RenderTexture spare = null;
-            RenderTexture positionMap = null;
-            RenderTexture white = null;
+            // 作業用はミップなし。統計（SelectionStats/BandStats）は内部で Blit 縮小（サンプラー経由）するので、
+            // ミップ付きだと未生成のミップを読みうる。返す RT（CreateResult）だけミップ付きで作って mip 0 を写す
+            var result = new DecalImageBase
+            {
+                color = RecolorPipeline.CreateWorkTexture(width, height, "ClickRecolor_DecalImage"),
+                // 遠目でちらつかないよう返す RT はミップ付き。縮小版（ミップ）・補間・異方性は貼る画像に合わせる（lilToon のデカールは画像そのものを引くので、
+                // ミップ無しの画像なら常に原寸でくっきり見える。こちらだけミップを付けると斜めから見たときにぼやける。実機 2026-10-04）
+                mips = image.mipmapCount > 1,
+                filterMode = image.filterMode,
+                anisoLevel = image.anisoLevel,
+            };
             var material = new Material(shader) { hideFlags = HideFlags.HideAndDontSave };
             try
             {
@@ -112,72 +167,100 @@ namespace Nekoare.ClickRecolor.Editor.Decal
                 material.SetMatrix(RootWorldToLocalId, root.worldToLocalMatrix);
                 material.SetVector(EdgeTexelId, new Vector4(1f / width, 1f / height, 0f, 0f));
                 // 三角形の外の塗り残しは (0,0,0,0)（縁埋めが埋める）
-                DrawParts(material, ColorPass, parts, color, Color.clear);
-                DecalLayerBuilder.DilateAndFinalize(color, DecalLayerBuilder.DilateIterations);
+                DrawParts(material, ColorPass, parts, result.color, Color.clear);
+                DecalLayerBuilder.DilateAndFinalize(result.color, DecalLayerBuilder.DilateIterations);
                 // 三角形が覆わない外周の画素も縁埋めで不透明になる。Clamp で引かれると箱の外へ筋が伸びるので消す（frag の外周判定だけでは足りない）
-                DecalLayerBuilder.ClearBorder(color);
+                DecalLayerBuilder.ClearBorder(result.color);
                 // 透明な画素の rgb を近傍の色にする（α は 0 のまま）。Shift は α を触らず不透明度は α × 強さなので、
                 // 滲ませた色は後の色変えで一緒に変わり、透明のまま残る
-                DecalLayerBuilder.BleedColor(color, BleedIterations);
+                DecalLayerBuilder.BleedColor(result.color, BleedIterations);
 
-                // グラデーション（色の補間・不透明度の補間）と帯の打ち消しは画素の位置が要るので、同じ描き方で位置も描く
-                bool needsPosition = edit.gradientEnabled || (edit.hasTarget && edit.flattenBase);
-                if (needsPosition) positionMap = BuildPositionMap(material, parts, width, height);
+                // グラデーション（色の補間・不透明度の補間）と帯の打ち消しは画素の位置が要るので、同じ描き方で位置も描く。
+                // 色が決まっているか（hasTarget）は見た目の側なので条件に入れない（色を決めた直後に下地を作り直さずに済む）
+                bool needsPosition = edit.gradientEnabled || edit.flattenBase;
+                if (needsPosition) result.positionMap = BuildPositionMap(material, parts, width, height);
+                return result;
+            }
+            catch
+            {
+                result.Dispose();
+                throw;
+            }
+            finally
+            {
+                Object.DestroyImmediate(material);
+            }
+        }
 
+        /// <summary>imageBase と同じ大きさ・ミップ・補間の、ApplyLook の書き込み先（呼び出し側所有。RecolorPipeline.DestroyWorkTexture で破棄）</summary>
+        internal static RenderTexture CreateResult(DecalImageBase imageBase)
+        {
+            var result = RecolorPipeline.CreateWorkTexture(imageBase.color.width, imageBase.color.height, "ClickRecolor_DecalImage",
+                useMipMap: imageBase.mips);
+            result.filterMode = imageBase.filterMode;
+            result.anisoLevel = imageBase.anisoLevel;
+            return result;
+        }
+
+        /// <summary>
+        /// 下地に今の色の設定を掛けて result（CreateResult で作った RT）に書く: 色が決まっていれば色変え（Shift）、
+        /// 不透明度（グラデーションなら位置で補間）を α に掛け、ミップを作る。下地は書き換えないので、何度でも掛け直せる。
+        /// 明るさの統計は下地だけで決まるので、最初に取ったものを下地に覚えて使い回す（GPU→CPU の読み戻しを 1 回にする）。大きさが合わなければ false
+        /// </summary>
+        internal static bool ApplyLook(DecalImageBase imageBase, RecolorEdit edit, RenderTexture result)
+        {
+            if (imageBase?.color == null || edit == null || result == null) return false;
+            int width = imageBase.color.width, height = imageBase.color.height;
+            if (result.width != width || result.height != height) return false;
+
+            RenderTexture shifted = null;
+            RenderTexture opaque = null;
+            RenderTexture white = null;
+            try
+            {
                 Stats stats = default;
-                spare = RecolorPipeline.CreateWorkTexture(width, height, "ClickRecolor_DecalImage");
+                RenderTexture source = imageBase.color;
                 if (edit.hasTarget)
                 {
                     // 選択は画像の α に入っているので、統計と色変えのマスクは全面 1（統計は α ≥ 0.01 の画素だけ数える）
                     white = MaskTextures.GetTemporary(width, height);
                     FillWhite(white);
-                    stats = SelectionStats.Compute(color, white);
+                    if (!imageBase.hasStats)
+                    {
+                        imageBase.stats = SelectionStats.Compute(imageBase.color, white);
+                        imageBase.hasStats = true;
+                    }
+                    stats = imageBase.stats;
                     var p = ShiftParams.FromEdit(edit, stats);
                     // 不透明度は後で α に掛けるので、色変えは全量で掛ける
                     p.strength = 1f;
                     p.strength2 = 1f;
-                    if (edit.flattenBase && positionMap != null)
+                    if (edit.flattenBase && imageBase.positionMap != null)
                     {
-                        p.bands = BandStats.Compute(color, white, positionMap, BandStats.AxisOf(edit));
+                        p.bands = BandStats.Compute(imageBase.color, white, imageBase.positionMap, BandStats.AxisOf(edit));
                         p.flattenStrength = edit.flattenStrength;
                     }
-                    RecolorPipeline.Shift(color, white, spare, p, positionMap);
-                    (color, spare) = (spare, color);
+                    shifted = RecolorPipeline.CreateWorkTexture(width, height, "ClickRecolor_DecalImage");
+                    RecolorPipeline.Shift(imageBase.color, white, shifted, p, imageBase.positionMap);
+                    source = shifted;
                 }
 
                 // 不透明度（強さ）は元の値のまま（グラデーションなら位置で色 1・色 2 を補間）
-                RecolorPipeline.ApplyOverlayOpacity(color, spare, ShiftParams.FromEdit(edit, stats), positionMap);
-                (color, spare) = (spare, color);
-                // 遠目でちらつかないよう、返す RT はミップ付き（作業 RT の mip 0 を写してからミップを作る）
-                // 縮小版（ミップ）・補間・異方性は貼る画像に合わせる（lilToon のデカールは画像そのものを引くので、ミップ無しの画像なら常に原寸でくっきり見える。
-                // こちらだけミップを付けると斜めから見たときにぼやける。実機 2026-10-04）
-                bool mips = image.mipmapCount > 1;
-                var result = RecolorPipeline.CreateWorkTexture(width, height, "ClickRecolor_DecalImage", useMipMap: mips);
-                result.filterMode = image.filterMode;
-                result.anisoLevel = image.anisoLevel;
-                try
+                opaque = RecolorPipeline.CreateWorkTexture(width, height, "ClickRecolor_DecalImage");
+                RecolorPipeline.ApplyOverlayOpacity(source, opaque, ShiftParams.FromEdit(edit, stats), imageBase.positionMap);
+                Graphics.CopyTexture(opaque, 0, 0, result, 0, 0);
+                if (imageBase.mips)
                 {
-                    Graphics.CopyTexture(color, 0, 0, result, 0, 0);
-                    if (mips)
-                    {
-                        result.GenerateMips();
-                        // ミップでも外周を透明に保つ（平均で外周が不透明になると、Clamp で箱の外へ縁の色が伸びる）
-                        DecalLayerBuilder.ClearMipBorderAlpha(result);
-                    }
+                    result.GenerateMips();
+                    // ミップでも外周を透明に保つ（平均で外周が不透明になると、Clamp で箱の外へ縁の色が伸びる）
+                    DecalLayerBuilder.ClearMipBorderAlpha(result);
                 }
-                catch
-                {
-                    RecolorPipeline.DestroyWorkTexture(result);
-                    throw;
-                }
-                return result;
+                return true;
             }
             finally
             {
-                Object.DestroyImmediate(material);
-                RecolorPipeline.DestroyWorkTexture(color);
-                RecolorPipeline.DestroyWorkTexture(spare);
-                PositionMap.Destroy(positionMap);
+                RecolorPipeline.DestroyWorkTexture(shifted);
+                RecolorPipeline.DestroyWorkTexture(opaque);
                 if (white != null) RenderTexture.ReleaseTemporary(white);
             }
         }

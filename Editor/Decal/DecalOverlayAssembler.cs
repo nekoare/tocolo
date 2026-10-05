@@ -127,7 +127,35 @@ namespace Nekoare.ClickRecolor.Editor.Decal
         private readonly Dictionary<Renderer, RendererGeometry> _geometries = new Dictionary<Renderer, RendererGeometry>();
         private readonly Dictionary<Renderer, RendererOverlay> _overlays = new Dictionary<Renderer, RendererOverlay>();
         private readonly List<RenderTexture> _images = new List<RenderTexture>();
+        private readonly List<ImageLook> _looks = new List<ImageLook>();
         private bool _detached;
+
+        /// <summary>
+        /// true なら画像の下地（DecalImageBuilder.BuildBase）を捨てずに ImageLooks に残す（プレビュー用。色・グラデーションだけ変わったとき
+        /// ApplyLook だけやり直すため）。ビルドは一度しか作らないので false（既定）
+        /// </summary>
+        internal bool KeepImageBases { get; set; }
+
+        /// <summary>
+        /// 1 編集の画像とその下地（KeepImageBases のときだけ積む。ドラッグ中に作った画像は下地を持たないので積まない）。
+        /// image は Images にも入っている同じ RT（破棄は Images 側）。imageBase は Dispose で破棄する
+        /// </summary>
+        internal sealed class ImageLook
+        {
+            public readonly string editId;
+            public readonly DecalImageBase imageBase;
+            public readonly RenderTexture image;
+            /// <summary>image に最後に掛けた見た目（RecolorPreview.HashEditLook）。同じなら掛け直さない</summary>
+            public int lookHash;
+
+            public ImageLook(string editId, DecalImageBase imageBase, RenderTexture image, int lookHash)
+            {
+                this.editId = editId;
+                this.imageBase = imageBase;
+                this.image = image;
+                this.lookHash = lookHash;
+            }
+        }
 
         /// <summary>
         /// renderers は貼る候補の Renderer（除外リストは AddEdit で編集を持つコンポーネントのもので弾く）。
@@ -157,7 +185,10 @@ namespace Nekoare.ClickRecolor.Editor.Decal
         /// </summary>
         internal IReadOnlyList<RenderTexture> Images => _images;
 
-        /// <summary>作ったメッシュ・マテリアル・画像の所有権を呼び出し側へ渡す（以降の Dispose は判定用のメッシュだけ破棄する）</summary>
+        /// <summary>使われた画像の下地（KeepImageBases のときだけ）。Detach したら呼び出し側が imageBase を Dispose する</summary>
+        internal IReadOnlyList<ImageLook> ImageLooks => _looks;
+
+        /// <summary>作ったメッシュ・マテリアル・画像（と下地）の所有権を呼び出し側へ渡す（以降の Dispose は判定用のメッシュだけ破棄する）</summary>
         internal void Detach() => _detached = true;
 
         public void Dispose()
@@ -173,8 +204,10 @@ namespace Nekoare.ClickRecolor.Editor.Decal
                     }
                 }
                 foreach (var image in _images) RecolorPipeline.DestroyWorkTexture(image);
+                foreach (var look in _looks) look.imageBase.Dispose();
                 _overlays.Clear();
                 _images.Clear();
+                _looks.Clear();
             }
             foreach (var geometry in _geometries.Values) geometry?.Dispose();
             _geometries.Clear();
@@ -199,6 +232,7 @@ namespace Nekoare.ClickRecolor.Editor.Decal
             var steps = new List<PendingStep>();
             var parts = new List<OverlayPart>();
             RenderTexture image = null;
+            DecalImageBase imageBase = null;
             RenderTexture normal = null;
             RenderTexture bump2ndMask = null;
             bool imageUsed = false;
@@ -277,9 +311,9 @@ namespace Nekoare.ClickRecolor.Editor.Decal
                 if (steps.Count == 0) return;
 
                 // ドラッグ中は画像全体を使う（箱を動かす・回すと開始時に面が無かった所も見えるため。選択範囲では切らない＝離したら切る）
-                image = dragging
-                    ? BuildFullImage(root, edit, maxSize)
-                    : DecalImageBuilder.Build(root, parts, edit.decalTexture, mask, edit, maxSize);
+                if (dragging) image = BuildFullImage(root, edit, maxSize);
+                else if (KeepImageBases) image = BuildWithBase(root, parts, mask, edit, maxSize, out imageBase);
+                else image = DecalImageBuilder.Build(root, parts, edit.decalTexture, mask, edit, maxSize);
                 if (image == null)
                 {
                     _warn?.Invoke(OverlayWarning.ImageFailed, edit, null);
@@ -333,6 +367,11 @@ namespace Nekoare.ClickRecolor.Editor.Decal
                     if (imageUsed) _images.Add(image);
                     else RecolorPipeline.DestroyWorkTexture(image);
                 }
+                if (imageBase != null)
+                {
+                    if (imageUsed) _looks.Add(new ImageLook(edit.id, imageBase, image, NDMF.RecolorPreview.HashEditLook(17, edit)));
+                    else imageBase.Dispose();
+                }
                 if (normal != null)
                 {
                     if (normalUsed) _images.Add(normal);
@@ -344,6 +383,31 @@ namespace Nekoare.ClickRecolor.Editor.Decal
                     else RecolorPipeline.DestroyWorkTexture(bump2ndMask);
                 }
             }
+        }
+
+        /// <summary>画像を下地つきで作る（KeepImageBases）。作れなければ null（imageBase も null）</summary>
+        private static RenderTexture BuildWithBase(Transform root, List<OverlayPart> parts, RenderTexture mask, RecolorEdit edit, int maxSize,
+            out DecalImageBase imageBase)
+        {
+            imageBase = DecalImageBuilder.BuildBase(root, parts, edit.decalTexture, mask, edit, maxSize);
+            if (imageBase == null) return null;
+            RenderTexture image = null;
+            try
+            {
+                image = DecalImageBuilder.CreateResult(imageBase);
+                if (DecalImageBuilder.ApplyLook(imageBase, edit, image)) return image;
+            }
+            catch
+            {
+                RecolorPipeline.DestroyWorkTexture(image);
+                imageBase.Dispose();
+                imageBase = null;
+                throw;
+            }
+            RecolorPipeline.DestroyWorkTexture(image);
+            imageBase.Dispose();
+            imageBase = null;
+            return null;
         }
 
         /// <summary>

@@ -596,5 +596,113 @@ namespace Nekoare.ClickRecolor.Tests
                 RecolorPipeline.DestroyWorkTexture(result);
             }
         }
+
+        /// <summary>下地に edit の見た目を 2 回掛け直した結果と、最初からその見た目で Build した結果の画素の差の最大</summary>
+        private float ReapplyDifference(Texture2D image, RenderTexture mask, RecolorEdit edit, Action<RecolorEdit> changeLook)
+        {
+            using (var imageBase = DecalImageBuilder.BuildBase(MakeRoot(), MakeParts(), image, mask, edit))
+            {
+                Assert.That(imageBase, Is.Not.Null);
+                var result = DecalImageBuilder.CreateResult(imageBase);
+                try
+                {
+                    Assert.That(DecalImageBuilder.ApplyLook(imageBase, edit, result), Is.True);
+                    changeLook(edit);
+                    Assert.That(DecalImageBuilder.ApplyLook(imageBase, edit, result), Is.True, "下地は書き換わらないので何度でも掛け直せる");
+                    var reapplied = ReadLinear(result);
+                    var fresh = BuildAndRead(image, mask, edit);
+                    float max = 0f;
+                    for (int i = 0; i < fresh.Length; i++)
+                    {
+                        max = Mathf.Max(max, Mathf.Abs(fresh[i].r - reapplied[i].r), Mathf.Abs(fresh[i].g - reapplied[i].g));
+                        max = Mathf.Max(max, Mathf.Abs(fresh[i].b - reapplied[i].b), Mathf.Abs(fresh[i].a - reapplied[i].a));
+                    }
+                    return max;
+                }
+                finally
+                {
+                    RecolorPipeline.DestroyWorkTexture(result);
+                }
+            }
+        }
+
+        [Test]
+        public void 下地に色を掛け直すと_最初からその色で作ったのと同じ画像になる()
+        {
+            var mask = MakeMask((u, v) => 1f);
+            var image = MakeImage(Size, Size, (x, y) => new Color(x / (float)Size, 0.5f, y / (float)Size, 1f));
+            var edit = MakeEdit();
+            edit.hasTarget = true;
+            edit.targetColor = Color.blue;
+            edit.strength = 0.8f;
+
+            float diff = ReapplyDifference(image, mask, edit, e =>
+            {
+                e.targetColor = Color.green;
+                e.gamma = 0.6f;
+                e.strength = 0.5f;
+            });
+
+            Assert.That(diff, Is.LessThan(1e-3f));
+        }
+
+        [Test]
+        public void グラデーションの色と箱を変えて掛け直しても_最初から作ったのと同じ画像になる()
+        {
+            var mask = MakeMask((u, v) => 1f);
+            var image = MakeImage(Size, Size, (x, y) => Color.white);
+            var edit = MakeEdit();
+            edit.hasTarget = true;
+            edit.targetColor = Color.blue;
+            edit.gradientEnabled = true;
+            edit.gradientColor = Color.red;
+            edit.gradientBoxPosition = Vector3.zero;
+            edit.gradientBoxRotation = Quaternion.identity;
+            edit.gradientBoxSize = Vector3.one;
+
+            float diff = ReapplyDifference(image, mask, edit, e =>
+            {
+                e.gradientColor = Color.yellow;
+                e.gradientBoxPosition = new Vector3(0f, 0.25f, 0f);
+                e.gradientStrength = 0.5f;
+            });
+
+            Assert.That(diff, Is.LessThan(1e-3f));
+        }
+
+        [Test]
+        public void 色を決めていない下地に後から色を決めて掛け直せる()
+        {
+            var mask = MakeMask((u, v) => 1f);
+            var image = MakeImage(Size, Size, (x, y) => Color.red);
+            var edit = MakeEdit();
+
+            float diff = ReapplyDifference(image, mask, edit, e =>
+            {
+                e.hasTarget = true;
+                e.targetColor = Color.blue;
+            });
+
+            Assert.That(diff, Is.LessThan(1e-3f));
+        }
+
+        [Test]
+        public void 大きさの違う書き込み先には掛けない()
+        {
+            var edit = MakeEdit();
+            using (var imageBase = DecalImageBuilder.BuildBase(MakeRoot(), MakeParts(), MakeImage(Size, Size, (x, y) => Color.red), MakeMask((u, v) => 1f), edit))
+            {
+                Assert.That(imageBase, Is.Not.Null);
+                var other = RecolorPipeline.CreateWorkTexture(Size / 2, Size / 2, "ClickRecolor_Test");
+                try
+                {
+                    Assert.That(DecalImageBuilder.ApplyLook(imageBase, edit, other), Is.False);
+                }
+                finally
+                {
+                    RecolorPipeline.DestroyWorkTexture(other);
+                }
+            }
+        }
     }
 }

@@ -437,5 +437,62 @@ namespace Nekoare.ClickRecolor.Tests
             Assert.That(result[1], Is.SameAs(overlay));
             Assert.That(result[1].mainTexture, Is.SameAs(image));
         }
+
+        /// <summary>重ね貼りになりうる編集（画像入り・なめらかに貼る ON）を 1 つ持つコンポーネント</summary>
+        private (ClickRecolor component, RecolorEdit edit) MakeOverlayComponent()
+        {
+            var component = Track(new GameObject("Avatar")).AddComponent<ClickRecolor>();
+            var edit = MakeDecalEdit();
+            edit.sourceTexture = Track(new Texture2D(4, 4));
+            edit.decalTexture = Track(new Texture2D(4, 4));
+            edit.decalSmooth = true;
+            edit.gradientEnabled = true;
+            component.AddEdit(edit);
+            return (component, edit);
+        }
+
+        [Test]
+        public void 色とグラデーションを変えても形のハッシュは変わらず_見た目のハッシュが変わる()
+        {
+            var (component, edit) = MakeOverlayComponent();
+            int shape = DecalOverlayPreview.ComputeOverlayShapeHash(component);
+            int look = DecalOverlayPreview.ComputeOverlayLookHash(component);
+
+            edit.hasTarget = true;
+            edit.targetColor = Color.blue;
+            edit.gamma = 0.5f;
+            edit.strength = 0.5f;
+            edit.gradientColor = Color.red;
+            edit.gradientBoxPosition = new Vector3(0f, 1f, 0f);
+
+            Assert.That(DecalOverlayPreview.ComputeOverlayShapeHash(component), Is.EqualTo(shape), "色の設定では表示用メッシュと画像の下地を作り直さない");
+            Assert.That(DecalOverlayPreview.ComputeOverlayLookHash(component), Is.Not.EqualTo(look));
+        }
+
+        [Test]
+        public void 画像の箱やグラデーションのONOFFを変えると形のハッシュが変わる()
+        {
+            var (component, edit) = MakeOverlayComponent();
+            int shape = DecalOverlayPreview.ComputeOverlayShapeHash(component);
+
+            edit.decalBoxPosition = new Vector3(0.1f, 0f, 0f);
+            int moved = DecalOverlayPreview.ComputeOverlayShapeHash(component);
+            Assert.That(moved, Is.Not.EqualTo(shape), "箱を動かしたら作り直す");
+
+            edit.gradientEnabled = false;
+            Assert.That(DecalOverlayPreview.ComputeOverlayShapeHash(component), Is.Not.EqualTo(moved), "位置マップが要るかが変わるので作り直す");
+        }
+
+        [Test]
+        public void 編集のハッシュは形と見た目のどちらを変えても変わる()
+        {
+            var edit = MakeDecalEdit();
+            int h = RecolorPreview.HashEdit(17, edit);
+            edit.targetColor = Color.blue;
+            int colored = RecolorPreview.HashEdit(17, edit);
+            Assert.That(colored, Is.Not.EqualTo(h), "色（見た目）");
+            edit.decalBoxPosition = new Vector3(0.1f, 0f, 0f);
+            Assert.That(RecolorPreview.HashEdit(17, edit), Is.Not.EqualTo(colored), "画像の箱（形）");
+        }
     }
 }
