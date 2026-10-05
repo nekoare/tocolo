@@ -176,8 +176,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             ToolSession.LastPick = null;
             ToolSession.LastPickColor = null;
             ToolSession.UnreadableRenderer = null;
-            ToolSession.GradientBoxHiddenEditId = null;
-            ToolSession.DecalBoxHiddenEditId = null;
+            ToolSession.BoxChoiceEditId = null;
             ToolSession.HoverPick = null;
             SceneView.RepaintAll();
         }
@@ -187,6 +186,8 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             if (!(window is SceneView sceneView)) return;
 
             var e = Event.current;
+            // 小窓「箱を表示」はグラデーションか画像が ON の編集を選んでいる間だけ出す（Prefab 編集中は出さない）
+            if (e.type == EventType.Layout) BoxToggleOverlay.SyncDisplayed(sceneView);
             // control ID の並びを全イベントで一定にするため、分岐より前に取る
             int controlId = GUIUtility.GetControlID(FocusType.Passive);
             // Ctrl＋押下中の Esc は矩形（とクリック）だけ中止する（ツールは終了しない）
@@ -377,8 +378,8 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             var edit = component != null ? component.FindEdit(ToolSession.CurrentEditId) : null;
             if (edit == null || !edit.gradientEnabled) return;
             if (s_gradientDragging && GUIUtility.hotControl == 0) s_gradientDragging = false;
-            // 「箱を非表示」なら箱・つまみ・ギズモ・札を出さない（色を確認しやすくする）
-            if (ToolSession.IsGradientBoxHidden) return;
+            // 小窓「箱を表示」で選んでいなければ箱・つまみ・ギズモ・札を出さない（既定は画像も ON なら出さない。ToolSession.ShowsGradientBox）
+            if (!ToolSession.ShowsGradientBox(edit)) return;
 
             var e = Event.current;
             using (new Handles.DrawingScope(component.transform.localToWorldMatrix))
@@ -386,14 +387,6 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 Vector3 position = edit.gradientBoxPosition;
                 Quaternion rotation = Quaternion.Normalize(edit.gradientBoxRotation);
                 Vector3 size = edit.gradientBoxSize;
-
-                // 画像の箱も出ている間は、グラデーションの箱は形だけ描いてギズモを出さない（どちらも既定は選択範囲の外接で、
-                // ギズモが同じ位置に重なりどちらを動かしているか分からないため。画像の「箱を表示」をオフにすると動かせる）
-                if (IsGradientBoxBlockedByDecal(edit))
-                {
-                    if (e.type == EventType.Repaint) DrawBoxShape(position, rotation, size, edit.targetColor, edit.gradientColor, edit.gradientInsideOnly);
-                    return;
-                }
 
                 EditorGUI.BeginChangeCheck();
                 // 全体のギズモに加えて、各面のつまみでも伸縮できる（「箱の中」と同じ。ユーザー要望 2026-09-29）
@@ -414,10 +407,6 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 if (e.type == EventType.Repaint) DrawBoxShape(position, rotation, size, edit.targetColor, edit.gradientColor, edit.gradientInsideOnly);
             }
         }
-
-        /// <summary>画像の箱が出ていて、グラデーションの箱のギズモを出さないか（DrawGradientBox・パネルの案内で共用）</summary>
-        internal static bool IsGradientBoxBlockedByDecal(RecolorEdit edit) =>
-            edit != null && edit.gradientEnabled && edit.decalEnabled && !ToolSession.IsDecalBoxHidden;
 
         /// <summary>
         /// 箱のワイヤーと、下端（startColor）・上端（endColor）の面の薄い塗り。insideOnly（箱の中だけ）なら側面 4 面も灰色で薄く塗る。
@@ -466,8 +455,8 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             var edit = component != null ? component.FindEdit(ToolSession.CurrentEditId) : null;
             if (edit == null || !edit.decalEnabled) return;
             if (s_decalDragging && GUIUtility.hotControl == 0) s_decalDragging = false;
-            // 「箱を表示」OFF なら箱・つまみ・ギズモ・画像を出さない（貼った結果を確認しやすくする）
-            if (ToolSession.IsDecalBoxHidden) return;
+            // 小窓「箱を表示」で選んでいなければ箱・つまみ・ギズモ・画像を出さない（貼った結果を確認しやすくする）
+            if (!ToolSession.ShowsDecalBox(edit)) return;
 
             var e = Event.current;
             using (new Handles.DrawingScope(component.transform.localToWorldMatrix))
@@ -508,7 +497,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         private const float DecalGizmoAlpha = 0.3f;
 
         /// <summary>画像の箱のワイヤーとつまみの色。グラデーション・選択の箱（橙のつまみ）と区別するため、パネルの「画像を入れる」の枠と同じ青緑系</summary>
-        private static readonly Color DecalBoxColor = new Color(0.35f, 0.75f, 0.85f, 1f);
+        internal static readonly Color DecalBoxColor = new Color(0.35f, 0.75f, 0.85f, 1f);
 
         /// <summary>画像の箱のワイヤーと、+Z 面の画像（DecalGizmo）。Handles.matrix（ルートのローカル）の中で、Repaint のときだけ呼ぶ</summary>
         private static void DrawDecalBoxShape(Vector3 position, Quaternion rotation, Vector3 size, Texture2D image, bool keepAspect)
@@ -572,15 +561,10 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             var component = root.GetComponent<ClickRecolor>();
             var edit = component != null ? component.FindEdit(ToolSession.CurrentEditId) : null;
             if (edit == null || edit.mode != SelectionMode.Box) return;
-            // グラデーション ON のときは 2 つの箱が重なって見づらいので、選択の箱はギズモごと出さない（ユーザー要望 2026-09-29）
-            // 画像の箱の既定は選択範囲の外接なので、選択の箱と重なる。グラデーションの箱と同じく、出ている間は選択の箱を出さない
-            if (edit.gradientEnabled || edit.decalEnabled) return;
-            // テクスチャ全体に広げている間は箱が範囲に関係しないので出さない
-            if (edit.wholeTexture) return;
 
             // 離したら、箱に触れるテクスチャのメンバーを増減してから Undo のまとめを締める（同じ 1 回の Undo に入れる）。
             // 離しの検知は s_boxDrag ではなく自分のフラグで行う（s_boxDrag は先に描くグラデーションの箱の関数が締めてしまい、
-            // ここの分岐が通らなかった。実機 2026-09-29）
+            // ここの分岐が通らなかった。実機 2026-09-29）。箱を隠す判定より前に置く（隠した後も締め忘れない）
             if (ToolSession.BoxDragging && GUIUtility.hotControl == 0)
             {
                 SelectionBox.SyncMembers(component, edit);
@@ -588,6 +572,10 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 ToolSession.BoxDragging = false; // 離した: パーツごとの統計をここで掛け直す
                 SceneView.RepaintAll();
             }
+
+            // 小窓「箱を表示」で選んでいなければ出さない。既定はグラデーション・画像も ON なら出さない（箱が重なって見づらい。ユーザー要望 2026-09-29）。
+            // テクスチャ全体に広げている間は箱が範囲に関係しないので出さない（ToolSession.HasSelectionBox）
+            if (!ToolSession.ShowsSelectionBox(edit)) return;
 
             var e = Event.current;
             using (new Handles.DrawingScope(component.transform.localToWorldMatrix))
@@ -622,7 +610,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             }
         }
 
-        private static readonly Color SelectionBoxColor = new Color(0.25f, 0.75f, 1f, 1f);
+        internal static readonly Color SelectionBoxColor = new Color(0.25f, 0.75f, 1f, 1f);
         /// <summary>選択の箱のドラッグ開始時の中心（対象ルートのローカル）。ドラッグ中の Handles.matrix の原点に使う</summary>
         private static Vector3 s_boxDragOrigin;
         /// <summary>グラデーションの箱の面のつまみと、そのドラッグ状態・開始時の中心</summary>
@@ -722,7 +710,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         }
 
         /// <summary>面のつまみの色。箱の水色の上でも見えるよう補色寄りの橙（ユーザー要望 2026-09-29）</summary>
-        private static readonly Color SelectionBoxHandleColor = new Color(1f, 0.6f, 0.1f, 1f);
+        internal static readonly Color SelectionBoxHandleColor = new Color(1f, 0.6f, 0.1f, 1f);
         /// <summary>面のつまみにマウスが乗った・掴んだときの色（明るい黄）</summary>
         private static readonly Color SelectionBoxHandleHoverColor = new Color(1f, 1f, 0.2f, 1f);
         /// <summary>選択の箱の各面のつまみ（軸ごとに伸縮）。ワイヤーは DrawSelectionBoxShape が描くので消す</summary>
@@ -1851,8 +1839,9 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                     // 案内は初回限定ではなく、表示のたびに右下へ置く
                     if (displayed) PlaceHintAtBottomRight(view, hint);
                 }
-                // 除外リストはボタンで開くので、ツールの終了時に閉じるだけ
+                // 除外リストはボタンで開くので、ツールの終了時に閉じるだけ（小窓「箱を表示」は SyncDisplayed が開く）
                 if (!displayed && view.TryGetOverlay(ExcludeListOverlay.Id, out Overlay exclude)) exclude.displayed = false;
+                if (!displayed && view.TryGetOverlay(BoxToggleOverlay.Id, out Overlay boxes)) boxes.displayed = false;
             }
         }
 

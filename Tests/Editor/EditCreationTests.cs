@@ -968,6 +968,80 @@ namespace Nekoare.ClickRecolor.Tests
             Assert.That(edit.gradientBoxRotation, Is.EqualTo(Quaternion.identity));
         }
 
+        private RecolorEdit MakeGradientEdit(out ClickRecolor component)
+        {
+            component = MakeComponent();
+            var renderer = MakeBoxRenderer(component.transform, new Vector3(0f, 1f, 0f), new Vector3(0.5f, 2f, 0.01f));
+            var edit = RecolorEdit.CreateNew();
+            edit.sourceTexture = _texture;
+            edit.seedRenderer = renderer;
+            edit.seedColor = Color.green;
+            component.AddEdit(edit);
+            return edit;
+        }
+
+        [Test]
+        public void グラデーションをOFFからONに戻しても色2と箱は前のまま()
+        {
+            var edit = MakeGradientEdit(out var component);
+            GradientBox.SetEnabled(component, edit, true);
+            edit.gradientColor = Color.blue;
+            edit.gradientStrength = 0.3f;
+            edit.gradientBoxPosition = new Vector3(5f, 5f, 5f);
+
+            GradientBox.SetEnabled(component, edit, false);
+            GradientBox.SetEnabled(component, edit, true);
+
+            Assert.That(edit.gradientEnabled, Is.True);
+            Assert.That(edit.gradientColor, Is.EqualTo(Color.blue));
+            Assert.That(edit.gradientStrength, Is.EqualTo(0.3f));
+            Assert.That(edit.gradientBoxPosition, Is.EqualTo(new Vector3(5f, 5f, 5f)));
+        }
+
+        [Test]
+        public void 印の無い版でONにしたグラデーションもOFFからONで初期化しない()
+        {
+            var edit = MakeGradientEdit(out var component);
+            edit.gradientEnabled = true; // 印（gradientInitialized）が無い版で ON にした編集
+            edit.gradientColor = Color.blue;
+
+            GradientBox.SetEnabled(component, edit, false);
+            GradientBox.SetEnabled(component, edit, true);
+
+            Assert.That(edit.gradientColor, Is.EqualTo(Color.blue));
+        }
+
+        [Test]
+        public void 元の色に戻して切ったグラデーションも次のONで色2が残る()
+        {
+            var edit = MakeGradientEdit(out var component);
+            edit.gradientEnabled = true;
+            edit.gradientColor = Color.blue;
+
+            ToolPanelOverlay.ResetToOriginal(component, edit);
+            GradientBox.SetEnabled(component, edit, true);
+
+            Assert.That(edit.gradientColor, Is.EqualTo(Color.blue));
+        }
+
+        [Test]
+        public void グラデーションのリセットで色2と箱が初期値に戻りONのまま()
+        {
+            var edit = MakeGradientEdit(out var component);
+            GradientBox.SetEnabled(component, edit, true);
+            var box = GradientBox.DefaultFor(component, edit);
+            edit.gradientColor = Color.blue;
+            edit.gradientStrength = 0.3f;
+            edit.gradientBoxPosition = new Vector3(5f, 5f, 5f);
+
+            GradientBox.ResetSettings(component, edit);
+
+            Assert.That(edit.gradientEnabled, Is.True);
+            Assert.That(edit.gradientColor, Is.EqualTo(edit.seedColor));
+            Assert.That(edit.gradientStrength, Is.EqualTo(edit.strength));
+            Assert.That(Vector3.Distance(edit.gradientBoxPosition, box.position), Is.LessThan(1e-4f));
+        }
+
         [Test]
         public void 元の色に戻すとグラデーションも切れる()
         {

@@ -444,20 +444,26 @@ msgstr "グラデーション"
 msgid "Scene:Color:GradientInsideOnly"
 msgstr "箱の中だけ"
 
-msgid "Scene:Color:GradientBoxBlocked"
-msgstr "画像の箱を表示している間は動かせません（画像の「箱を表示」をオフにすると動かせます）"
+msgid "Scene:Color:GradientResetTooltip"
+msgstr "色2と箱を、オンにした直後の状態に戻します"
 
-msgid "Scene:Color:ShowGradientBox"
-msgstr "箱を表示"
+msgid "Scene:Color:DecalResetTooltip"
+msgstr "箱を範囲を囲む位置に置き直します（画像と詳細設定はそのまま）"
 
-msgid "Help:ShowGradientBox"
-msgstr "オフにするとSceneの箱とハンドルを隠して、色を確認しやすくします。この編集を選んでいる間だけ効きます。"
+msgid "Scene:Box:Gradient"
+msgstr "グラデーション"
+
+msgid "Scene:Box:Decal"
+msgstr "画像"
+
+msgid "Scene:Box:Tooltip"
+msgstr "押した箱をSceneに出して動かせるようにします。押していない箱は隠します。"
 
 msgid "Scene:Color:Decal"
 msgstr "画像を入れる"
 
 msgid "Help:Decal"
-msgstr "オンにするとSceneに箱が出て、箱の正面（画像が描かれている面）から画像を表面に貼ります。貼られるのはこの編集の選択範囲の中だけです。オンの間、新しい色・暗部・不透明度・グラデーションは範囲ではなく画像に掛かります。"
+msgstr "オンにするとSceneに箱が出て、箱の正面（画像が描かれている面）から画像を表面に貼ります。貼られるのはこの編集の選択範囲の中だけです。オンの間、新しい色・暗部・不透明度・グラデーションは範囲ではなく画像に掛かります。箱の表示はパネルの横の小窓「箱を表示」で切り替えられます。"
 
 msgid "Scene:Color:DecalTexture"
 msgstr "画像"
@@ -482,12 +488,6 @@ msgstr "比率を保つ"
 
 msgid "Help:DecalKeepAspect"
 msgstr "オンだと画像の縦横比を保って箱に収めます。オフだと箱のXYいっぱいに引き伸ばします。"
-
-msgid "Scene:Color:ShowDecalBox"
-msgstr "箱を表示"
-
-msgid "Help:ShowDecalBox"
-msgstr "オフにするとSceneの箱とハンドルを隠して、貼った画像を確認しやすくします。この編集を選んでいる間だけ効きます。"
 
 msgid "Scene:Color:DecalAdvanced"
 msgstr "詳細設定"
@@ -577,7 +577,7 @@ msgid "Help:Strength"
 msgstr "色変えの不透明度です。１で完全に指定した色になり、下げるほど元の色が残ります。"
 
 msgid "Help:Gradient"
-msgstr "オンにするとSceneに箱が出ます。箱の下端から上端に向けて「色1」から「色2」へ変化します。箱を動かして向きと範囲を決めてください"
+msgstr "オンにするとSceneに箱が出ます。箱の下端から上端に向けて「色1」から「色2」へ変化します。箱を動かして向きと範囲を決めてください。箱の表示はパネルの横の小窓「箱を表示」で切り替えられます。"
 
 msgid "Help:GradientInsideOnly"
 msgstr "オンにすると、箱の上端より上と下端より下は色変えせず元の色のままになり、箱の高さの範囲だけがグラデーションになります。横方向は箱で切りません。オフでは上下の外側も端の色で続きます。"

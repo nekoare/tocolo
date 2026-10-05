@@ -121,6 +121,11 @@ namespace Nekoare.ClickRecolor
         public Vector3 gradientBoxSize = Vector3.one;
         /// <summary>true なら箱の外側（上下・横のどこでも）は t=0（新しい色のまま）。false なら箱の Y 方向だけで混ぜ、横の外側にも続く</summary>
         public bool gradientInsideOnly;
+        /// <summary>
+        /// グラデーションを一度 ON にして初期値（色 2・箱）を入れたか。OFF→ON では入れ直さず前の内容を使う（ユーザー要望 2026-10-05）。
+        /// 初期値に戻すのはパネルの［リセット］（GradientBox.ResetSettings）
+        /// </summary>
+        public bool gradientInitialized;
 
         // ── 選択の箱（影響範囲「箱の中」。グラデーションの箱とは別）──
         /// <summary>選択の箱の中心（対象ルートのローカル座標）</summary>
@@ -148,6 +153,11 @@ namespace Nekoare.ClickRecolor
         public Quaternion decalBoxRotation = Quaternion.identity;
         /// <summary>画像の箱の大きさ（対象ルートのローカル。負なら反転）</summary>
         public Vector3 decalBoxSize = Vector3.one;
+        /// <summary>
+        /// 画像を一度 ON にして箱を置いたか。OFF→ON では置き直さず前の箱を使う（ユーザー要望 2026-10-05）。
+        /// 置き直すのはパネルの［リセット］（DecalBox.ResetSettings）
+        /// </summary>
+        public bool decalInitialized;
         /// <summary>
         /// なめらかに貼る。lilToon・Poiyomi Toon（ロックなし）のマテリアルでは焼き込まずに、箱に入る三角形を複製したサブメッシュとして重ね、
         /// 元マテリアルの複製（透過）で画像を直接サンプリングする（焼き込みは貼る場所のテクスチャ密度より細かくなれないため）。

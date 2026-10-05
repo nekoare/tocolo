@@ -35,6 +35,14 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         /// <summary>直近の Repaint での表示幅（倍率・つまみ込み）。除外リストを隣に置くのに使う。0 なら未測定</summary>
         internal static float LastContentWidth;
 
+        /// <summary>
+        /// 直近の Repaint での、グラデーション・画像のブロックの上端のパネル（floatingPosition）からの高さ（倍率・スクロール込み、見えている範囲に収める）。
+        /// 小窓「箱を表示」を横に並べるのに使う。負なら未測定（ブロックを描いていない）
+        /// </summary>
+        internal static float BoxBlocksOffsetY = -1f;
+        /// <summary>今回の Repaint で測ったブロックの上端（スクロールの中身の座標）。負なら今回は描いていない</summary>
+        private static float s_boxBlocksContentY = -1f;
+
         /// <summary>パネルの中身の素の高さ（スクロールしないときの高さ）。0 なら未測定</summary>
         private static float s_naturalHeight;
         /// <summary>Scene ビューの高さ（直近の OnGUI で取得）。0 なら不明</summary>
@@ -77,6 +85,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                     GUILayout.Width(PanelWidth + ScrollBarWidth), GUILayout.Height(shownHeight));
             }
             var rect = EditorGUILayout.BeginVertical(GUILayout.Width(PanelWidth));
+            if (Event.current.type == EventType.Repaint) s_boxBlocksContentY = -1f;
             if (Event.current.type == EventType.Repaint && rect.height > 0f)
             {
                 // 中身の高さが変わったら、固定している高さを次の描画で合わせるために描き直す（HintOverlay と同じ）
@@ -139,6 +148,12 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 EditorGUILayout.EndVertical();
                 if (scroll) EditorGUILayout.EndScrollView();
                 OverlayScaler.End(this, scope);
+                if (Event.current.type == EventType.Repaint)
+                {
+                    // スクロールで見えない位置なら、見えている範囲の端に寄せる
+                    BoxBlocksOffsetY = s_boxBlocksContentY < 0f ? -1f
+                        : FrameHeight + scope.outer.y + Mathf.Clamp(s_boxBlocksContentY - (scroll ? s_scroll.y : 0f), 0f, shownHeight) * scope.scale;
+                }
             }
         }
 
@@ -409,11 +424,13 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                     }
                     // 島の連結（各メンバーが自分の種を持つ）はプリセットを連結の全編集に効かせる
                     EditGroups.ForEachInGroup(component, edit, e => RecolorSceneTool.ApplyPreset(e, preset));
-                    // 「箱の中」に切り替えたら、箱をクリックしたパーツを囲む位置に置き直す（Scene に箱が出る）
+                    // 「箱の中」に切り替えたら、箱をクリックしたパーツを囲む位置に置き直す（Scene にはその箱だけ出す。
+                    // グラデーション・画像の箱は小窓「箱を表示」で出せる）
                     if (preset == RangePreset.Box)
                     {
                         SelectionBox.ResetToDefault(component, edit);
                         SelectionBox.SyncMembers(component, edit);
+                        ToolSession.ChooseBoxes(edit, selection: true, gradient: false, decal: false);
                     }
                     // 覚えている範囲が「アバター全体」なら、作成時（CreateEditFromHit）と同じく連結し直す
                     // （島の連結なら現在の編集だけ残してから。SetScopeCore と同じ）
@@ -648,6 +665,8 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
 
             // グラデーションの項目は暗めの赤の枠でまとめる（ユーザー要望 2026-09-25）。上の不透明度スライダーと詰まらないよう少し空ける
             EditorGUILayout.Space(6);
+            // 小窓「箱を表示」をこのブロックの高さに並べるため、ブロックの上端（スクロールの中身の座標）を覚える
+            if (Event.current.type == EventType.Repaint) s_boxBlocksContentY = GUILayoutUtility.GetLastRect().yMax;
             using (new SubBlockScope(GradientBlockColor, GradientBlockBorder)) DrawGradient(component, edit);
 
             // 画像を入れる（グラデーションと同じく編集ごとの付属設定＋専用の箱）
@@ -656,16 +675,30 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         }
 
         /// <summary>
-        /// 「画像を入れる」トグルと、ON のときの画像・箱を表示・詳細設定（なめらかに貼る・ノーマルも反映・比率を保つ）。
-        /// ON にすると Scene に箱が出る（RecolorSceneTool.DrawDecalBox）。連結なら連結の全編集に効かせる（DrawGradient と同じ構造）
+        /// 「画像を入れる」トグルと、ON のときの画像・詳細設定（なめらかに貼る・ノーマルも反映・比率を保つ）。
+        /// ON にすると Scene に箱が出る（RecolorSceneTool.DrawDecalBox。出すかどうかは小窓「箱を表示」の BoxToggleOverlay）。連結なら連結の全編集に効かせる（DrawGradient と同じ構造）
         /// </summary>
         private static void DrawDecal(ClickRecolor component, RecolorEdit edit)
         {
             // トグルを押したイベントの中で部品の数が変わらないよう、押す前の値で後半を出すか決める
             bool wasEnabled = edit.decalEnabled;
-            bool enabled = WithHelp("Help:Decal",
-                () => EditorGUILayout.ToggleLeft(Locales.Tr("Scene:Color:Decal"), wasEnabled));
-            if (enabled != wasEnabled) DecalBox.SetEnabled(component, edit, enabled);
+            bool reset = false;
+            bool enabled = WithHelp("Help:Decal", () =>
+            {
+                bool value = EditorGUILayout.ToggleLeft(Locales.Tr("Scene:Color:Decal"), wasEnabled);
+                reset = DrawToggleResetButton(wasEnabled, "Scene:Color:DecalResetTooltip");
+                return value;
+            });
+            if (reset)
+            {
+                DecalBox.ResetSettings(component, edit);
+            }
+            else if (enabled != wasEnabled)
+            {
+                DecalBox.SetEnabled(component, edit, enabled);
+                // ON にしたら画像の箱だけ出す（他の箱と重ならないように。小窓「箱を表示」で一緒に出すこともできる）
+                if (enabled) ToolSession.ChooseBoxes(edit, selection: false, gradient: false, decal: true);
+            }
             if (!wasEnabled) return;
 
             using (new EditorGUILayout.HorizontalScope())
@@ -681,20 +714,10 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             {
                 DecalBox.SetTexture(component, edit, texture);
             }
-
-            // 箱を表示（既定 ON。OFF はその編集を選んでいる間だけで、コンポーネントには保存しない。グラデーションの箱と同じ）
-            bool wasShown = !ToolSession.IsDecalBoxHidden;
-            bool shown = WithHelp("Help:ShowDecalBox",
-                () => EditorGUILayout.ToggleLeft(Locales.Tr("Scene:Color:ShowDecalBox"), wasShown));
-            if (shown != wasShown)
-            {
-                ToolSession.DecalBoxHiddenEditId = shown ? null : edit.id;
-                SceneView.RepaintAll();
-            }
             }
             }
 
-            // 画像と箱の表示以外は「詳細設定」に畳む。三角は「画像を入れる」のトグルと同じ列（字下げしない）、中身は 1 段字下げ（既定は閉じる。開閉は Unity を閉じるまで覚える。ユーザー要望 2026-10-04）
+            // 画像以外は「詳細設定」に畳む。三角は「画像を入れる」のトグルと同じ列（字下げしない）、中身は 1 段字下げ（既定は閉じる。開閉は Unity を閉じるまで覚える。ユーザー要望 2026-10-04）
             bool advancedOpen = SessionState.GetBool(DecalAdvancedOpenKey, false);
             bool advanced = EditorGUILayout.Foldout(advancedOpen, Locales.Tr("Scene:Color:DecalAdvanced"), true);
             if (advanced != advancedOpen) SessionState.SetBool(DecalAdvancedOpenKey, advanced);
@@ -761,16 +784,41 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         }
 
         /// <summary>
+        /// グラデーション・画像を入れるのトグルの行の、？の左の［リセット］（ON の間だけ。OFF→ON では内容を残すので、初期値に戻す手段として置く。
+        /// ユーザー要望 2026-10-05）。部品の数が変わらないよう、shown は押す前のトグルの値を渡す。押されたら true
+        /// </summary>
+        private static bool DrawToggleResetButton(bool shown, string tooltipKey)
+        {
+            if (!shown) return false;
+            var content = new GUIContent(Locales.Tr("Scene:Color:ResetButton"), Locales.Tr(tooltipKey));
+            return GUILayout.Button(content, EditorStyles.miniButton, GUILayout.ExpandWidth(false));
+        }
+
+        /// <summary>
         /// 「グラデーション」トグルと、ON のときの終了色（見本＋カラーコード）・色の書き込み先の切り替え。
-        /// ON にすると Scene に箱が出る（RecolorSceneTool）。連結（「アバター全体」・島の連結）なら連結の全編集に効かせる
+        /// ON にすると Scene に箱が出る（RecolorSceneTool。出すかどうかは小窓「箱を表示」の BoxToggleOverlay）。連結（「アバター全体」・島の連結）なら連結の全編集に効かせる
         /// </summary>
         private static void DrawGradient(ClickRecolor component, RecolorEdit edit)
         {
             // トグルを押したイベントの中で部品の数が変わらないよう、押す前の値で後半を出すか決める
             bool wasEnabled = edit.gradientEnabled;
-            bool enabled = WithHelp("Help:Gradient",
-                () => EditorGUILayout.ToggleLeft(Locales.Tr("Scene:Color:Gradient"), wasEnabled));
-            if (enabled != wasEnabled) GradientBox.SetEnabled(component, edit, enabled);
+            bool reset = false;
+            bool enabled = WithHelp("Help:Gradient", () =>
+            {
+                bool value = EditorGUILayout.ToggleLeft(Locales.Tr("Scene:Color:Gradient"), wasEnabled);
+                reset = DrawToggleResetButton(wasEnabled, "Scene:Color:GradientResetTooltip");
+                return value;
+            });
+            if (reset)
+            {
+                GradientBox.ResetSettings(component, edit);
+            }
+            else if (enabled != wasEnabled)
+            {
+                GradientBox.SetEnabled(component, edit, enabled);
+                // ON にしたらグラデーションの箱だけ出す（他の箱と重ならないように。小窓「箱を表示」で一緒に出すこともできる）
+                if (enabled) ToolSession.ChooseBoxes(edit, selection: false, gradient: true, decal: false);
+            }
             if (!wasEnabled) return;
 
             // トグル以外は字下げして入れ子だと分かるようにする（ユーザー要望 2026-09-25）
@@ -799,21 +847,6 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 Undo.RecordObject(component, "Tocolo: 箱の中だけを変更");
                 EditGroups.ForEachInGroup(component, edit, e => e.gradientInsideOnly = insideOnly);
                 EditorUtility.SetDirty(component);
-            }
-
-            // 箱を表示（既定 ON。OFF はその編集を選んでいる間だけで、コンポーネントには保存しない。ユーザー要望 2026-10-03）
-            bool wasShown = !ToolSession.IsGradientBoxHidden;
-            bool shown = WithHelp("Help:ShowGradientBox",
-                () => EditorGUILayout.ToggleLeft(Locales.Tr("Scene:Color:ShowGradientBox"), wasShown));
-            if (shown != wasShown)
-            {
-                ToolSession.GradientBoxHiddenEditId = shown ? null : edit.id;
-                SceneView.RepaintAll();
-            }
-            // 押したイベントの中で部品の数が変わらないよう、押す前の値で出すか決める
-            if (wasShown && RecolorSceneTool.IsGradientBoxBlockedByDecal(edit))
-            {
-                GUILayout.Label(Locales.Tr("Scene:Color:GradientBoxBlocked"), EditorStyles.wordWrappedMiniLabel);
             }
             }
             }
@@ -1400,7 +1433,8 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 e.targetColor = e.seedColor;
                 e.gamma = 1f;
                 e.hasTarget = false;
-                // グラデーションも切る（元の色に戻したのに終了色が残って見えるのを防ぐ。箱と終了色の値は残す）
+                // グラデーションも切る（元の色に戻したのに終了色が残って見えるのを防ぐ。箱と終了色の値は残し、次に ON にしたときに使う）
+                if (e.gradientEnabled) e.gradientInitialized = true;
                 e.gradientEnabled = false;
             });
             EditorUtility.SetDirty(component);

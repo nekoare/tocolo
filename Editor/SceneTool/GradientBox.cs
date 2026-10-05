@@ -229,29 +229,51 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         }
 
         /// <summary>
-        /// グラデーションの ON/OFF を変える（Undo 記録つき）。ON にしたときは箱を既定（DefaultFor）に置き直す。
+        /// グラデーションの ON/OFF を変える（Undo 記録つき）。初めて ON にしたときだけ初期値（色 2・箱は既定 DefaultFor）を入れ、
+        /// OFF→ON では前の内容のまま（ユーザー要望 2026-10-05）。
         /// 「アバター全体」の連結なら連結の全編集に同じ値を入れる（箱は現在の編集から決める）
         /// </summary>
         internal static void SetEnabled(ClickRecolor component, RecolorEdit edit, bool enabled)
         {
             if (component == null || edit == null || edit.gradientEnabled == enabled) return;
             Undo.RecordObject(component, "Tocolo: グラデーションを切り替え");
-            var box = enabled ? DefaultFor(component, edit) : default;
+            bool initialize = enabled && !edit.gradientInitialized;
+            var box = initialize ? DefaultFor(component, edit) : default;
             EditGroups.ForEachInGroup(component, edit, e =>
             {
                 e.gradientEnabled = enabled;
-                if (!enabled) return;
-                // 終了色の初期値は「元の色」（ユーザー要望 2026-09-25。新しい色→元の色へ戻るグラデーションが既定）
-                e.gradientColor = e.seedColor;
-                // 色 2 の陰影の暗さ・強さは色 1 の値から始める（ON にした直後の見た目を変えない）
-                e.gradientDarkEndRatio = e.darkEndRatio;
-                e.gradientGamma = e.gamma;
-                e.gradientStrength = e.strength;
-                e.gradientBoxPosition = box.position;
-                e.gradientBoxRotation = box.rotation;
-                e.gradientBoxSize = box.size;
+                // OFF にした編集も初期化済みにする（この印が無い版で ON にした編集を、次の ON で初期化し直さない）
+                e.gradientInitialized = true;
+                if (initialize) Initialize(e, box);
             });
             EditorUtility.SetDirty(component);
+        }
+
+        /// <summary>パネルの［リセット］: 初めて ON にしたときと同じ初期値（色 2・箱）に戻す（Undo 記録つき。連結なら連結の全編集）</summary>
+        internal static void ResetSettings(ClickRecolor component, RecolorEdit edit)
+        {
+            if (component == null || edit == null) return;
+            Undo.RecordObject(component, "Tocolo: グラデーションをリセット");
+            var box = DefaultFor(component, edit);
+            EditGroups.ForEachInGroup(component, edit, e =>
+            {
+                e.gradientInitialized = true;
+                Initialize(e, box);
+            });
+            EditorUtility.SetDirty(component);
+        }
+
+        private static void Initialize(RecolorEdit e, (Vector3 position, Quaternion rotation, Vector3 size, Vector3 centroid) box)
+        {
+            // 終了色の初期値は「元の色」（ユーザー要望 2026-09-25。新しい色→元の色へ戻るグラデーションが既定）
+            e.gradientColor = e.seedColor;
+            // 色 2 の陰影の暗さ・強さは色 1 の値から始める（ON にした直後の見た目を変えない）
+            e.gradientDarkEndRatio = e.darkEndRatio;
+            e.gradientGamma = e.gamma;
+            e.gradientStrength = e.strength;
+            e.gradientBoxPosition = box.position;
+            e.gradientBoxRotation = box.rotation;
+            e.gradientBoxSize = box.size;
         }
     }
 }

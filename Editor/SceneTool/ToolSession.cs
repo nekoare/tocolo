@@ -97,24 +97,62 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         }
 
         /// <summary>
-        /// グラデーションの箱を隠している編集の id（「箱を非表示」。ユーザー要望 2026-10-03）。コンポーネントには保存せず、
-        /// その編集を選んでいる間だけ効く（別の編集を選ぶ・ツールを閉じると元に戻る）
+        /// Scene に出す箱を選んだ編集の id（小窓「箱を表示」のボタン。ユーザー要望 2026-10-05）。コンポーネントには保存せず、
+        /// その編集を選んでいる間だけ効く（別の編集を選ぶ・ツールを閉じると既定に戻る）
         /// </summary>
-        public static string GradientBoxHiddenEditId { get; set; }
+        public static string BoxChoiceEditId { get; set; }
+        private static bool s_selectionBoxChosen;
+        private static bool s_gradientBoxChosen;
+        private static bool s_decalBoxChosen;
+        /// <summary>選んだときの「箱の中」・グラデーション・画像の有無。Undo・モードの切り替えなどで変わったら選択は捨てて既定に戻す</summary>
+        private static bool s_choiceHasSelectionBox;
+        private static bool s_choiceGradientEnabled;
+        private static bool s_choiceDecalEnabled;
 
-        /// <summary>現在の編集のグラデーションの箱を隠しているか</summary>
-        public static bool IsGradientBoxHidden =>
-            GradientBoxHiddenEditId != null && GradientBoxHiddenEditId == CurrentEditId;
+        /// <summary>「箱の中」の範囲の箱を使う編集か（テクスチャ全体に広げている間は箱が範囲に関係しないので使わない）</summary>
+        public static bool HasSelectionBox(RecolorEdit edit) =>
+            edit != null && edit.mode == SelectionMode.Box && !edit.wholeTexture;
 
         /// <summary>
-        /// 画像の箱を隠している編集の id（「箱を表示」を OFF。GradientBoxHiddenEditId と同じく、コンポーネントには保存せず、
-        /// その編集を選んでいる間だけ効く）
+        /// Scene に「箱の中」の範囲の箱を出すか。既定は、グラデーションか画像も ON なら出さない
+        /// （どの箱も既定は選択範囲の外接で、ギズモが重なるため。既定で出すのは 画像 → グラデーション → 範囲 の順に 1 つだけ）
         /// </summary>
-        public static string DecalBoxHiddenEditId { get; set; }
+        public static bool ShowsSelectionBox(RecolorEdit edit)
+        {
+            if (!HasSelectionBox(edit)) return false;
+            return HasBoxChoice(edit) ? s_selectionBoxChosen : !edit.gradientEnabled && !edit.decalEnabled;
+        }
 
-        /// <summary>現在の編集の画像の箱を隠しているか</summary>
-        public static bool IsDecalBoxHidden =>
-            DecalBoxHiddenEditId != null && DecalBoxHiddenEditId == CurrentEditId;
+        /// <summary>Scene にグラデーションの箱を出すか。既定は、画像も ON なら出さない</summary>
+        public static bool ShowsGradientBox(RecolorEdit edit)
+        {
+            if (edit == null || !edit.gradientEnabled) return false;
+            return HasBoxChoice(edit) ? s_gradientBoxChosen : !edit.decalEnabled;
+        }
+
+        /// <summary>Scene に画像の箱を出すか（既定は出す）</summary>
+        public static bool ShowsDecalBox(RecolorEdit edit)
+        {
+            if (edit == null || !edit.decalEnabled) return false;
+            return HasBoxChoice(edit) ? s_decalBoxChosen : true;
+        }
+
+        /// <summary>この編集で出す箱を決める（小窓のボタン、「箱の中」に切り替えたとき、グラデーション・画像を ON にしたとき）</summary>
+        public static void ChooseBoxes(RecolorEdit edit, bool selection, bool gradient, bool decal)
+        {
+            if (edit == null) return;
+            BoxChoiceEditId = edit.id;
+            s_selectionBoxChosen = selection;
+            s_gradientBoxChosen = gradient;
+            s_decalBoxChosen = decal;
+            s_choiceHasSelectionBox = HasSelectionBox(edit);
+            s_choiceGradientEnabled = edit.gradientEnabled;
+            s_choiceDecalEnabled = edit.decalEnabled;
+        }
+
+        private static bool HasBoxChoice(RecolorEdit edit) =>
+            BoxChoiceEditId != null && edit.id == BoxChoiceEditId && HasSelectionBox(edit) == s_choiceHasSelectionBox
+            && edit.gradientEnabled == s_choiceGradientEnabled && edit.decalEnabled == s_choiceDecalEnabled;
 
         /// <summary>
         /// 最後のクリックが当たった、メッシュの Read/Write が無効で選べない Renderer。パネルに案内と［Read/Write を有効にする］を出す。
@@ -348,8 +386,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             LastPick = null;
             LastPickColor = null;
             UnreadableRenderer = null;
-            GradientBoxHiddenEditId = null;
-            DecalBoxHiddenEditId = null;
+            BoxChoiceEditId = null;
             EndDecalBoxDrag();
             LayerNotice = default;
             LayerNoticeEditId = null;

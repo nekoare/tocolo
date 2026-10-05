@@ -444,20 +444,26 @@ msgstr "Gradient"
 msgid "Scene:Color:GradientInsideOnly"
 msgstr "Inside box only"
 
-msgid "Scene:Color:GradientBoxBlocked"
-msgstr "Can't be moved while the image box is shown (turn off 'Show box' for the image to move it)"
+msgid "Scene:Color:GradientResetTooltip"
+msgstr "Returns color 2 and the box to how they were right after turning this on"
 
-msgid "Scene:Color:ShowGradientBox"
-msgstr "Show box"
+msgid "Scene:Color:DecalResetTooltip"
+msgstr "Places the box around the range again (the image and advanced settings are kept)"
 
-msgid "Help:ShowGradientBox"
-msgstr "Turn off to hide the box and its handles in the Scene so you can check the colors. Only while this edit is selected."
+msgid "Scene:Box:Gradient"
+msgstr "Gradient"
+
+msgid "Scene:Box:Decal"
+msgstr "Image"
+
+msgid "Scene:Box:Tooltip"
+msgstr "Shows the pressed boxes in the Scene so you can move them. Boxes that aren't pressed are hidden."
 
 msgid "Scene:Color:Decal"
 msgstr "Place an image"
 
 msgid "Help:Decal"
-msgstr "Turns on a box in the Scene and projects the image onto the surface from the box's front face (the one showing the image). The image is applied only inside this edit's range. While on, the color, shading, opacity and gradient settings apply to the image, not to the range."
+msgstr "Turns on a box in the Scene and projects the image onto the surface from the box's front face (the one showing the image). The image is applied only inside this edit's range. While on, the color, shading, opacity and gradient settings apply to the image, not to the range. Use the small window next to the panel to show or hide the box."
 
 msgid "Scene:Color:DecalTexture"
 msgstr "Image"
@@ -482,12 +488,6 @@ msgstr "Keep aspect ratio"
 
 msgid "Help:DecalKeepAspect"
 msgstr "On keeps the image's aspect ratio inside the box. Off stretches it to fill the box's XY."
-
-msgid "Scene:Color:ShowDecalBox"
-msgstr "Show box"
-
-msgid "Help:ShowDecalBox"
-msgstr "Turn off to hide the box and handles in the Scene so you can check the placed image. Applies only while this edit is selected."
 
 msgid "Scene:Color:DecalAdvanced"
 msgstr "Advanced settings"
@@ -577,7 +577,7 @@ msgid "Help:Strength"
 msgstr "Opacity of the recolor. At 1 the chosen color is applied fully; lower values keep more of the original color."
 
 msgid "Help:Gradient"
-msgstr "When on, a box appears in the Scene. The color changes from Color 1 at the bottom of the box to Color 2 at the top. Move the box to set the direction and range."
+msgstr "When on, a box appears in the Scene. The color changes from Color 1 at the bottom of the box to Color 2 at the top. Move the box to set the direction and range. Use the small window next to the panel to show or hide the box."
 
 msgid "Help:GradientInsideOnly"
 msgstr "When on, everything above the top and below the bottom of the box is left as the original color, and only the box height becomes a gradient. Sideways the box does not cut anything. When off, the colors continue beyond both ends."

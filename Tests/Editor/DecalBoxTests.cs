@@ -117,5 +117,52 @@ namespace Nekoare.ClickRecolor.Tests
             Assert.That(edit.decalEnabled, Is.False);
             Assert.That(edit.decalTexture, Is.SameAs(image), "OFF→ON で画像を入れ直さずに済むように");
         }
+
+        [Test]
+        public void OFFからONに戻しても箱は前の位置のまま()
+        {
+            var (component, edit) = MakeEdit();
+            DecalBox.SetEnabled(component, edit, true);
+            edit.decalBoxPosition = new Vector3(5f, 5f, 5f);
+
+            DecalBox.SetEnabled(component, edit, false);
+            DecalBox.SetEnabled(component, edit, true);
+
+            Assert.That(edit.decalEnabled, Is.True);
+            Assert.That(edit.decalBoxPosition, Is.EqualTo(new Vector3(5f, 5f, 5f)));
+        }
+
+        [Test]
+        public void 印の無い版でONにした編集もOFFからONで箱を置き直さない()
+        {
+            var (component, edit) = MakeEdit();
+            edit.decalEnabled = true; // 印（decalInitialized）が無い版で ON にした編集
+            edit.decalBoxPosition = new Vector3(5f, 5f, 5f);
+
+            DecalBox.SetEnabled(component, edit, false);
+            DecalBox.SetEnabled(component, edit, true);
+
+            Assert.That(edit.decalBoxPosition, Is.EqualTo(new Vector3(5f, 5f, 5f)));
+        }
+
+        [Test]
+        public void ResetSettings_で箱が既定に戻り画像と詳細設定は残る()
+        {
+            var (component, edit) = MakeEdit();
+            DecalBox.SetEnabled(component, edit, true);
+            var image = Track(new Texture2D(4, 4));
+            DecalBox.SetTexture(component, edit, image);
+            edit.decalKeepAspect = false;
+            edit.decalBoxPosition = new Vector3(5f, 5f, 5f);
+            var box = GradientBox.DefaultFor(component, edit);
+
+            DecalBox.ResetSettings(component, edit);
+
+            Assert.That(Vector3.Distance(edit.decalBoxPosition, box.position), Is.LessThan(1e-4f));
+            Assert.That(Vector3.Distance(edit.decalBoxSize, box.size), Is.LessThan(1e-4f));
+            Assert.That(edit.decalEnabled, Is.True);
+            Assert.That(edit.decalTexture, Is.SameAs(image));
+            Assert.That(edit.decalKeepAspect, Is.False);
+        }
     }
 }

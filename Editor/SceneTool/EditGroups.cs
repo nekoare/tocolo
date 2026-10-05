@@ -304,6 +304,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             member.gradientBoxRotation = anchor.gradientBoxRotation;
             member.gradientBoxSize = anchor.gradientBoxSize;
             member.gradientInsideOnly = anchor.gradientInsideOnly;
+            member.gradientInitialized = anchor.gradientInitialized;
             member.boxPosition = anchor.boxPosition;
             member.boxRotation = anchor.boxRotation;
             member.boxSize = anchor.boxSize;
@@ -314,6 +315,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             member.decalBoxPosition = anchor.decalBoxPosition;
             member.decalBoxRotation = anchor.decalBoxRotation;
             member.decalBoxSize = anchor.decalBoxSize;
+            member.decalInitialized = anchor.decalInitialized;
             member.decalSmooth = anchor.decalSmooth;
             member.decalNormal = anchor.decalNormal;
             return member;

@@ -444,20 +444,26 @@ msgstr "그라데이션"
 msgid "Scene:Color:GradientInsideOnly"
 msgstr "박스 안에만"
 
-msgid "Scene:Color:GradientBoxBlocked"
-msgstr "이미지 박스가 표시된 동안에는 움직일 수 없어요(이미지의 '박스 표시'를 끄면 움직일 수 있어요)"
+msgid "Scene:Color:GradientResetTooltip"
+msgstr "색 2와 박스를 켠 직후의 상태로 되돌려요"
 
-msgid "Scene:Color:ShowGradientBox"
-msgstr "박스 표시"
+msgid "Scene:Color:DecalResetTooltip"
+msgstr "박스를 범위를 감싸는 위치에 다시 놓아요(이미지와 상세 설정은 그대로)"
 
-msgid "Help:ShowGradientBox"
-msgstr "끄면 Scene의 박스와 핸들을 숨겨서 색을 확인하기 쉽게 해요. 이 편집을 선택한 동안만 적용돼요."
+msgid "Scene:Box:Gradient"
+msgstr "그라데이션"
+
+msgid "Scene:Box:Decal"
+msgstr "이미지"
+
+msgid "Scene:Box:Tooltip"
+msgstr "누른 박스를 Scene에 표시해서 움직일 수 있게 해요. 누르지 않은 박스는 숨겨요."
 
 msgid "Scene:Color:Decal"
 msgstr "이미지 넣기"
 
 msgid "Help:Decal"
-msgstr "켜면 Scene에 박스가 나타나고, 박스의 정면(이미지가 그려진 면)에서 이미지를 표면에 붙여요. 이 편집의 선택 범위 안에만 붙어요. 켜져 있는 동안 색·음영·불투명도·그라데이션 설정은 범위가 아니라 이미지에 적용돼요."
+msgstr "켜면 Scene에 박스가 나타나고, 박스의 정면(이미지가 그려진 면)에서 이미지를 표면에 붙여요. 이 편집의 선택 범위 안에만 붙어요. 켜져 있는 동안 색·음영·불투명도·그라데이션 설정은 범위가 아니라 이미지에 적용돼요. 박스 표시는 패널 옆의 작은 창에서 바꿀 수 있어요."
 
 msgid "Scene:Color:DecalTexture"
 msgstr "이미지"
@@ -482,12 +488,6 @@ msgstr "비율 유지"
 
 msgid "Help:DecalKeepAspect"
 msgstr "켜면 이미지 비율을 유지해 박스에 맞춰요. 끄면 박스의 XY에 맞게 늘려요."
-
-msgid "Scene:Color:ShowDecalBox"
-msgstr "박스 표시"
-
-msgid "Help:ShowDecalBox"
-msgstr "끄면 Scene의 박스와 핸들을 숨겨서 붙인 이미지를 확인하기 쉽게 해요. 이 편집을 선택한 동안만 적용돼요."
 
 msgid "Scene:Color:DecalAdvanced"
 msgstr "고급 설정"
@@ -577,7 +577,7 @@ msgid "Help:Strength"
 msgstr "색 변경의 불투명도예요. 1이면 지정한 색이 완전히 적용되고, 낮출수록 원래 색이 남아요."
 
 msgid "Help:Gradient"
-msgstr "켜면 Scene에 박스가 나타나요. 박스의 아래쪽 끝에서 위쪽 끝으로 '색 1'에서 '색 2'로 변해요. 박스를 움직여 방향과 범위를 정해 주세요"
+msgstr "켜면 Scene에 박스가 나타나요. 박스의 아래쪽 끝에서 위쪽 끝으로 '색 1'에서 '색 2'로 변해요. 박스를 움직여 방향과 범위를 정해 주세요. 박스 표시는 패널 옆의 작은 창에서 바꿀 수 있어요."
 
 msgid "Help:GradientInsideOnly"
 msgstr "켜면 박스의 위쪽 끝보다 위와 아래쪽 끝보다 아래는 색을 바꾸지 않고 원래 색으로 남기며, 박스 높이 범위만 그라데이션이 돼요. 가로 방향은 박스로 자르지 않아요. 끄면 위아래 바깥쪽도 끝의 색으로 이어져요."

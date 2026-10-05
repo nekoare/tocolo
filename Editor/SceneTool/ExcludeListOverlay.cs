@@ -20,6 +20,10 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         private const float Gap = 12f;
 
         private static float s_naturalHeight;
+        /// <summary>直近の OnGUI での倍率（小窓「箱を表示」が重ならないよう避けるのに使う）</summary>
+        private static float s_lastScale = 1f;
+        /// <summary>オーバーレイの枠（見出しと余白）が中身に足す高さの概算（ToolPanelOverlay と同じ値）</summary>
+        private const float FrameHeight = 26f;
         private static string s_notice;
         private static double s_noticeUntil;
 
@@ -68,6 +72,16 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         internal static bool IsShown(SceneView view) =>
             view != null && view.TryGetOverlay(Id, out Overlay overlay) && overlay.displayed;
 
+        /// <summary>表示中なら、Scene ビューの中での位置と大きさ（枠込みの概算）。小窓「箱を表示」が重ならないよう避けるのに使う</summary>
+        internal static bool TryGetShownRect(SceneView view, out Rect rect)
+        {
+            rect = default;
+            if (view == null || !view.TryGetOverlay(Id, out Overlay overlay) || !overlay.displayed || !overlay.floating) return false;
+            float height = (s_naturalHeight > 0f ? s_naturalHeight : 100f) * s_lastScale + FrameHeight;
+            rect = new Rect(overlay.floatingPosition, new Vector2(Width * s_lastScale, height));
+            return true;
+        }
+
         private static void ShowNotice(string key, params object[] args)
         {
             s_notice = args.Length > 0 ? Locales.Tr(key, args) : Locales.Tr(key);
@@ -78,6 +92,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         {
             // 大きさはパネルの倍率に追従（自分のつまみは無し）。位置は毎回パネルの隣に置き直す
             var scope = OverlayScaler.Begin(this, Width, s_naturalHeight > 0f ? s_naturalHeight : 100f, ToolPanelOverlay.Id);
+            s_lastScale = scope.scale;
             if (Event.current.type == EventType.Layout) PlaceNextToPanel(containerWindow as SceneView, this, Width * scope.scale);
             var rect = EditorGUILayout.BeginVertical(GUILayout.Width(Width));
             if (Event.current.type == EventType.Repaint && rect.height > 0f)
