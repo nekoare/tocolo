@@ -506,23 +506,25 @@ namespace Nekoare.ClickRecolor.Editor.Decal
         }
 
         /// <summary>
-        /// materials のうち、メインテクスチャが texture のスロット（サブメッシュ数の範囲内・三角形のみ。lilToon の付属は除く）。firstSlot は最初のスロット（無ければ -1）
+        /// materials のうち、メインテクスチャが texture の枠が描くサブメッシュ（三角形のみ。lilToon の付属は除く。重複なし）。
+        /// 余った枠（最後のサブメッシュの重ね描き。MaterialTextureResolver.SubmeshOfSlot）も見る。firstSlot は最初のマテリアル枠（無ければ -1）
         /// </summary>
         internal static List<int> CollectOverlaySlots(Material[] materials, Mesh mesh, Texture2D texture, out int firstSlot)
         {
             firstSlot = -1;
             var result = new List<int>();
             if (materials == null || mesh == null || texture == null) return result;
-            int count = Mathf.Min(materials.Length, mesh.subMeshCount);
-            for (int i = 0; i < count; i++)
+            for (int slot = 0; slot < materials.Length; slot++)
             {
-                var material = materials[i];
+                int i = MaterialTextureResolver.SubmeshOfSlot(slot, mesh.subMeshCount);
+                if (i < 0) break;
+                var material = materials[slot];
                 if (!MaterialTextureResolver.TryGetMainTexture(material, out var info) || info.texture != texture) continue;
                 // 付属（FakeShadow・Overlay・FurOnly）は本体の上に足す描画なので、本体に貼れば足りる
                 if (DecalOverlayMaterial.IsIgnorableLilToonAuxiliary(material)) continue;
                 if (mesh.GetTopology(i) != MeshTopology.Triangles) continue;
-                if (firstSlot < 0) firstSlot = i;
-                result.Add(i);
+                if (firstSlot < 0) firstSlot = slot;
+                if (!result.Contains(i)) result.Add(i);
             }
             return result;
         }

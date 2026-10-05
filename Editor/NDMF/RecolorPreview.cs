@@ -652,13 +652,15 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
                 var materials = renderer.sharedMaterials;
                 if (materials == null) continue;
 
-                int slots = Mathf.Min(materials.Length, mesh.subMeshCount);
-                for (int i = 0; i < slots; i++)
+                // 余った枠（最後のサブメッシュの重ね描き）も見る。[_FakeShadow, 髪] の順だと髪は余った枠にある
+                for (int i = 0; i < materials.Length; i++)
                 {
+                    int submesh = MaterialTextureResolver.SubmeshOfSlot(i, mesh.subMeshCount);
+                    if (submesh < 0) break;
                     if (!MaterialTextureResolver.TryGetMainTexture(materials[i], out var info)) continue;
                     if (info.texture != texture) continue;
                     var scale = info.scale == Vector2.zero ? Vector2.one : info.scale;
-                    var user = (mesh, i, scale, info.offset);
+                    var user = (mesh, submesh, scale, info.offset);
                     if (seen.Add(user)) result.Add(user);
                 }
             }

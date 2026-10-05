@@ -243,6 +243,21 @@ namespace Nekoare.ClickRecolor.Tests
         }
 
         [Test]
+        public void CollectUsers_はサブメッシュより多い枠を最後のサブメッシュの利用者として扱う()
+        {
+            // [_FakeShadow, 髪] のように髪が余った枠にある付け方（Unity は余った枠で最後のサブメッシュを重ね描きする）
+            var target = Track(new Texture2D(4, 4));
+            var mesh = MakeMesh(1);
+            var renderer = MakeRenderer("Renderer", mesh, MakeMaterial(null), MakeMaterial(target));
+
+            var users = RecolorPreview.CollectUsers(new Renderer[] { renderer }, target);
+
+            Assert.That(users.Count, Is.EqualTo(1));
+            Assert.That(users[0].Item1, Is.SameAs(mesh));
+            Assert.That(users[0].Item2, Is.EqualTo(0), "余った枠は最後のサブメッシュ（0）を描く");
+        }
+
+        [Test]
         public void CollectUsers_は_Tiling_が_0_0_なら_1_1_として扱う()
         {
             var target = Track(new Texture2D(4, 4));

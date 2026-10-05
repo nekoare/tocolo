@@ -107,6 +107,50 @@ namespace Nekoare.ClickRecolor.Tests
         }
 
         [Test]
+        public void 余った枠で重ね描きしている面は_テクスチャのある枠を選ぶ()
+        {
+            // 枠が [テクスチャ無し, 髪] でサブメッシュは 1 つ（lilToon の FakeShadow をこう付けると、サブメッシュ番号の枠は FakeShadow になる）
+            var quad = MakeQuad("hair", 1f);
+            var hairTexture = new Texture2D(4, 4); _cleanup.Add(hairTexture);
+            var shadow = quad.sharedMaterial;
+            var hair = new Material(Shader.Find("Standard")) { mainTexture = hairTexture }; _cleanup.Add(hair);
+            quad.sharedMaterials = new[] { shadow, hair };
+            var picker = new ScenePicker();
+            var ray = new Ray(new Vector3(0.25f, -0.25f, -1f), Vector3.forward);
+
+            bool ok = picker.TryPick(ray, new[] { quad }, null, out var hit);
+
+            Assert.That(ok, Is.True);
+            Assert.That(hit.mainTexture.texture, Is.SameAs(hairTexture));
+            Assert.That(hit.materialSlot, Is.EqualTo(1));
+            Assert.That(hit.subMeshIndex, Is.EqualTo(0));
+            picker.Dispose();
+        }
+
+        [Test]
+        public void lilToonのFakeShadowはテクスチャがあっても選ばず_手前でも止めない()
+        {
+            var fakeShadowShader = Shader.Find("_lil/[Optional] lilToonFakeShadow");
+            if (fakeShadowShader == null) Assert.Ignore("lilToon が入っていない環境です");
+            // FakeShadow を少し手前（z = 0.9）に置いた別の面にし、奥（z = 1）に髪
+            var shadowQuad = MakeQuad("shadow", 0.9f);
+            var hairQuad = MakeQuad("hair", 1f);
+            var hairTexture = new Texture2D(4, 4); _cleanup.Add(hairTexture);
+            hairQuad.sharedMaterial.mainTexture = hairTexture;
+            var shadow = new Material(fakeShadowShader) { mainTexture = new Texture2D(4, 4) }; _cleanup.Add(shadow); _cleanup.Add(shadow.mainTexture);
+            shadowQuad.sharedMaterial = shadow;
+            var picker = new ScenePicker();
+            var ray = new Ray(new Vector3(0.25f, -0.25f, -1f), Vector3.forward);
+
+            bool ok = picker.TryPick(ray, new[] { shadowQuad, hairQuad }, null, out var hit);
+
+            Assert.That(ok, Is.True);
+            Assert.That(hit.renderer, Is.SameAs(hairQuad));
+            Assert.That(picker.LastSkippedTextureless, Is.False, "FakeShadow は「手前のテクスチャ無しの物」に数えない");
+            picker.Dispose();
+        }
+
+        [Test]
         public void テクスチャが無いマテリアルにだけ当たったら_false()
         {
             var quad = MakeQuad("q", 1f);

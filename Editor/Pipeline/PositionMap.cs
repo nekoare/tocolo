@@ -201,10 +201,12 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
                 var materials = renderer.sharedMaterials;
                 if (materials == null) continue;
 
-                int slots = Mathf.Min(materials.Length, mesh.subMeshCount);
-                for (int i = 0; i < slots; i++)
+                // 余った枠（最後のサブメッシュの重ね描き）も見る（MaterialTextureResolver.SubmeshOfSlot）
+                for (int slot = 0; slot < materials.Length; slot++)
                 {
-                    if (!MaterialTextureResolver.TryGetMainTexture(materials[i], out var info)) continue;
+                    int i = MaterialTextureResolver.SubmeshOfSlot(slot, mesh.subMeshCount);
+                    if (i < 0) break;
+                    if (!MaterialTextureResolver.TryGetMainTexture(materials[slot], out var info)) continue;
                     if (info.texture != texture) continue;
                     if (mesh.GetTopology(i) != MeshTopology.Triangles) continue;
                     if (!seen.Add((renderer, i))) continue;

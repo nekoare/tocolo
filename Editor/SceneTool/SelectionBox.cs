@@ -105,10 +105,12 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                         var p = toBox.MultiplyPoint3x4(vertices[i]);
                         inside[i] = Mathf.Abs(p.x) <= half.x && Mathf.Abs(p.y) <= half.y && Mathf.Abs(p.z) <= half.z;
                     }
-                    int slots = Mathf.Min(materials.Length, mesh.subMeshCount);
-                    for (int s = 0; s < slots; s++)
+                    // 余った枠（最後のサブメッシュの重ね描き）も見る（MaterialTextureResolver.SubmeshOfSlot）
+                    for (int slot = 0; slot < materials.Length; slot++)
                     {
-                        if (!MaterialTextureResolver.TryGetMainTexture(materials[s], out var info)) continue;
+                        int s = MaterialTextureResolver.SubmeshOfSlot(slot, mesh.subMeshCount);
+                        if (s < 0) break;
+                        if (!MaterialTextureResolver.TryGetMainTexture(materials[slot], out var info)) continue;
                         if (result.Exists(r => r.Item1 == info.texture)) continue;
                         var triangles = mesh.GetTriangles(s);
                         for (int t = 0; t + 2 < triangles.Length; t += 3)

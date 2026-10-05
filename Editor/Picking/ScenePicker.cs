@@ -101,6 +101,9 @@ namespace Nekoare.ClickRecolor.Editor.Picking
             foreach (int index in _order)
             {
                 var candidate = Build(_hits[index]);
+                // lilToon の付属（FakeShadow・Overlay・FurOnly）は本体に重ねて描く物なので、選ぶ対象にも「手前のテクスチャ無しの物」にもしない
+                // （少し手前にずらして置いた FakeShadow で前髪のクリックが止まらないように。実機報告 2026-10-05）
+                if (candidate.material != null && Decal.DecalOverlayMaterial.IsIgnorableLilToonAuxiliary(candidate.material)) continue;
                 if (!candidate.hasMainTexture)
                 {
                     if (!LastSkippedTextureless) LastSkippedTexturelessDistance = candidate.distance;
@@ -119,6 +122,7 @@ namespace Nekoare.ClickRecolor.Editor.Picking
             var materials = hit.renderer.sharedMaterials;
             // Unity は余ったサブメッシュを最後のマテリアルで描くので Min で丸める
             int slot = materials.Length == 0 ? -1 : Mathf.Min(hit.subMeshIndex, materials.Length - 1);
+            slot = ChooseOverdrawSlot(hit.renderer, hit.subMeshIndex, materials, slot);
             var pick = new PickHit
             {
                 renderer = hit.renderer,
@@ -140,6 +144,27 @@ namespace Nekoare.ClickRecolor.Editor.Picking
                 pick.texel = MaterialTextureResolver.ToTexel(info, pick.uv);
             }
             return pick;
+        }
+
+        /// <summary>
+        /// マテリアル枠がサブメッシュより多いと、Unity は余った枠で最後のサブメッシュを重ね描きする（lilToon の FakeShadow をよくこう付ける）。
+        /// 最後のサブメッシュに当たったときは、その三角形を描いている枠（サブメッシュ番号の枠〜最後の枠）のうち、
+        /// lilToon の付属でなくメインテクスチャのある最初の枠を採る。無ければ slot のまま。
+        /// 枠が [_FakeShadow, 髪] の順だと、サブメッシュ番号の枠だけを見て FakeShadow を選び、前髪が選べなかった（実機報告 2026-10-05）
+        /// </summary>
+        internal static int ChooseOverdrawSlot(Renderer renderer, int subMeshIndex, Material[] materials, int slot)
+        {
+            var mesh = RendererMeshAccess.GetSharedMesh(renderer);
+            if (mesh == null) return slot;
+            int subMeshCount = mesh.subMeshCount;
+            if (subMeshCount <= 0 || subMeshIndex != subMeshCount - 1 || materials.Length <= subMeshCount) return slot;
+            for (int s = subMeshIndex; s < materials.Length; s++)
+            {
+                var material = materials[s];
+                if (material == null || Decal.DecalOverlayMaterial.IsIgnorableLilToonAuxiliary(material)) continue;
+                if (MaterialTextureResolver.TryGetMainTexture(material, out _)) return s;
+            }
+            return slot;
         }
 
         /// <summary>

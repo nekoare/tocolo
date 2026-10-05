@@ -56,6 +56,12 @@ namespace Nekoare.ClickRecolor.Editor.Picking
             return result;
         }
 
+        /// <summary>
+        /// マテリアル枠 slot が描くサブメッシュ。枠がサブメッシュより多いと、Unity は余った枠で最後のサブメッシュを重ね描きする
+        /// （lilToon の FakeShadow をよくこう付ける。枠が [_FakeShadow, 髪] の順だと髪は余った枠になる）。subMeshCount が 0 なら -1
+        /// </summary>
+        public static int SubmeshOfSlot(int slot, int subMeshCount) => subMeshCount <= 0 ? -1 : Mathf.Min(slot, subMeshCount - 1);
+
         /// <summary>UV0 に Tiling/Offset を掛けて [0,1) に畳む</summary>
         public static Vector2 ToTextureCoord(in MainTextureInfo info, Vector2 uv)
         {

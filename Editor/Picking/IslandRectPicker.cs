@@ -364,12 +364,16 @@ namespace Nekoare.ClickRecolor.Editor.Picking
             return info;
         }
 
-        /// <summary>島のマテリアル（Unity と同じく余ったサブメッシュは最後のマテリアル）のメインテクスチャと、Tiling/Offset 適用後の UV を入れる</summary>
+        /// <summary>
+        /// 島のマテリアル（Unity と同じく余ったサブメッシュは最後のマテリアル。枠がサブメッシュより多ければ、最後のサブメッシュを重ね描きする枠の
+        /// うちテクスチャのある枠。ScenePicker.ChooseOverdrawSlot）のメインテクスチャと、Tiling/Offset 適用後の UV を入れる
+        /// </summary>
         private static void ResolveTexture(ref RectIsland island)
         {
             var materials = island.renderer.sharedMaterials;
             if (materials.Length == 0) return;
-            var material = materials[Mathf.Min(island.submesh, materials.Length - 1)];
+            int slot = ScenePicker.ChooseOverdrawSlot(island.renderer, island.submesh, materials, Mathf.Min(island.submesh, materials.Length - 1));
+            var material = materials[slot];
             if (!MaterialTextureResolver.TryGetMainTexture(material, out var info)) return;
             island.texture = info.texture;
             island.uv = MaterialTextureResolver.ToTextureCoord(info, island.uv0);
