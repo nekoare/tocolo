@@ -23,8 +23,11 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         /// <summary>選択範囲から箱を作るのに要る画素の数の下限（これ未満なら Renderer の bounds にする）</summary>
         internal const int MinSelectionTexels = 16;
 
-        /// <summary>選択範囲の位置を集計するときに読み戻す大きさ（長辺）の上限</summary>
-        private const int MaxReadbackSize = 256;
+        /// <summary>
+        /// 選択範囲の位置を集計するときに読み戻す大きさ（長辺）の上限。小さいパーツは縮めると選択範囲が消えて 1 点も残らない
+        /// （実機 2026-10-06: 小さい飾りで箱がメッシュ全体の大きさになった）ので、足りなければ次の大きさで読み直す（最後は元の大きさ）
+        /// </summary>
+        private static readonly int[] ReadbackSizes = { 256, 1024 };
 
         private const float MaskThreshold = 0.5f;
 
@@ -32,12 +35,14 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         /// 既定の箱: 現在の選択範囲（マスク &gt; 0.5 のテクセル。連結なら全メンバーの分）に写る表面の位置（対象ルートのローカル）の AABB の中心、
         /// 大きさは AABB を各軸 SelectionMargin だけ広げたもの（各軸 SelectionMinSize 以上）、回転なし。
         /// centroid は同じ画素の位置の平均（箱の中心には使わない）。
-        /// 有効な画素が MinSelectionTexels 未満・マスクや位置マップが作れない・compute が使えないときは FallbackFor（Renderer の bounds）
+        /// 有効な画素が MinSelectionTexels 未満・マスクや位置マップが作れない・compute が使えないときは FallbackFor（Renderer の bounds）。
+        /// points を渡すと、選択範囲の表面の位置（対象ルートのローカル。縮めて読み戻した画素ぶん）も入れて返す（画像の箱の向きを決めるため。DecalBox.DefaultFor）
         /// </summary>
-        internal static (Vector3 position, Quaternion rotation, Vector3 size, Vector3 centroid) DefaultFor(ClickRecolor component, RecolorEdit edit)
+        internal static (Vector3 position, Quaternion rotation, Vector3 size, Vector3 centroid) DefaultFor(ClickRecolor component, RecolorEdit edit,
+            System.Collections.Generic.List<Vector3> points = null)
         {
             if (component == null) return (Vector3.zero, Quaternion.identity, Vector3.one, Vector3.zero);
-            if (TryGetSelectionBox(component, edit, out var position, out var size, out var centroid))
+            if (TryGetSelectionBox(component, edit, out var position, out var size, out var centroid, points))
             {
                 return (position, Quaternion.identity, size, centroid);
             }
@@ -51,7 +56,8 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         /// PrepareJob の約束どおり、マスクを作ったら使い終えた後に MaskCache.Trim を 1 回呼ぶ（メンバーごと）
         /// </summary>
         private static bool TryGetSelectionBox(
-            ClickRecolor component, RecolorEdit edit, out Vector3 position, out Vector3 size, out Vector3 centroid)
+            ClickRecolor component, RecolorEdit edit, out Vector3 position, out Vector3 size, out Vector3 centroid,
+            System.Collections.Generic.List<Vector3> points)
         {
             position = Vector3.zero;
             size = Vector3.one;
@@ -68,9 +74,13 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             int count = 0;
             foreach (var member in EditGroups.Members(component, edit))
             {
-                Accumulate(root, renderers, component, member, ref min, ref max, ref sum, ref count);
+                Accumulate(root, renderers, component, member, ref min, ref max, ref sum, ref count, points);
             }
-            if (count < MinSelectionTexels) return false;
+            if (count < MinSelectionTexels)
+            {
+                points?.Clear();
+                return false;
+            }
 
             var extent = (max - min) * (1f + SelectionMargin);
             position = (min + max) * 0.5f;
@@ -88,7 +98,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         /// </summary>
         private static void Accumulate(
             Transform root, System.Collections.Generic.List<Renderer> renderers, ClickRecolor component, RecolorEdit edit,
-            ref Vector3 min, ref Vector3 max, ref Vector3 sum, ref int count)
+            ref Vector3 min, ref Vector3 max, ref Vector3 sum, ref int count, System.Collections.Generic.List<Vector3> points)
         {
             var texture = edit?.sourceTexture;
             if (texture == null) return;
@@ -106,19 +116,32 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 var positions = PositionMap.GetOrBuild(root, renderers, texture, mask.width, mask.height, fillIterations: 0);
                 if (positions == null) return;
 
-                ReadbackDownscaled(positions, mask, MaxReadbackSize, out var positionPixels, out var maskValues);
-
-                int n = Mathf.Min(positionPixels.Length, maskValues.Length);
-                for (int i = 0; i < n; i++)
+                int fullSize = Mathf.Max(mask.width, mask.height);
+                var found = new System.Collections.Generic.List<Vector3>();
+                for (int attempt = 0; ; attempt++)
                 {
-                    var p = positionPixels[i];
-                    // A = 0 は表面が描かれていない画素（パディングで広げた縁など）
-                    if (!(maskValues[i] > MaskThreshold) || !(p.a > 0f)) continue;
-                    var local = new Vector3(p.r, p.g, p.b);
+                    int size = attempt < ReadbackSizes.Length ? Mathf.Min(ReadbackSizes[attempt], fullSize) : fullSize;
+                    found.Clear();
+                    ReadbackDownscaled(positions, mask, size, out var positionPixels, out var maskValues);
+                    int n = Mathf.Min(positionPixels.Length, maskValues.Length);
+                    for (int i = 0; i < n; i++)
+                    {
+                        var p = positionPixels[i];
+                        // A = 0 は表面が描かれていない画素（パディングで広げた縁など）
+                        if (!(maskValues[i] > MaskThreshold) || !(p.a > 0f)) continue;
+                        found.Add(new Vector3(p.r, p.g, p.b));
+                    }
+                    // 足りていれば終わり。元の大きさで読んだら、それ以上は増えない
+                    if (found.Count >= MinSelectionTexels || size >= fullSize) break;
+                }
+
+                foreach (var local in found)
+                {
                     min = Vector3.Min(min, local);
                     max = Vector3.Max(max, local);
                     sum += local;
                     count++;
+                    points?.Add(local);
                 }
             }
             finally

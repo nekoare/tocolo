@@ -82,6 +82,15 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
 
         // Ctrl＋押下中の状態（クリックか矩形かは離したときに決まる）。ドメインリロードで消えてよい
         private bool _ctrlPressPending;
+        /// <summary>
+        /// Ctrl＋押下で掴んだマウスの部品の番号（0 = 掴んでいない）。離しを取りこぼしたり、ツールのインスタンスが替わって押下中の印が消えたりして
+        /// 掴んだまま残ると、Scene の左右クリックが効かなくなる（ユーザー報告 2026-10-06）。残っていたら OnToolGUI で放す
+        /// </summary>
+        private static int s_capturedControl;
+        /// <summary>Scene のクリック・矩形の部品の番号の印。印なしだと Scene でこれより前に描かれる部品の数で番号がずれ、離しが自分宛てと分からなくなる</summary>
+        private static readonly int s_controlHint = "ClickRecolor.SceneTool".GetHashCode();
+        // 診断用（2026-10-06。Scene のクリックが効かなくなる件の再発・報告の切り分けに残す。原因が確定したら消す）: 同じ部品の掴みを何度も記録しない
+        private static int s_lastLoggedForeignControl;
         private bool _rectActive;
         private bool _ctrlPressShift;
         private Vector2 _rectStart;
@@ -162,9 +171,8 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             // ドラッグ・数値入力の途中で終了した場合も Undo のまとめを閉じる（後続の操作まで 1 つの Undo に畳まないため）
             ToolPanelOverlay.FinishDrag();
             s_boxDrag.End();
-            // Ctrl＋ドラッグの途中なら矩形を捨てる
-            _ctrlPressPending = false;
-            _rectActive = false;
+            // Ctrl＋ドラッグの途中なら矩形を捨てる（掴んだマウスも放す）
+            EndCtrlPress();
             // 色を決めないまま終了した編集は残さない（プレビューにもビルドにも効かない空の編集になるため）
             DiscardPendingEdit();
             // 選択範囲のハイライトを消す（ビルドには元々乗らないが、ツール外のプレビューにも出さない）
@@ -178,7 +186,35 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             ToolSession.UnreadableRenderer = null;
             ToolSession.BoxChoiceEditId = null;
             ToolSession.HoverPick = null;
+            // クリック用に取っておいた元テクスチャのデコード結果を手放す（プレビューが使っている分は残る）
+            SourceTextureLoader.TrimIdle();
             SceneView.RepaintAll();
+        }
+
+        /// <summary>Ctrl＋押下を終える（掴んだマウスを放し、押下中の印を下ろす）</summary>
+        private void EndCtrlPress()
+        {
+            if (s_capturedControl != 0 && GUIUtility.hotControl == s_capturedControl) GUIUtility.hotControl = 0;
+            s_capturedControl = 0;
+            _ctrlPressPending = false;
+            _rectActive = false;
+        }
+
+        /// <summary>
+        /// Ctrl＋押下で掴んだマウスが残っていたら放す: 押下中の印が無いのに掴んだまま（ツールのインスタンスが替わった等）、
+        /// 離しを取りこぼしたまま次の押下が来た、ほかで放された・取られた。どれも押下（クリック・矩形）は行わずに捨てる
+        /// </summary>
+        private void ReleaseStaleCapture(Event e)
+        {
+            if (s_capturedControl == 0) return;
+            string reason = null;
+            if (GUIUtility.hotControl != s_capturedControl) reason = "ほかで放された";
+            else if (!_ctrlPressPending) reason = "押下中の印が無いのに掴んだまま";
+            else if (e.type == EventType.MouseDown) reason = "離しを取りこぼしたまま次の押下";
+            if (reason == null) return;
+            // ほかで放されたのは異常ではない（ツールの切り替え等）ので記録しない
+            if (GUIUtility.hotControl == s_capturedControl) Debug.Log($"[Tocolo][調査] 掴んだままのマウスを放しました（{reason}）"); // 診断用（2026-10-06。Scene のクリックが効かなくなる件の再発・報告の切り分けに残す。原因が確定したら消す）
+            EndCtrlPress();
         }
 
         public override void OnToolGUI(EditorWindow window)
@@ -188,15 +224,15 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             var e = Event.current;
             // 小窓「箱を表示」はグラデーションか画像が ON の編集を選んでいる間だけ出す（Prefab 編集中は出さない）
             if (e.type == EventType.Layout) BoxToggleOverlay.SyncDisplayed(sceneView);
-            // control ID の並びを全イベントで一定にするため、分岐より前に取る
-            int controlId = GUIUtility.GetControlID(FocusType.Passive);
+            // control ID の並びを全イベントで一定にするため、分岐より前に取る（印付きにして、他の部品の数で番号がずれないようにする）
+            int controlId = GUIUtility.GetControlID(s_controlHint, FocusType.Passive);
+            // 掴んだまま残ったマウスを放す（Scene の左右クリックが効かなくなるのを防ぐ）
+            ReleaseStaleCapture(e);
             // Ctrl＋押下中の Esc は矩形（とクリック）だけ中止する（ツールは終了しない）
             if (_ctrlPressPending && e.type == EventType.KeyDown && e.keyCode == KeyCode.Escape)
             {
                 e.Use();
-                _ctrlPressPending = false;
-                _rectActive = false;
-                if (GUIUtility.hotControl == controlId) GUIUtility.hotControl = 0;
+                EndCtrlPress();
                 sceneView.Repaint();
                 return;
             }
@@ -239,7 +275,16 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             DrawDecalBox();
             DrawSelectionBox();
             // 箱のハンドルなど他のコントロールがマウスを掴んでいる間は、クリック・ドラッグを処理しない
-            if (e.isMouse && GUIUtility.hotControl != 0 && GUIUtility.hotControl != controlId) return;
+            if (e.isMouse && GUIUtility.hotControl != 0 && GUIUtility.hotControl != controlId && GUIUtility.hotControl != s_capturedControl)
+            {
+                // 診断用（2026-10-06。Scene のクリックが効かなくなる件の再発・報告の切り分けに残す。原因が確定したら消す）: 左の押下が誰にも使われていないのに、ほかの部品が掴んだまま（取り残し）なら記録する
+                if (e.type == EventType.MouseDown && e.button == 0 && !e.alt && GUIUtility.hotControl != s_lastLoggedForeignControl)
+                {
+                    s_lastLoggedForeignControl = GUIUtility.hotControl;
+                    Debug.Log($"[Tocolo][調査] Scene をクリックしたとき、ほかの部品がマウスを掴んだままでした（番号 {GUIUtility.hotControl}、Tocolo は {controlId}）");
+                }
+                return;
+            }
 
             // 対象の有無にかかわらず既定コントロールにしておく。外さないと Unity 側の選択処理が同じクリックを拾い、
             // 対象を決めたクリックで Selection と Inspector が切り替わってしまう
@@ -268,12 +313,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             {
                 ToolSession.HoverPick = null;
                 // Ctrl＋押下中に対象が消えた（破棄など）: 押下を捨てて hotControl を返す
-                if (_ctrlPressPending)
-                {
-                    _ctrlPressPending = false;
-                    _rectActive = false;
-                    if (GUIUtility.hotControl == controlId) GUIUtility.hotControl = 0;
-                }
+                if (_ctrlPressPending) EndCtrlPress();
                 // 対象未設定: 左クリックがモデルに当たったら、そのルートを対象にしてそのままクリック位置を表示する。
                 // 外れたらクリックは消費しない（ドラッグ等はそのまま）。案内とアバターのボタンは ToolPanelOverlay が出す
                 if (e.type == EventType.MouseDown && e.button == 0 && !e.alt && TryResolveTargetByClick(e.mousePosition, out root))
@@ -319,6 +359,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                     _rectStart = e.mousePosition;
                     _rectEnd = e.mousePosition;
                     GUIUtility.hotControl = controlId;
+                    s_capturedControl = controlId;
                     return;
                 }
                 Pick(root, e.mousePosition, forceNew: e.shift, toggleSeed: false);
@@ -328,8 +369,10 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
 
             if (_ctrlPressPending)
             {
-                var type = e.GetTypeForControl(controlId);
-                if (type == EventType.MouseDrag && GUIUtility.hotControl == controlId)
+                // 押したときに掴んだ番号で受ける（万一番号がずれても離しを取りこぼさない）
+                int pressId = s_capturedControl != 0 ? s_capturedControl : controlId;
+                var type = e.GetTypeForControl(pressId);
+                if (type == EventType.MouseDrag && GUIUtility.hotControl == pressId)
                 {
                     e.Use();
                     _rectEnd = e.mousePosition;
@@ -338,16 +381,12 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                     sceneView.Repaint();
                     return;
                 }
-                if (type == EventType.MouseUp && e.button == 0)
+                // 離し: 先に他の部品が使った（Used）離しも rawType で拾う
+                if ((type == EventType.MouseUp || e.rawType == EventType.MouseUp) && e.button == 0)
                 {
-                    if (GUIUtility.hotControl == controlId)
-                    {
-                        GUIUtility.hotControl = 0;
-                        e.Use();
-                    }
+                    if (GUIUtility.hotControl == pressId) e.Use();
                     bool rect = _rectActive;
-                    _ctrlPressPending = false;
-                    _rectActive = false;
+                    EndCtrlPress();
                     if (rect) SelectIslandsInRect(root, sceneView, RectFromPoints(_rectStart, e.mousePosition), _rectStart);
                     else Pick(root, _rectStart, forceNew: _ctrlPressShift, toggleSeed: true);
                     sceneView.Repaint();
@@ -902,7 +941,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 {
                     var seed = islands[first];
                     edit = CreateEditFromSeed(component, seed.renderer, seed.submesh, seed.triangle, seed.uv, seed.texture,
-                        SampleSwatchColor(seed.texture, seed.uv));
+                        SampleSwatchColor(seed.texture, seed.uv, SwatchWorkingSize(component)));
                 }
                 if (edit == null) return;
             }
@@ -980,7 +1019,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                     // このテクスチャのメンバーが無い: 最初の島を主種にしてメンバーを作る
                     var head = seeds[0];
                     into = EditGroups.LinkSeedBased(component, edit, texture, head.renderer, head.submesh, head.triangle, head.uv,
-                        SampleSwatchColor(texture, head.uv));
+                        SampleSwatchColor(texture, head.uv, SwatchWorkingSize(component)));
                     if (into == null)
                     {
                         result.added -= seeds.Count;
@@ -1797,15 +1836,25 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         /// </summary>
         private static Color? SampleSwatchColor(in PickHit hit)
         {
+            var component = hit.renderer != null ? hit.renderer.GetComponentInParent<ClickRecolor>(true) : null;
             // hit.uv は Tiling/Offset 適用後で 0〜1 に畳まれている（MaterialTextureResolver.ToTextureCoord）
-            return SampleSwatchColor(hit.hasMainTexture ? hit.mainTexture.texture : null, hit.uv);
+            return SampleSwatchColor(hit.hasMainTexture ? hit.mainTexture.texture : null, hit.uv, SwatchWorkingSize(component));
         }
 
-        /// <summary>見本色を texture の uv（Tiling/Offset 適用後、0〜1）から取る。規則は SampleSwatchColor(PickHit) と同じ</summary>
-        internal static Color? SampleSwatchColor(Texture2D texture, Vector2 uv)
+        /// <summary>見本色と一緒に読んでおく作業解像度（プレビュー・範囲づくりと同じ。コンポーネントがまだ無ければ previewResolution の既定）</summary>
+        internal static int SwatchWorkingSize(ClickRecolor component) =>
+            (int)(component != null ? component.previewResolution : WorkingResolution.R2048);
+
+        /// <summary>
+        /// 見本色を texture の uv（Tiling/Offset 適用後、0〜1）から取る。規則は SampleSwatchColor(PickHit) と同じ。
+        /// workingSize &gt; 0 なら先にその大きさの版（プレビュー・範囲づくりと共有）を取っておき、見本用の縮小版をそこから作らせる
+        /// （元ファイルのデコードがクリックで 1 回、プレビューにあれば 0 回で済む。値は元ファイルから縮めたときと同じ）
+        /// </summary>
+        internal static Color? SampleSwatchColor(Texture2D texture, Vector2 uv, int workingSize = 0)
         {
             if (texture == null) return null;
 
+            using (workingSize > 0 ? SourceTextureLoader.Acquire(texture, workingSize) : null)
             using (var source = SourceTextureLoader.Acquire(texture, SwatchSampleSize))
             {
                 if (source == null || !source.IsValid) return null;

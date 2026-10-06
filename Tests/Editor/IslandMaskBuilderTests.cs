@@ -17,6 +17,8 @@ namespace Nekoare.ClickRecolor.Tests
 
         private readonly List<Object> _cleanup = new List<Object>();
         private readonly List<RenderTexture> _masks = new List<RenderTexture>();
+        /// <summary>直前の BuildIsland が返したマスクの範囲</summary>
+        private RectInt _bounds;
 
         [SetUp]
         public void SetUp()
@@ -86,7 +88,7 @@ namespace Nekoare.ClickRecolor.Tests
                 width = Size,
                 height = Size,
                 coverage = coverage,
-            });
+            }, out _bounds);
             Assert.That(result, Is.Not.Null);
             _masks.Add(result);
             return result;
@@ -301,6 +303,106 @@ namespace Nekoare.ClickRecolor.Tests
         }
 
         [Test]
+        public void ReadR8で矩形だけ読むと_全体を読んだときの同じ位置の値になる()
+        {
+            const int w = 48;
+            const int h = 32;
+            var data = new byte[w * h];
+            for (int i = 0; i < data.Length; i++) data[i] = (byte)((i % w) * 5 + (i / w) * 11);
+            var rt = MaskTextures.Create(w, h, "Test");
+            _masks.Add(rt);
+            FloodFill.WriteR8(data, rt);
+            var rect = new RectInt(5, 3, 10, 7);
+
+            var part = FloodFill.ReadR8(rt, rect);
+
+            Assert.That(part.Length, Is.EqualTo(rect.width * rect.height));
+            for (int y = 0; y < rect.height; y++)
+            {
+                for (int x = 0; x < rect.width; x++)
+                {
+                    Assert.That(part[y * rect.width + x], Is.EqualTo(data[(rect.y + y) * w + rect.x + x]), $"({x},{y})");
+                }
+            }
+        }
+
+        [Test]
+        public void 島マスクの範囲は0でない画素をすべて含み_隣のチャートは含まない()
+        {
+            var mesh = MakeTwoChartMesh();
+
+            var pixels = FloodFill.ReadR8(BuildIsland(mesh, padding: 4, withCoverage: true));
+
+            int nonZero = 0;
+            for (int y = 0; y < Size; y++)
+            {
+                for (int x = 0; x < Size; x++)
+                {
+                    if (At(pixels, x, y) == 0) continue;
+                    nonZero++;
+                    Assert.That(_bounds.Contains(new Vector2Int(x, y)), Is.True, $"({x},{y}) が範囲 {_bounds} の外");
+                }
+            }
+            Assert.That(nonZero, Is.GreaterThan(0));
+            // チャート A（x = 4..28）＋余白 2＋パディング 4＋ぼかし 1 まで。チャート B（x = 32..60）の大半は含まない
+            Assert.That(_bounds.xMax, Is.LessThanOrEqualTo(28 + 2 + 4 + 1));
+        }
+
+        /// <summary>size×size の RT に、塊 A（左）と塊 B（右）を塗る。withB = false なら A だけ</summary>
+        private RenderTexture MakeBlobs(int size, bool withB, out byte[] data, out Vector2Int seedInA, out RectInt bounds)
+        {
+            int k = size / Size;
+            data = new byte[size * size];
+            for (int y = 4 * k; y < 12 * k; y++)
+            {
+                for (int x = 4 * k; x < 12 * k; x++) data[y * size + x] = 255;
+                if (!withB) continue;
+                for (int x = 20 * k; x < 26 * k; x++) data[y * size + x] = 255;
+            }
+            var rt = MaskTextures.Create(size, size, "Test");
+            _masks.Add(rt);
+            FloodFill.WriteR8(data, rt);
+            seedInA = new Vector2Int(6 * k, 6 * k);
+            bounds = new RectInt(2 * k, 2 * k, 26 * k, 12 * k);
+            return rt;
+        }
+
+        [TestCase(64)]
+        [TestCase(2048)] // 長辺 1024 を超えると縮めた二値で調べる
+        public void 連結チェックは範囲の中で届かない塊を落とす(int size)
+        {
+            var rt = MakeBlobs(size, withB: true, out var data, out var seed, out var bounds);
+            int k = size / Size;
+
+            IslandMaskBuilder.RestrictToConnected(rt, seed, bounds);
+
+            var pixels = FloodFill.ReadR8(rt);
+            Assert.That(pixels[seed.y * size + seed.x], Is.EqualTo(255), "種の塊は残る");
+            Assert.That(pixels[8 * k * size + 22 * k], Is.EqualTo(0), "届かない塊は落ちる");
+        }
+
+        [TestCase(64)]
+        [TestCase(2048)]
+        public void 連結チェックは塊が1つなら何も変えない(int size)
+        {
+            var rt = MakeBlobs(size, withB: false, out var data, out var seed, out var bounds);
+
+            IslandMaskBuilder.RestrictToConnected(rt, seed, bounds);
+
+            Assert.That(FloodFill.ReadR8(rt), Is.EqualTo(data));
+        }
+
+        [Test]
+        public void 連結チェックは種が範囲の外なら何も変えない()
+        {
+            var rt = MakeBlobs(Size, withB: true, out var data, out _, out var bounds);
+
+            IslandMaskBuilder.RestrictToConnected(rt, new Vector2Int(60, 60), bounds);
+
+            Assert.That(FloodFill.ReadR8(rt), Is.EqualTo(data));
+        }
+
+        [Test]
         public void TilingとOffsetを指定すると_その分ずれた位置に島が塗られる()
         {
             // UV 上は x = 0.05..0.25, y = 0.1..0.3 の四角。Tiling (2,2) / Offset (0.25,0) を掛けると
@@ -380,6 +482,22 @@ namespace Nekoare.ClickRecolor.Tests
         }
 
         [Test]
+        public void 落とした画素の数を返す()
+        {
+            var mask = Parse(
+                "##......",
+                "##......",
+                "..#.....",
+                "......##",
+                "......##",
+                "........");
+
+            int removed = FloodFill.RestrictToConnected(mask, W, H, new Vector2Int(0, H - 1));
+
+            Assert.That(removed, Is.EqualTo(5), "対角の 1 画素＋右下の塊 4 画素");
+        }
+
+        [Test]
         public void 種の画素が0なら何も変えない()
         {
             var mask = Parse(
@@ -394,6 +512,45 @@ namespace Nekoare.ClickRecolor.Tests
             FloodFill.RestrictToConnected(mask, W, H, new Vector2Int(4, 2));
 
             Assert.That(mask, Is.EqualTo(before));
+        }
+    }
+
+    /// <summary>IslandMaskBuilder の範囲の計算（CPU のみ）のテスト</summary>
+    public class IslandBoundsTests
+    {
+        [Test]
+        public void 三角形の外接矩形に余白を足す()
+        {
+            var verts = new List<Vector2> { new Vector2(4.4f, 4f), new Vector2(28f, 4f), new Vector2(28f, 60f) };
+
+            var bounds = IslandMaskBuilder.TexelBounds(verts, 64, 64, 2);
+
+            Assert.That(bounds, Is.EqualTo(new RectInt(2, 2, 28, 60)));
+        }
+
+        [Test]
+        public void 画像の外にはみ出す分は切る()
+        {
+            var verts = new List<Vector2> { new Vector2(-10f, 1f), new Vector2(70f, 1f), new Vector2(30f, 63.5f) };
+
+            Assert.That(IslandMaskBuilder.TexelBounds(verts, 64, 64, 2), Is.EqualTo(new RectInt(0, 0, 64, 64)));
+            Assert.That(IslandMaskBuilder.Expand(new RectInt(1, 1, 10, 10), 3, 64, 64), Is.EqualTo(new RectInt(0, 0, 14, 14)));
+        }
+
+        [Test]
+        public void 三角形が無ければ空()
+        {
+            Assert.That(IslandMaskBuilder.TexelBounds(new List<Vector2>(), 64, 64, 2), Is.EqualTo(default(RectInt)));
+            Assert.That(IslandMaskBuilder.Expand(default, 3, 64, 64), Is.EqualTo(default(RectInt)));
+        }
+
+        [Test]
+        public void 縮めた画像の矩形はかかる区画をすべて含む()
+        {
+            // x = 3..12 は区画 1..6、y = 5..8 は区画 2..4（2 画素で 1 区画）
+            var scaled = IslandMaskBuilder.ScaleBounds(new RectInt(3, 5, 10, 4), 2048, 2048, 1024, 1024);
+
+            Assert.That(scaled, Is.EqualTo(new RectInt(1, 2, 6, 3)));
         }
     }
 }

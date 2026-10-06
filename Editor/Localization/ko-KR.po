@@ -463,10 +463,16 @@ msgid "Scene:Color:Decal"
 msgstr "이미지 넣기"
 
 msgid "Help:Decal"
-msgstr "켜면 Scene에 박스가 나타나고, 박스의 정면(이미지가 그려진 면)에서 이미지를 표면에 붙여요. 이 편집의 선택 범위 안에만 붙어요. 켜져 있는 동안 색·음영·불투명도·그라데이션 설정은 범위가 아니라 이미지에 적용돼요. 박스 표시는 패널 옆의 작은 창에서 바꿀 수 있어요."
+msgstr "켜면 Scene에 박스가 나타나고, 박스의 정면(이미지가 그려진 면)에서 이미지를 표면에 붙여요. 이 편집의 선택 범위 안에만 붙어요. 켜져 있는 동안 색·음영·불투명도·그라데이션 설정은 범위가 아니라 이미지에 적용돼요. 박스 표시는 패널 옆의 작은 창에서 바꿀 수 있어요. '박스 방향 맞추기'로 클릭한 곳의 면 방향에 박스를 맞출 수 있어요."
 
-msgid "Scene:Color:DecalTexture"
-msgstr "이미지"
+msgid "Scene:Color:DecalAlignBox"
+msgstr "박스 방향 맞추기"
+
+msgid "Scene:Color:DecalAlignBoxTooltip"
+msgstr "클릭한 곳의 면 방향으로 박스를 맞춰요(크기는 그대로, 박스 중심을 면 위로 옮겨요)"
+
+msgid "Scene:Color:DecalAlignFailed"
+msgstr "면의 방향을 정하지 못했어요. 범위가 너무 작거나 평평한 면이 아니에요"
 
 msgid "Scene:Color:DecalSmooth"
 msgstr "매끄럽게 붙이기(lilToon·Poiyomi)"

@@ -52,7 +52,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 if (EditGroups.FindMemberForTexture(component, edit, texture) != null) continue;
                 if (!RecolorSceneTool.TryGetSourceTexture(texture, out _)) continue;
                 var member = EditGroups.LinkSeedBased(component, edit, texture, seed.renderer, seed.submesh, seed.triangle, seed.uv,
-                    RecolorSceneTool.SampleSwatchColor(texture, seed.uv));
+                    RecolorSceneTool.SampleSwatchColor(texture, seed.uv, RecolorSceneTool.SwatchWorkingSize(component)));
                 if (member != null) changed = true;
             }
             // 外す（箱に触れなくなったテクスチャ。現在の編集は残す）

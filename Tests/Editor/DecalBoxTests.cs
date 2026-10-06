@@ -164,5 +164,133 @@ namespace Nekoare.ClickRecolor.Tests
             Assert.That(edit.decalTexture, Is.SameAs(image));
             Assert.That(edit.decalKeepAspect, Is.False);
         }
+
+        [Test]
+        public void 向きを決められないときは箱を動かさない()
+        {
+            // 立方体にマテリアルが無いので選択範囲の点が取れない
+            var (component, edit) = MakeEdit();
+            DecalBox.SetEnabled(component, edit, true);
+            var position = new Vector3(5f, 5f, 5f);
+            var rotation = Quaternion.Euler(0f, 30f, 0f);
+            edit.decalBoxPosition = position;
+            edit.decalBoxRotation = rotation;
+
+            Assert.That(DecalBox.AlignToSurface(component, edit), Is.False);
+            Assert.That(edit.decalBoxPosition, Is.EqualTo(position), "正面向きに戻さない");
+            Assert.That(edit.decalBoxRotation, Is.EqualTo(rotation));
+        }
+
+        // ── 箱の向きを面に合わせる（DecalBox.AlignToSurface の計算部分）──
+
+        /// <summary>
+        /// 中心 center・法線 normal の平面上の、一辺 size の正方形に並べた点（法線方向へ ±bump のでこぼこ付き。乱数は固定）
+        /// </summary>
+        private static List<Vector3> PlanePoints(Vector3 center, Vector3 normal, float size, float bump, int n = 20, int seed = 1)
+        {
+            normal.Normalize();
+            var u = Vector3.Cross(normal, Mathf.Abs(normal.y) < 0.9f ? Vector3.up : Vector3.right).normalized;
+            var v = Vector3.Cross(normal, u);
+            var random = new System.Random(seed);
+            var points = new List<Vector3>();
+            for (int i = 0; i < n; i++)
+            {
+                for (int j = 0; j < n; j++)
+                {
+                    float a = (i / (float)(n - 1) - 0.5f) * size;
+                    float b = (j / (float)(n - 1) - 0.5f) * size;
+                    float d = ((float)random.NextDouble() * 2f - 1f) * bump;
+                    points.Add(center + u * a + v * b + normal * d);
+                }
+            }
+            return points;
+        }
+
+        [Test]
+        public void でこぼこのある面でも平面を当てはめた法線は面の向きになる()
+        {
+            var normal = new Vector3(-0.3f, 0f, 1f).normalized;
+            var points = PlanePoints(Vector3.zero, normal, 0.2f, 0.005f);
+
+            Assert.That(DecalBox.TryFitPlane(points, out var fitted), Is.True);
+            Assert.That(Mathf.Abs(Vector3.Dot(fitted, normal)), Is.GreaterThan(0.99f));
+        }
+
+        [Test]
+        public void 棒状に並んだ点は平面とみなさない()
+        {
+            var points = new List<Vector3>();
+            for (int i = 0; i < 50; i++) points.Add(new Vector3(i * 0.01f, 0f, 0f));
+
+            Assert.That(DecalBox.TryFitPlane(points, out _), Is.False);
+        }
+
+        [Test]
+        public void 軸から少しだけ傾いた面は軸にそろえ_大きく傾いた面はそのまま()
+        {
+            var slight = Quaternion.AngleAxis(8f, Vector3.up) * Vector3.forward;
+            var steep = Quaternion.AngleAxis(30f, Vector3.up) * Vector3.forward;
+
+            Assert.That(DecalBox.SnapToAxis(slight, DecalBox.SnapAngle), Is.EqualTo(Vector3.forward));
+            Assert.That(DecalBox.SnapToAxis(steep, DecalBox.SnapAngle), Is.EqualTo(steep));
+        }
+
+        [Test]
+        public void 右を向いた面では箱の正面が右を向き_画像の上はアバターの上()
+        {
+            var points = PlanePoints(new Vector3(0.1f, 1f, 0f), Vector3.right, 0.2f, 0.003f);
+
+            Assert.That(DecalBox.TryOrient(points, new Vector3(0.1f, 1f, 0f), Vector3.right, out var rotation, out _), Is.True);
+            Assert.That(Vector3.Angle(rotation * Vector3.forward, Vector3.right), Is.LessThan(0.01f), "軸にそろう");
+            Assert.That(Vector3.Angle(rotation * Vector3.up, Vector3.up), Is.LessThan(0.01f));
+        }
+
+        [Test]
+        public void クリックした面が裏向きなら箱の正面も裏を向く()
+        {
+            var points = PlanePoints(new Vector3(0f, 1f, -0.1f), Vector3.back, 0.2f, 0.003f);
+
+            Assert.That(DecalBox.TryOrient(points, new Vector3(0f, 1f, -0.1f), Vector3.back, out var rotation, out _), Is.True);
+            Assert.That(Vector3.Angle(rotation * Vector3.forward, Vector3.back), Is.LessThan(0.01f), "背中に貼るときは後ろから投影する");
+        }
+
+        [Test]
+        public void 大きく傾いた面には軸にそろえずに合わせる()
+        {
+            var normal = Quaternion.AngleAxis(-35f, Vector3.right) * Vector3.forward; // 上に 35° 傾いた面（肩の斜面など）
+            var points = PlanePoints(Vector3.zero, normal, 0.2f, 0.002f);
+
+            Assert.That(DecalBox.TryOrient(points, Vector3.zero, normal, out var rotation, out _), Is.True);
+            Assert.That(Vector3.Angle(rotation * Vector3.forward, normal), Is.LessThan(2f));
+        }
+
+        [Test]
+        public void 離れた別のパーツも選んでいるときは_クリックしたパーツのまわりだけで向きを決める()
+        {
+            // 左のパーツは正面、右のパーツは右を向いている。左をクリックしたら正面
+            var points = PlanePoints(new Vector3(-1f, 1f, 0f), Vector3.forward, 0.2f, 0.003f, seed: 2);
+            points.AddRange(PlanePoints(new Vector3(1f, 1f, 0f), Vector3.right, 0.2f, 0.003f, seed: 3));
+
+            Assert.That(DecalBox.TryOrient(points, new Vector3(-1f, 1f, 0f), Vector3.forward, out var rotation, out _), Is.True);
+            Assert.That(Vector3.Angle(rotation * Vector3.forward, Vector3.forward), Is.LessThan(0.01f));
+        }
+
+        [Test]
+        public void 上を向いた面では画像の上がアバターの後ろを向く()
+        {
+            var rotation = DecalBox.RotationFacing(Vector3.up);
+
+            Assert.That(Vector3.Angle(rotation * Vector3.forward, Vector3.up), Is.LessThan(0.01f));
+            Assert.That(Vector3.Angle(rotation * Vector3.up, Vector3.back), Is.LessThan(0.01f), "正面から見て読める向き");
+        }
+
+        [Test]
+        public void 面に乗せるときは面に沿った方向の位置を変えず奥行きだけ動かす()
+        {
+            // 体の中（x = 0）にある箱の中心を、右を向いた面（x = 0.175）に乗せる
+            var placed = DecalBox.PlaceOnPlane(new Vector3(0f, 1.2f, 0.05f), Vector3.right, new Vector3(0.175f, 1f, 0f));
+
+            Assert.That(Vector3.Distance(placed, new Vector3(0.175f, 1.2f, 0.05f)), Is.LessThan(1e-5f));
+        }
     }
 }

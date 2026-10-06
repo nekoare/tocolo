@@ -678,6 +678,9 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         /// 「画像を入れる」トグルと、ON のときの画像・詳細設定（なめらかに貼る・ノーマルも反映・比率を保つ）。
         /// ON にすると Scene に箱が出る（RecolorSceneTool.DrawDecalBox。出すかどうかは小窓「箱を表示」の BoxToggleOverlay）。連結なら連結の全編集に効かせる（DrawGradient と同じ構造）
         /// </summary>
+        /// <summary>画像の欄（サムネイル付きの ObjectField）の一辺</summary>
+        private const float DecalThumbnailSize = 64f;
+
         private static void DrawDecal(ClickRecolor component, RecolorEdit edit)
         {
             // トグルを押したイベントの中で部品の数が変わらないよう、押す前の値で後半を出すか決める
@@ -706,8 +709,23 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             GUILayout.Space(16);
             using (new EditorGUILayout.VerticalScope())
             {
-            var texture = (Texture2D)EditorGUILayout.ObjectField(
-                Locales.Tr("Scene:Color:DecalTexture"), edit.decalTexture, typeof(Texture2D), false);
+            // 画像の欄。ラベルの位置に［箱の向きを合わせる］: クリックした所の面の向きに箱を合わせて置き直す（ユーザー要望 2026-10-06。
+            // ON にしたとき・［リセット］の箱は今までどおり正面向き）。向きを決められなければ箱は動かさず案内だけ出す
+            Texture2D texture;
+            bool align;
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                var alignContent = new GUIContent(Locales.Tr("Scene:Color:DecalAlignBox"), Locales.Tr("Scene:Color:DecalAlignBoxTooltip"));
+                align = GUILayout.Button(alignContent, EditorStyles.miniButton, GUILayout.ExpandWidth(false));
+                GUILayout.FlexibleSpace();
+                texture = (Texture2D)EditorGUILayout.ObjectField(edit.decalTexture, typeof(Texture2D), false,
+                    GUILayout.Width(DecalThumbnailSize), GUILayout.Height(DecalThumbnailSize));
+            }
+            if (align)
+            {
+                if (DecalBox.AlignToSurface(component, edit)) SceneView.RepaintAll();
+                else ToolSession.ShowTransientNotice("Scene:Color:DecalAlignFailed");
+            }
             // 消えた画像（参照切れ）は Unity の == で null と等しいので、None を選び直しても != では変化に見えない。参照が変わったかも見る
             // （触っていなければ ObjectField は渡した物をそのまま返すので、毎フレーム書き込むことはない）
             if (!ReferenceEquals(texture, edit.decalTexture) && (texture != edit.decalTexture || edit.HasMissingDecal))

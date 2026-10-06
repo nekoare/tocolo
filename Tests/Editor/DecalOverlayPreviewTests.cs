@@ -470,17 +470,85 @@ namespace Nekoare.ClickRecolor.Tests
         }
 
         [Test]
-        public void 画像の箱やグラデーションのONOFFを変えると形のハッシュが変わる()
+        public void 画像の箱を動かすと置き方のハッシュだけ変わり_グラデーションのONOFFでは形のハッシュが変わる()
         {
             var (component, edit) = MakeOverlayComponent();
             int shape = DecalOverlayPreview.ComputeOverlayShapeHash(component);
+            int placement = DecalOverlayPreview.ComputeOverlayPlacementHash(component);
 
             edit.decalBoxPosition = new Vector3(0.1f, 0f, 0f);
-            int moved = DecalOverlayPreview.ComputeOverlayShapeHash(component);
-            Assert.That(moved, Is.Not.EqualTo(shape), "箱を動かしたら作り直す");
+            edit.decalKeepAspect = !edit.decalKeepAspect;
+            Assert.That(DecalOverlayPreview.ComputeOverlayShapeHash(component), Is.EqualTo(shape), "箱を動かしても表示用メッシュは作り直さない");
+            Assert.That(DecalOverlayPreview.ComputeOverlayPlacementHash(component), Is.Not.EqualTo(placement), "置き直す");
 
             edit.gradientEnabled = false;
-            Assert.That(DecalOverlayPreview.ComputeOverlayShapeHash(component), Is.Not.EqualTo(moved), "位置マップが要るかが変わるので作り直す");
+            Assert.That(DecalOverlayPreview.ComputeOverlayShapeHash(component), Is.Not.EqualTo(shape), "位置マップが要るかが変わるので作り直す");
+        }
+
+        [Test]
+        public void ほかの編集を足しても色を初めて決めても形のハッシュは変わらない()
+        {
+            var (component, _) = MakeOverlayComponent();
+            int shape = DecalOverlayPreview.ComputeOverlayShapeHash(component);
+
+            var other = RecolorEdit.CreateNew();
+            other.sourceTexture = Track(new Texture2D(4, 4));
+            component.AddEdit(other);
+            Assert.That(DecalOverlayPreview.ComputeOverlayShapeHash(component), Is.EqualTo(shape), "クリックで色を決めていない編集が増えた");
+
+            other.hasTarget = true;
+            other.targetColor = Color.red;
+            Assert.That(DecalOverlayPreview.ComputeOverlayShapeHash(component), Is.EqualTo(shape), "ほかの編集の色を初めて決めた");
+        }
+
+        [Test]
+        public void 先のコンポーネントが重ね貼りのテクスチャを対象にしたときだけ解像度と基準の署名が変わる()
+        {
+            var first = Track(new GameObject("First")).AddComponent<ClickRecolor>();
+            var (second, overlayEdit) = MakeOverlayComponent();
+            var components = new[] { first, second };
+            int before = DecalOverlayPreview.FoldOverlayPlans(17, components);
+
+            var otherTexture = RecolorEdit.CreateNew();
+            otherTexture.sourceTexture = Track(new Texture2D(4, 4));
+            otherTexture.hasTarget = true;
+            first.AddEdit(otherTexture);
+            Assert.That(DecalOverlayPreview.FoldOverlayPlans(17, components), Is.EqualTo(before), "ほかのテクスチャの編集");
+
+            var sameTexture = RecolorEdit.CreateNew();
+            sameTexture.sourceTexture = overlayEdit.sourceTexture;
+            first.AddEdit(sameTexture);
+            Assert.That(DecalOverlayPreview.FoldOverlayPlans(17, components), Is.EqualTo(before), "同じテクスチャでも色を決めていなければ対象ではない");
+
+            sameTexture.hasTarget = true;
+            Assert.That(DecalOverlayPreview.FoldOverlayPlans(17, components), Is.Not.EqualTo(before), "解像度・基準が先のコンポーネントのものになる");
+        }
+
+        [Test]
+        public void 対象のテクスチャの集合のハッシュは並びによらず_テクスチャが増えると変わる()
+        {
+            var component = Track(new GameObject("Avatar")).AddComponent<ClickRecolor>();
+            var a = Track(new Texture2D(4, 4));
+            var b = Track(new Texture2D(4, 4));
+            RecolorEdit Targeted(Texture2D texture)
+            {
+                var edit = RecolorEdit.CreateNew();
+                edit.sourceTexture = texture;
+                edit.hasTarget = true;
+                return edit;
+            }
+            component.AddEdit(Targeted(a));
+            component.AddEdit(Targeted(b));
+            int ab = DecalOverlayPreview.ComputeTargetTexturesHash(component);
+
+            var reversed = Track(new GameObject("Reversed")).AddComponent<ClickRecolor>();
+            reversed.AddEdit(Targeted(b));
+            reversed.AddEdit(Targeted(a));
+            reversed.AddEdit(Targeted(a));
+            Assert.That(DecalOverlayPreview.ComputeTargetTexturesHash(reversed), Is.EqualTo(ab), "並び・重複によらない");
+
+            component.AddEdit(Targeted(Track(new Texture2D(4, 4))));
+            Assert.That(DecalOverlayPreview.ComputeTargetTexturesHash(component), Is.Not.EqualTo(ab));
         }
 
         [Test]

@@ -695,16 +695,18 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
                 h = h * 31 + edits.Count;
                 foreach (var edit in edits)
                 {
+                    // 重ね貼りの画像の置き方（箱の位置・ドラッグ状態）もこのフィルタの結果を変えない（つかむ・離すたびに作り直さない。2026-10-06 計測）
                     h = Decal.DecalOverlayMaterial.UseOverlay(component, edit) ? HashEditShape(h, edit) : HashEdit(h, edit);
                 }
                 return h;
             }
         }
 
-        internal static int HashEdit(int h, RecolorEdit edit) => HashEditLook(HashEditShape(h, edit), edit);
+        internal static int HashEdit(int h, RecolorEdit edit) => HashEditLook(HashEditPlacement(HashEditShape(h, edit), edit), edit);
 
         /// <summary>
-        /// 編集の「形」: 範囲・画像・箱・貼り方など、色の設定以外。重ね貼り（DecalOverlayPreview）では、ここが変わると表示用メッシュと画像の下地を作り直す
+        /// 編集の「形」: 範囲・画像・貼り方など、色の設定と画像の置き方（HashEditPlacement）以外。
+        /// 重ね貼り（DecalOverlayPreview）では、ここが変わると表示用メッシュを作り直す
         /// </summary>
         internal static int HashEditShape(int h, RecolorEdit edit)
         {
@@ -749,20 +751,33 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
                 {
                     h = h * 31 + (edit.decalTexture != null ? edit.decalTexture.GetInstanceID() : 0);
                     h = h * 31 + (edit.decalTexture != null ? edit.decalTexture.imageContentsHash.GetHashCode() : 0);
-                    h = h * 31 + (edit.decalKeepAspect ? 1 : 0);
-                    // 重ね貼りで表示している編集は、ドラッグ中は箱の値を畳まない（DecalOverlayPreview がメッシュを作り直さず投影 UV だけ書き換えて追従させる。
-                    // 毎フレーム作り直すと追従しない。実機 2026-10-04）。焼き込みの編集はドラッグ中も箱の値で層を作り直す
-                    if (!(SceneTool.ToolSession.IsDecalBoxDraggingFor(edit) && SceneTool.ToolSession.DecalBoxDragIsOverlay))
-                    {
-                        h = h * 31 + edit.decalBoxPosition.GetHashCode();
-                        h = h * 31 + edit.decalBoxRotation.GetHashCode();
-                        h = h * 31 + edit.decalBoxSize.GetHashCode();
-                    }
                     h = h * 31 + (edit.decalSmooth ? 1 : 0);
                     h = h * 31 + (edit.decalNormal ? 1 : 0);
-                    // ドラッグ中は層を低解像度で作るので、離した瞬間にフル解像度で作り直せるようドラッグ状態も含める
-                    h = h * 31 + (SceneTool.ToolSession.IsDecalBoxDraggingFor(edit) ? 1 : 0);
                 }
+                return h;
+            }
+        }
+
+        /// <summary>
+        /// 編集の画像の「置き方」: 画像の箱の位置・回転・大きさ・比率を保つ・ドラッグ中か（画像を入れていなければ何も畳まない）。
+        /// 重ね貼り（DecalOverlayPreview）では、ここだけ変わったときは表示用メッシュを作り直さず、描く三角形・投影 UV・画像だけ置き直す（2026-10-06 計測）
+        /// </summary>
+        internal static int HashEditPlacement(int h, RecolorEdit edit)
+        {
+            unchecked
+            {
+                if (edit == null || !edit.decalEnabled) return h;
+                h = h * 31 + (edit.decalKeepAspect ? 1 : 0);
+                // 重ね貼りで表示している編集は、ドラッグ中は箱の値を畳まない（DecalOverlayPreview がメッシュを作り直さず投影 UV だけ書き換えて追従させる。
+                // 毎フレーム作り直すと追従しない。実機 2026-10-04）。焼き込みの編集はドラッグ中も箱の値で層を作り直す
+                if (!(SceneTool.ToolSession.IsDecalBoxDraggingFor(edit) && SceneTool.ToolSession.DecalBoxDragIsOverlay))
+                {
+                    h = h * 31 + edit.decalBoxPosition.GetHashCode();
+                    h = h * 31 + edit.decalBoxRotation.GetHashCode();
+                    h = h * 31 + edit.decalBoxSize.GetHashCode();
+                }
+                // ドラッグ中は層を低解像度で作るので、離した瞬間にフル解像度で作り直せるようドラッグ状態も含める
+                h = h * 31 + (SceneTool.ToolSession.IsDecalBoxDraggingFor(edit) ? 1 : 0);
                 return h;
             }
         }

@@ -448,6 +448,25 @@ namespace Nekoare.ClickRecolor.Editor.Decal
         /// 2nd ノーマル（布の織り目などの繰り返し模様が多い）を重ね貼りでも効かせる。画像の座標へ写すと繰り返しの細かさに解像度が足りないので、
         /// 元の画像・Tiling のまま元の UV で引かせる: UV0 は重ね貼りの頂点では UV1 に入っているので UV モードを UV1 にする（UV2・UV3 は元のまま）
         /// </summary>
+        /// <summary>
+        /// 置き直し（DecalOverlayPreview の Refresh）: Create で作った重ね貼りマテリアルの画像を差し替える（マテリアルは作り直さない。lilToon の透過設定を毎回掛けないため）。
+        /// normal・bump2ndMask は、Create で写し直したもの（RenderTexture）を入れたプロパティだけ差し替える（元の法線マップのままのプロパティは触らない）。
+        /// null の引数は差し替えない。lilToon・Poiyomi ともメインテクスチャは _MainTex
+        /// </summary>
+        internal static void SetImages(Material overlay, Texture image, Texture normal, Texture bump2ndMask)
+        {
+            if (overlay == null) return;
+            if (image != null && overlay.HasProperty("_MainTex")) overlay.SetTexture("_MainTex", image);
+            if (normal != null && overlay.HasProperty("_BumpMap") && overlay.GetTexture("_BumpMap") is RenderTexture)
+            {
+                overlay.SetTexture("_BumpMap", normal);
+            }
+            if (bump2ndMask != null && overlay.HasProperty("_Bump2ndScaleMask") && overlay.GetTexture("_Bump2ndScaleMask") is RenderTexture)
+            {
+                overlay.SetTexture("_Bump2ndScaleMask", bump2ndMask);
+            }
+        }
+
         private static void RestoreBump2nd(Material original, Material clone, Texture bump2ndMask)
         {
             if (!TryGetBump2ndSource(original, out var mask, out _)) return;

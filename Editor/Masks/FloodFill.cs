@@ -14,15 +14,16 @@ namespace Nekoare.ClickRecolor.Editor.Masks
         /// <summary>
         /// mask（0/1、行優先・y=0 が下）の中で seed から 4 連結で到達できる画素だけ残し、他を 0 にする。
         /// 対角で繋がる細い UV ストライプに伝播しないよう 4 連結にする。
-        /// seed が範囲外、または seed の画素が 0 なら何もしない（選択を消してしまわないための安全側）
+        /// seed が範囲外、または seed の画素が 0 なら何もしない（選択を消してしまわないための安全側）。
+        /// 0 にした画素の数を返す
         /// </summary>
-        internal static void RestrictToConnected(byte[] mask, int w, int h, Vector2Int seed)
+        internal static int RestrictToConnected(byte[] mask, int w, int h, Vector2Int seed)
         {
             if (mask == null) throw new ArgumentNullException(nameof(mask));
             if (mask.Length < w * h) throw new ArgumentException("maskの長さがw×hより短いです", nameof(mask));
-            if (seed.x < 0 || seed.x >= w || seed.y < 0 || seed.y >= h) return;
+            if (seed.x < 0 || seed.x >= w || seed.y < 0 || seed.y >= h) return 0;
             int seedIndex = seed.y * w + seed.x;
-            if (mask[seedIndex] == 0) return;
+            if (mask[seedIndex] == 0) return 0;
 
             var visited = new bool[w * h];
             var queue = new Queue<int>();
@@ -39,10 +40,14 @@ namespace Nekoare.ClickRecolor.Editor.Masks
                 TryVisit(mask, visited, queue, x, y + 1, w, h);
             }
 
+            int removed = 0;
             for (int i = 0; i < w * h; i++)
             {
-                if (mask[i] != 0 && !visited[i]) mask[i] = 0;
+                if (mask[i] == 0 || visited[i]) continue;
+                mask[i] = 0;
+                removed++;
             }
+            return removed;
         }
 
         private static void TryVisit(byte[] mask, bool[] visited, Queue<int> queue, int x, int y, int w, int h)
@@ -58,6 +63,43 @@ namespace Nekoare.ClickRecolor.Editor.Masks
         internal static byte[] ReadR8(RenderTexture rt)
         {
             if (rt == null) throw new ArgumentNullException(nameof(rt));
+            return ReadR8(rt, new RectInt(0, 0, rt.width, rt.height));
+        }
+
+        /// <summary>
+        /// R8 の RT の rect（画素、y=0 が下）の範囲だけを CPU に読み戻す（0..255、rect の大きさで行優先・y=0 が下）。
+        /// rect は RT の中に収まっていること。空なら長さ 0。
+        /// 部分の ReadPixels は API によって y の数え方が上下逆になる（D3D11 で確認）ので、範囲をテクスチャ座標で
+        /// 小さい RT へ写してから全体を読む（テクスチャ座標の向きはどの API でも同じ）
+        /// </summary>
+        internal static byte[] ReadR8(RenderTexture rt, RectInt rect)
+        {
+            if (rt == null) throw new ArgumentNullException(nameof(rt));
+            if (rect.width <= 0 || rect.height <= 0) return Array.Empty<byte>();
+            if (rect.x == 0 && rect.y == 0 && rect.width == rt.width && rect.height == rt.height) return ReadWhole(rt);
+
+            var part = MaskTextures.GetTemporary(rect.width, rect.height);
+            var previousFilter = rt.filterMode;
+            var previous = RenderTexture.active;
+            try
+            {
+                // 写し先の画素の中心は、元の画素の中心にちょうど当たる（最近傍にして補間を掛けない）
+                rt.filterMode = FilterMode.Point;
+                Graphics.Blit(rt, part,
+                    new Vector2((float)rect.width / rt.width, (float)rect.height / rt.height),
+                    new Vector2((float)rect.x / rt.width, (float)rect.y / rt.height));
+                return ReadWhole(part);
+            }
+            finally
+            {
+                rt.filterMode = previousFilter;
+                RenderTexture.active = previous;
+                RenderTexture.ReleaseTemporary(part);
+            }
+        }
+
+        private static byte[] ReadWhole(RenderTexture rt)
+        {
             var tex = new Texture2D(rt.width, rt.height, TextureFormat.R8, false, true);
             var previous = RenderTexture.active;
             try

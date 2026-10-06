@@ -159,7 +159,7 @@ namespace Nekoare.ClickRecolor.Tests
         }
 
         [Test]
-        public void 重ね貼りで表示する編集は色を変えてもハッシュが変わらず_形を変えると変わる()
+        public void 重ね貼りで表示する編集は色や画像の箱を変えてもハッシュが変わらず_範囲を変えると変わる()
         {
             var (component, edit) = MakeDecalAvatar(smooth: true);
             Assert.That(Editor.Decal.DecalOverlayMaterial.UseOverlay(component, edit), Is.True, "前提: lilToon なので重ね貼り");
@@ -167,10 +167,12 @@ namespace Nekoare.ClickRecolor.Tests
 
             edit.targetColor = Color.blue;
             edit.strength = 0.5f;
-            Assert.That(RecolorPreview.ComputeEditsHash(component), Is.EqualTo(before), "重ね貼りの色はこのフィルタの結果を変えないので作り直さない");
-
             edit.decalBoxPosition = new Vector3(0.1f, 0f, 0f);
-            Assert.That(RecolorPreview.ComputeEditsHash(component), Is.Not.EqualTo(before), "形はハイライトの範囲に効くので畳む");
+            edit.decalKeepAspect = !edit.decalKeepAspect;
+            Assert.That(RecolorPreview.ComputeEditsHash(component), Is.EqualTo(before), "重ね貼りの色・画像の箱はこのフィルタの結果を変えないので作り直さない");
+
+            edit.padding += 2;
+            Assert.That(RecolorPreview.ComputeEditsHash(component), Is.Not.EqualTo(before), "範囲はハイライトに効くので畳む");
         }
 
         [Test]

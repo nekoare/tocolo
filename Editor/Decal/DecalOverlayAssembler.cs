@@ -48,8 +48,8 @@ namespace Nekoare.ClickRecolor.Editor.Decal
             /// <summary>materials と同じ並びの、複製元のスロットと画像（マテリアルだけ作り直すため）</summary>
             public readonly List<OverlaySource> sources = new List<OverlaySource>();
             /// <summary>
-            /// 画像の箱のドラッグ中に作った（dragging）重ね貼りの、投影 UV と描く三角形を書き換えるための情報。
-            /// ドラッグ中でなければ空
+            /// 重ね貼りの段ごとの、投影 UV と描く三角形を書き換えるための情報（画像の箱のドラッグ中に作ったとき、またはプレビュー用 ForPreview のとき）。
+            /// そうでなければ空
             /// </summary>
             public readonly List<OverlaySegment> segments = new List<OverlaySegment>();
         }
@@ -77,6 +77,36 @@ namespace Nekoare.ClickRecolor.Editor.Decal
             public bool flip;
             /// <summary>箱のローカルの位置の作業用（sources と同じ並び）</summary>
             public Vector3[] boxPositions;
+            /// <summary>
+            /// プレビュー（ForPreview）で複製した範囲: 作ったときの箱（対象ルート → 箱のローカル）を各軸 RegionScale 倍に広げた箱（regionHalf）にかかる三角形だけ
+            /// 複製してある。箱がこの外まで動いたら置き直せない（作り直す。CoversBox）。ドラッグ中に作ったものは regionHalf が無限大（範囲で絞らない）
+            /// </summary>
+            public Matrix4x4 regionRootToBox = Matrix4x4.identity;
+            public Vector3 regionHalf = Vector3.positiveInfinity;
+        }
+
+        /// <summary>
+        /// プレビューで複製する範囲を、作ったときの箱の各軸何倍にするか。顔全体のような広い選択範囲で範囲の三角形を全部複製すると、
+        /// ブレンドシェイプの写し直しが約 4 秒・メモリ +22MB になった（2026-10-06 計測。表情 552 個の顔）。2 倍なら箱を少し動かす・回す程度は作り直さずに済む
+        /// </summary>
+        internal const float RegionScale = 2f;
+
+        /// <summary>今の箱（edit の画像の箱）が、segment を作ったときに複製した範囲に収まっているか（収まっていなければ作り直す）</summary>
+        internal static bool CoversBox(OverlaySegment segment, RecolorEdit edit)
+        {
+            if (segment == null || edit == null) return false;
+            if (float.IsPositiveInfinity(segment.regionHalf.x)) return true;
+            var boxToRoot = Matrix4x4.TRS(edit.decalBoxPosition, Quaternion.Normalize(edit.decalBoxRotation), Vector3.one);
+            var toRegion = segment.regionRootToBox * boxToRoot;
+            var safe = DecalLayerBuilder.SafeSize(edit.decalBoxSize);
+            var half = new Vector3(Mathf.Abs(safe.x), Mathf.Abs(safe.y), Mathf.Abs(safe.z)) * 0.5f;
+            for (int i = 0; i < 8; i++)
+            {
+                var corner = new Vector3((i & 1) == 0 ? -half.x : half.x, (i & 2) == 0 ? -half.y : half.y, (i & 4) == 0 ? -half.z : half.z);
+                var p = toRegion.MultiplyPoint3x4(corner);
+                if (Mathf.Abs(p.x) > segment.regionHalf.x || Mathf.Abs(p.y) > segment.regionHalf.y || Mathf.Abs(p.z) > segment.regionHalf.z) return false;
+            }
+            return true;
         }
 
         /// <summary>
@@ -104,11 +134,68 @@ namespace Nekoare.ClickRecolor.Editor.Decal
             }
         }
 
+        /// <summary>
+        /// プレビュー（ForPreview）の 1 編集ぶんの置き方の記録: 画像の箱の位置・ドラッグ状態だけ変わったとき、表示用メッシュを作り直さずに
+        /// 描く三角形・投影 UV・画像を置き直す（RebuildPlacement）ための材料と、今使っている画像。
+        /// image・normal・bump2ndMask は Images にも入っている同じ RT（破棄は持ち主の側）。imageBase は Dispose で破棄する
+        /// </summary>
+        internal sealed class EditPlacement
+        {
+            public string editId;
+            public Texture2D texture;
+            public Transform root;
+            /// <summary>選択マスクを作るときの大きさ（PrepareJob の size）</summary>
+            public int maskSize;
+            /// <summary>休止中の画像の長辺の上限</summary>
+            public int maxSize;
+            /// <summary>マテリアルを「ノーマルも反映」で作ったか（ドラッグ中に作ったものは false）</summary>
+            public bool applyNormal;
+            /// <summary>選択マスク（R8 を読み戻したもの）。スキンメッシュの画像の区画を作り直すときに、選択範囲の外の三角形を除く</summary>
+            public byte[] maskBytes;
+            public int maskWidth;
+            public int maskHeight;
+            public readonly List<PlacementStep> steps = new List<PlacementStep>();
+            /// <summary>全部の段が置き直せる（段を持つ）か。UV0 が 2 成分でないメッシュがあると false（そのときは作り直す）</summary>
+            public bool replaceable = true;
+            public RenderTexture image;
+            /// <summary>image の下地（色の掛け直し用）。ドラッグ中に作った画像全体なら null</summary>
+            public DecalImageBase imageBase;
+            public RenderTexture normal;
+            public RenderTexture bump2ndMask;
+            /// <summary>image をドラッグ中の形（画像全体）で作ったか</summary>
+            public bool dragging;
+            /// <summary>image に最後に掛けた見た目（RecolorPreview.HashEditLook）と置き方（HashEditPlacement）。同じならやり直さない</summary>
+            public int lookHash;
+            public int placementHash;
+        }
+
+        /// <summary>EditPlacement の Renderer 1 つぶん</summary>
+        internal sealed class PlacementStep
+        {
+            public Renderer renderer;
+            public OverlaySegment segment;
+            public List<int> slots;
+            public Vector2 uvScale;
+            public Vector2 uvOffset;
+            /// <summary>元の UV0（選択マスクの判定用。SelectionFilter）</summary>
+            public Vector2[] sourceUv;
+            public (Texture normal, Vector4 tilingOffset) normalSource;
+            public (Texture normal, Vector4 tilingOffset) bump2ndMaskSource;
+            /// <summary>この段の重ね貼りマテリアルの番号（RendererOverlay.materials・sources の中）</summary>
+            public int materialIndex;
+        }
+
         /// <summary>重ね貼りを 1 段足す候補（画像ができてマテリアルが作れたら確定する）</summary>
         private sealed class PendingStep
         {
             public Renderer renderer;
             public int firstSlot;
+            public List<int> slots;
+            public Vector2 uvScale;
+            public Vector2 uvOffset;
+            public Vector2[] sourceUv;
+            /// <summary>画像の区画（parts）に入れたか</summary>
+            public bool hasPart;
             public Mesh display;
             /// <summary>画像用に別に作った一時メッシュ（SkinnedMeshRenderer の今のポーズ。MeshRenderer は null＝display を使う）</summary>
             public Mesh partMesh;
@@ -127,35 +214,15 @@ namespace Nekoare.ClickRecolor.Editor.Decal
         private readonly Dictionary<Renderer, RendererGeometry> _geometries = new Dictionary<Renderer, RendererGeometry>();
         private readonly Dictionary<Renderer, RendererOverlay> _overlays = new Dictionary<Renderer, RendererOverlay>();
         private readonly List<RenderTexture> _images = new List<RenderTexture>();
-        private readonly List<ImageLook> _looks = new List<ImageLook>();
+        private readonly List<EditPlacement> _placements = new List<EditPlacement>();
         private bool _detached;
 
         /// <summary>
-        /// true なら画像の下地（DecalImageBuilder.BuildBase）を捨てずに ImageLooks に残す（プレビュー用。色・グラデーションだけ変わったとき
-        /// ApplyLook だけやり直すため）。ビルドは一度しか作らないので false（既定）
+        /// プレビュー用（既定 false＝ビルド）: 画像の下地（DecalImageBuilder.BuildBase）を残し（色・グラデーションだけ変わったら色の段だけ掛け直す）、
+        /// 表示用メッシュはふだんも箱によらない形（選択範囲の三角形を全部複製）で作って段（OverlaySegment）を持たせ、
+        /// 箱の位置・ドラッグ状態だけ変わったら作り直さずに置き直せるようにする（Placements）。2026-10-06 計測: つかむ・離すで約 1 秒止まっていた
         /// </summary>
-        internal bool KeepImageBases { get; set; }
-
-        /// <summary>
-        /// 1 編集の画像とその下地（KeepImageBases のときだけ積む。ドラッグ中に作った画像は下地を持たないので積まない）。
-        /// image は Images にも入っている同じ RT（破棄は Images 側）。imageBase は Dispose で破棄する
-        /// </summary>
-        internal sealed class ImageLook
-        {
-            public readonly string editId;
-            public readonly DecalImageBase imageBase;
-            public readonly RenderTexture image;
-            /// <summary>image に最後に掛けた見た目（RecolorPreview.HashEditLook）。同じなら掛け直さない</summary>
-            public int lookHash;
-
-            public ImageLook(string editId, DecalImageBase imageBase, RenderTexture image, int lookHash)
-            {
-                this.editId = editId;
-                this.imageBase = imageBase;
-                this.image = image;
-                this.lookHash = lookHash;
-            }
-        }
+        internal bool ForPreview { get; set; }
 
         /// <summary>
         /// renderers は貼る候補の Renderer（除外リストは AddEdit で編集を持つコンポーネントのもので弾く）。
@@ -185,8 +252,8 @@ namespace Nekoare.ClickRecolor.Editor.Decal
         /// </summary>
         internal IReadOnlyList<RenderTexture> Images => _images;
 
-        /// <summary>使われた画像の下地（KeepImageBases のときだけ）。Detach したら呼び出し側が imageBase を Dispose する</summary>
-        internal IReadOnlyList<ImageLook> ImageLooks => _looks;
+        /// <summary>編集ごとの置き方の記録（ForPreview のときだけ）。Detach したら呼び出し側が imageBase を Dispose する</summary>
+        internal IReadOnlyList<EditPlacement> Placements => _placements;
 
         /// <summary>作ったメッシュ・マテリアル・画像（と下地）の所有権を呼び出し側へ渡す（以降の Dispose は判定用のメッシュだけ破棄する）</summary>
         internal void Detach() => _detached = true;
@@ -204,10 +271,10 @@ namespace Nekoare.ClickRecolor.Editor.Decal
                     }
                 }
                 foreach (var image in _images) RecolorPipeline.DestroyWorkTexture(image);
-                foreach (var look in _looks) look.imageBase.Dispose();
+                foreach (var placement in _placements) placement.imageBase?.Dispose();
                 _overlays.Clear();
                 _images.Clear();
-                _looks.Clear();
+                _placements.Clear();
             }
             foreach (var geometry in _geometries.Values) geometry?.Dispose();
             _geometries.Clear();
@@ -218,9 +285,11 @@ namespace Nekoare.ClickRecolor.Editor.Decal
         /// 画像を作って、マテリアルが作れた Renderer だけ確定する。画像は 1 枚でも使われたときだけ Images に積む。
         /// texture は対象テクスチャ、root はグラデーションの位置の基準（除外リストは編集を持つコンポーネントのもの）、mask は texture の UV 空間の選択マスク（EditJob.mask）、
         /// maxSize は画像の長辺の上限。dragging が true（画像の箱のドラッグ中）なら、表示用メッシュは箱との交わりを見ずに表の三角形をすべて複製し、
-        /// 投影 UV を書き換えるための情報（RendererOverlay.segments）を残す（ドラッグ中はメッシュを作り直さず UV だけ書き換えて追従させる）
+        /// 投影 UV を書き換えるための情報（RendererOverlay.segments）を残す（ドラッグ中はメッシュを作り直さず UV だけ書き換えて追従させる）。
+        /// ForPreview ならドラッグ中でなくても同じ形で作り（今の箱で描く三角形を選ぶ）、置き方の記録（Placements）を残す。maskSize は mask を作った大きさ（記録用）
         /// </summary>
-        internal void AddEdit(RecolorEdit edit, Texture2D texture, Transform root, RenderTexture mask, int maxSize, bool dragging = false)
+        internal void AddEdit(RecolorEdit edit, Texture2D texture, Transform root, RenderTexture mask, int maxSize, bool dragging = false,
+            int maskSize = 0)
         {
             if (edit == null || texture == null || mask == null) return;
 
@@ -231,6 +300,7 @@ namespace Nekoare.ClickRecolor.Editor.Decal
             var excluded = owner != null ? owner.excludedRenderers : null;
             var steps = new List<PendingStep>();
             var parts = new List<OverlayPart>();
+            EditPlacement placement = null;
             RenderTexture image = null;
             DecalImageBase imageBase = null;
             RenderTexture normal = null;
@@ -239,6 +309,8 @@ namespace Nekoare.ClickRecolor.Editor.Decal
             bool normalUsed = false;
             bool bump2ndMaskUsed = false;
             bool applyNormal = edit.decalNormal && !dragging;
+            // プレビューはふだんも箱によらない形で作り、置き方だけの変化を作り直さずに置き直す
+            bool useSegments = dragging || ForPreview;
             // 選択マスクを 1 回だけ読み、選択範囲の外の三角形を重ねないようにする（SelectionFilter）
             var maskBytes = FloodFill.ReadR8(mask);
             try
@@ -281,11 +353,9 @@ namespace Nekoare.ClickRecolor.Editor.Decal
                     // 前段までに足したマテリアルも数に入れる（前段の結果はサブメッシュ数＝マテリアル数なので、複製は 1 段目だけ起きる）
                     int materialCount = overlay.baseSlotCount + overlay.materials.Count;
                     var include = SelectionFilter(maskBytes, mask.width, mask.height, overlay.displayMesh.uv, uvScale, info.offset);
-                    if (!BuildRendererOverlay(root, geometry, overlay.displayMesh, edit, slots, uvScale, info.offset, materialCount,
-                            out var display, out var part, out var partMesh, dragging, out var segment, include))
-                    {
-                        continue;
-                    }
+                    bool built = BuildRendererOverlay(root, geometry, overlay.displayMesh, edit, slots, uvScale, info.offset, materialCount,
+                        out var display, out var part, out var partMesh, dragging, out var segment, include, useSegments);
+                    if (!built) continue;
                     // 「ノーマルも反映」: 元の法線マップを画像の座標へ写し直す（ドラッグ中は面の対応が動くので写さない。離したら写す）
                     (Texture, Vector4) normalSource = default;
                     (Texture, Vector4) bump2ndMaskSource = default;
@@ -305,14 +375,22 @@ namespace Nekoare.ClickRecolor.Editor.Decal
                     {
                         renderer = renderer, firstSlot = firstSlot, display = display, partMesh = partMesh, segment = segment,
                         normalSource = normalSource, bump2ndMaskSource = bump2ndMaskSource,
+                        slots = slots, uvScale = uvScale, uvOffset = info.offset, sourceUv = ForPreview ? sourceMesh.uv : null,
                     });
-                    parts.Add(part);
+                    // ドラッグ中は画像全体を使うので区画は無い。プレビューで今の箱にかかる三角形が無い段も無い（part.mesh が null）
+                    if (part.mesh != null)
+                    {
+                        parts.Add(part);
+                        steps[steps.Count - 1].hasPart = true;
+                    }
                 }
                 if (steps.Count == 0) return;
+                // 今の箱にかかる三角形が 1 つも無い（プレビューは段だけ作っている）: 今までどおり何も貼らない（置き方が変われば作り直す）
+                if (!dragging && parts.Count == 0) return;
 
                 // ドラッグ中は画像全体を使う（箱を動かす・回すと開始時に面が無かった所も見えるため。選択範囲では切らない＝離したら切る）
                 if (dragging) image = BuildFullImage(root, edit, maxSize);
-                else if (KeepImageBases) image = BuildWithBase(root, parts, mask, edit, maxSize, out imageBase);
+                else if (ForPreview) image = BuildWithBase(root, parts, mask, edit, maxSize, out imageBase);
                 else image = DecalImageBuilder.Build(root, parts, edit.decalTexture, mask, edit, maxSize);
                 if (image == null)
                 {
@@ -321,10 +399,12 @@ namespace Nekoare.ClickRecolor.Editor.Decal
                 }
                 if (applyNormal)
                 {
+                    // parts と同じ並び（区画を作れた段だけ。ドラッグ中は applyNormal が false なのでここに来ない）
                     var normals = new List<(Texture normal, Vector4 tilingOffset)>(steps.Count);
                     var masks = new List<(Texture normal, Vector4 tilingOffset)>(steps.Count);
                     foreach (var step in steps)
                     {
+                        if (!step.hasPart) continue;
                         normals.Add(step.normalSource);
                         masks.Add(step.bump2ndMaskSource);
                     }
@@ -332,6 +412,15 @@ namespace Nekoare.ClickRecolor.Editor.Decal
                     bump2ndMask = DecalImageBuilder.BuildBump2ndMask(parts, masks, image.width, image.height);
                 }
 
+                if (ForPreview)
+                {
+                    placement = new EditPlacement
+                    {
+                        editId = edit.id, texture = texture, root = root, maskSize = maskSize, maxSize = maxSize, applyNormal = applyNormal,
+                        maskBytes = maskBytes, maskWidth = mask.width, maskHeight = mask.height, dragging = dragging,
+                        lookHash = NDMF.RecolorPreview.HashEditLook(17, edit), placementHash = NDMF.RecolorPreview.HashEditPlacement(17, edit),
+                    };
+                }
                 foreach (var step in steps)
                 {
                     var stepNormal = step.normalSource.normal != null ? normal : null;
@@ -346,6 +435,16 @@ namespace Nekoare.ClickRecolor.Editor.Decal
                     var overlay = _overlays[step.renderer];
                     if (overlay.displayMesh != overlay.sourceMesh) Object.DestroyImmediate(overlay.displayMesh);
                     overlay.displayMesh = step.display;
+                    if (placement != null)
+                    {
+                        placement.steps.Add(new PlacementStep
+                        {
+                            renderer = step.renderer, segment = step.segment, slots = step.slots, uvScale = step.uvScale, uvOffset = step.uvOffset,
+                            sourceUv = step.sourceUv, normalSource = step.normalSource, bump2ndMaskSource = step.bump2ndMaskSource,
+                            materialIndex = overlay.materials.Count,
+                        });
+                        if (step.segment == null) placement.replaceable = false;
+                    }
                     overlay.materials.Add(material);
                     overlay.sources.Add(source);
                     if (stepNormal != null) normalUsed = true;
@@ -367,11 +466,6 @@ namespace Nekoare.ClickRecolor.Editor.Decal
                     if (imageUsed) _images.Add(image);
                     else RecolorPipeline.DestroyWorkTexture(image);
                 }
-                if (imageBase != null)
-                {
-                    if (imageUsed) _looks.Add(new ImageLook(edit.id, imageBase, image, NDMF.RecolorPreview.HashEditLook(17, edit)));
-                    else imageBase.Dispose();
-                }
                 if (normal != null)
                 {
                     if (normalUsed) _images.Add(normal);
@@ -382,10 +476,22 @@ namespace Nekoare.ClickRecolor.Editor.Decal
                     if (bump2ndMaskUsed) _images.Add(bump2ndMask);
                     else RecolorPipeline.DestroyWorkTexture(bump2ndMask);
                 }
+                if (placement != null && imageUsed)
+                {
+                    placement.image = image;
+                    placement.imageBase = imageBase;
+                    placement.normal = normalUsed ? normal : null;
+                    placement.bump2ndMask = bump2ndMaskUsed ? bump2ndMask : null;
+                    _placements.Add(placement);
+                }
+                else
+                {
+                    imageBase?.Dispose();
+                }
             }
         }
 
-        /// <summary>画像を下地つきで作る（KeepImageBases）。作れなければ null（imageBase も null）</summary>
+        /// <summary>画像を下地つきで作る（ForPreview）。作れなければ null（imageBase も null）</summary>
         private static RenderTexture BuildWithBase(Transform root, List<OverlayPart> parts, RenderTexture mask, RecolorEdit edit, int maxSize,
             out DecalImageBase imageBase)
         {
@@ -408,6 +514,119 @@ namespace Nekoare.ClickRecolor.Editor.Decal
             imageBase.Dispose();
             imageBase = null;
             return null;
+        }
+
+        /// <summary>
+        /// スキンメッシュの画像の区画: 焼いたメッシュ（今のポーズ）から、今の箱にかかる三角形を複製した一時メッシュ（ブレンドシェイプなしで軽い。
+        /// 焼いたメッシュの単位で浮かせる。Renderer に付けないので materialCount は 0）。三角形が無ければ null。呼び出し側が破棄する
+        /// </summary>
+        private static Mesh BuildSkinnedPart(Transform root, RendererGeometry geometry, RecolorEdit edit, IReadOnlyList<int> slots,
+            Func<int, int, int, bool> include)
+        {
+            var worldToBox = BoxMaskBuilder.RootToBox(edit.decalBoxPosition, edit.decalBoxRotation) * root.worldToLocalMatrix;
+            var judgeToBox = worldToBox * geometry.judgeLocalToWorld;
+            bool flip = worldToBox.determinant * geometry.renderer.transform.localToWorldMatrix.determinant < 0f;
+            var fit = DecalLayerBuilder.FitScale(edit.decalTexture, edit.decalBoxSize, edit.decalKeepAspect);
+            float bakedOffset = OffsetInLocal(root.worldToLocalMatrix * geometry.judgeLocalToWorld);
+            return DecalOverlayMesh.Build(geometry.judgeMesh, geometry.judgeVertices, slots, judgeToBox, flip, edit.decalBoxSize, fit, bakedOffset,
+                include: include);
+        }
+
+        /// <summary>
+        /// プレビューの置き直し（DecalOverlayPreview の Refresh）: placement の各段を今の箱で選び直し（ApplySegment。displayMeshOf で Renderer の
+        /// 表示用メッシュを引く）、画像を作り直す。ドラッグ中は画像全体（dragMaxSize 以下）、そうでなければ選択範囲で切った画像（mask は今の選択マスク）と、
+        /// マテリアルを「ノーマルも反映」で作っていれば法線マップ・強さマスク。表示用メッシュは作り直さない。
+        /// 置き直せない（段が無い・今の箱にかかる三角形が 1 つも無い・画像を作れない）なら false（作った画像は捨てる。段の三角形と UV は書き換わっている）
+        /// </summary>
+        internal static bool RebuildPlacement(EditPlacement placement, RecolorEdit edit, Func<Renderer, Mesh> displayMeshOf, RenderTexture mask,
+            bool dragging, int dragMaxSize, out RenderTexture image, out DecalImageBase imageBase, out RenderTexture normal, out RenderTexture bump2ndMask)
+        {
+            image = null;
+            imageBase = null;
+            normal = null;
+            bump2ndMask = null;
+            if (placement == null || edit == null || !placement.replaceable || (!dragging && mask == null)) return false;
+            var uvs = new List<Vector2>();
+            var triangles = new List<int>();
+            var parts = new List<OverlayPart>();
+            var partMeshes = new List<Mesh>();
+            var normals = new List<(Texture normal, Vector4 tilingOffset)>();
+            var masks = new List<(Texture normal, Vector4 tilingOffset)>();
+            bool done = false;
+            try
+            {
+                foreach (var step in placement.steps)
+                {
+                    var display = displayMeshOf(step.renderer);
+                    if (display == null || step.segment == null) return false;
+                    step.segment.edit = edit;
+                    // 箱が複製した範囲の外まで動いた: 外の三角形は複製していないので作り直す
+                    if (!CoversBox(step.segment, edit)) return false;
+                    // 今のポーズ・ブレンドシェイプで焼き直した頂点で投影する（作ったときの頂点のままだと、姿勢や表情を変えた後で画像とずれる）
+                    var geometry = RendererGeometry.Create(step.renderer);
+                    if (geometry == null) return false;
+                    try
+                    {
+                        if (step.segment.judgeVertices == null || geometry.judgeVertices.Length != step.segment.judgeVertices.Length) return false;
+                        step.segment.judgeVertices = geometry.judgeVertices;
+                        step.segment.judgeLocalToWorld = geometry.judgeLocalToWorld;
+                        if (!ApplySegment(display, step.segment, uvs, triangles)) return false;
+                        if (dragging) continue;
+                        if (step.renderer is SkinnedMeshRenderer)
+                        {
+                            var include = SelectionFilter(placement.maskBytes, placement.maskWidth, placement.maskHeight, step.sourceUv,
+                                step.uvScale, step.uvOffset);
+                            var partMesh = BuildSkinnedPart(placement.root, geometry, edit, step.slots, include);
+                            if (partMesh == null) continue;
+                            partMeshes.Add(partMesh);
+                            parts.Add(new OverlayPart(partMesh, partMesh.subMeshCount - 1, geometry.judgeLocalToWorld, step.uvScale, step.uvOffset));
+                        }
+                        else
+                        {
+                            if (triangles.Count == 0) continue;
+                            parts.Add(new OverlayPart(display, step.segment.submesh, geometry.judgeLocalToWorld, step.uvScale, step.uvOffset));
+                        }
+                        normals.Add(step.normalSource);
+                        masks.Add(step.bump2ndMaskSource);
+                    }
+                    finally
+                    {
+                        geometry.Dispose();
+                    }
+                }
+
+                if (dragging)
+                {
+                    image = BuildFullImage(placement.root, edit, dragMaxSize);
+                }
+                else
+                {
+                    if (parts.Count == 0) return false;
+                    image = BuildWithBase(placement.root, parts, mask, edit, placement.maxSize, out imageBase);
+                    if (image != null && placement.applyNormal)
+                    {
+                        normal = DecalImageBuilder.BuildNormal(parts, normals, image.width, image.height);
+                        bump2ndMask = DecalImageBuilder.BuildBump2ndMask(parts, masks, image.width, image.height);
+                    }
+                }
+                done = image != null;
+                return done;
+            }
+            finally
+            {
+                foreach (var mesh in partMeshes) Object.DestroyImmediate(mesh);
+                if (!done)
+                {
+                    RecolorPipeline.DestroyWorkTexture(image);
+                    imageBase?.Dispose();
+                    RecolorPipeline.DestroyWorkTexture(normal);
+                    RecolorPipeline.DestroyWorkTexture(bump2ndMask);
+                    image = null;
+                    imageBase = null;
+                    normal = null;
+                    bump2ndMask = null;
+                }
+            }
         }
 
         /// <summary>
@@ -634,13 +853,15 @@ namespace Nekoare.ClickRecolor.Editor.Decal
         }
 
         /// <summary>
-        /// dragging なら表示用メッシュは表の三角形をすべて複製し（箱との交わりを見ない）、投影 UV を書き換えるための segment を返す。
-        /// 画像（part）はドラッグ中でも箱にかかる三角形だけで描く（画像はドラッグを始めたときのものを使い回すので、ふだんと同じ中身にする）
+        /// dragging なら表示用メッシュは選択範囲の三角形をすべて複製し（箱との交わりを見ない）、投影 UV と描く三角形を書き換えるための segment を返す
+        /// （画像はドラッグ中は画像全体なので part は作らない）。
+        /// segments（プレビュー）ならドラッグ中でなくても同じ形で作って segment を返し、今の箱で描く三角形を選んでから画像の part を作る
+        /// （今の箱にかかる三角形が無ければ part は空のまま true）。UV0 が 2 成分でないメッシュは書き換えられないので、ふだんの形で作る（segment は null）
         /// </summary>
         internal static bool BuildRendererOverlay(
             Transform root, RendererGeometry geometry, Mesh current, RecolorEdit edit, IReadOnlyList<int> slots,
             Vector2 uvScale, Vector2 uvOffset, int materialCount, out Mesh display, out OverlayPart part, out Mesh partMesh,
-            bool dragging, out OverlaySegment segment, Func<int, int, int, bool> include = null)
+            bool dragging, out OverlaySegment segment, Func<int, int, int, bool> include = null, bool segments = false)
         {
             display = null;
             partMesh = null;
@@ -660,12 +881,28 @@ namespace Nekoare.ClickRecolor.Editor.Decal
 
             var judge = PadJudgeVertices(geometry.judgeVertices, current.vertexCount);
             if (judge == null) return false;
-            var duplicated = dragging ? new List<int>() : null;
+            bool allTriangles = dragging
+                || (segments && current.GetVertexAttributeDimension(UnityEngine.Rendering.VertexAttribute.TexCoord0) <= 2);
+            var duplicated = allTriangles ? new List<int>() : null;
+            // プレビューのふだんは、箱を各軸 RegionScale 倍に広げた範囲にかかる三角形だけ複製する（広い選択範囲で全部複製すると重い）。
+            // ドラッグ中に作るときは今までどおり選択範囲の三角形を全部（動かしても見切れないように）
+            var regionHalf = Vector3.positiveInfinity;
+            var buildInclude = include;
+            if (allTriangles && !dragging)
+            {
+                var safe = DecalLayerBuilder.SafeSize(edit.decalBoxSize);
+                regionHalf = new Vector3(Mathf.Abs(safe.x), Mathf.Abs(safe.y), Mathf.Abs(safe.z)) * (0.5f * RegionScale);
+                var boxPositions = new Vector3[judge.Length];
+                for (int i = 0; i < judge.Length; i++) boxPositions[i] = judgeToBox.MultiplyPoint3x4(judge[i]);
+                var half = regionHalf;
+                buildInclude = (i0, i1, i2) => (include == null || include(i0, i1, i2))
+                    && DecalProjection.TriangleTouchesBox(boxPositions[i0], boxPositions[i1], boxPositions[i2], half);
+            }
             display = DecalOverlayMesh.Build(current, judge, slots, judgeToBox, flip, edit.decalBoxSize, fit, displayOffset, materialCount,
-                allTriangles: dragging, duplicatedSources: duplicated, include: include);
+                allTriangles: allTriangles, duplicatedSources: duplicated, include: buildInclude);
             if (display == null) return false;
 
-            if (dragging)
+            if (allTriangles)
             {
                 // ドラッグ中: 対象スロットの三角形をすべて複製してあるので、今の箱で描く三角形を選び直し UV を計算する（以後は毎フレーム同じ処理）
                 var triangles = new List<int>();
@@ -675,7 +912,7 @@ namespace Nekoare.ClickRecolor.Editor.Decal
                     for (int t = 0; t + 2 < slotTriangles.Length; t += 3)
                     {
                         // 選択範囲の外の三角形は複製していない（DecalOverlayMesh.Build の include と同じ条件）
-                        if (include != null && !include(slotTriangles[t], slotTriangles[t + 1], slotTriangles[t + 2])) continue;
+                        if (buildInclude != null && !buildInclude(slotTriangles[t], slotTriangles[t + 1], slotTriangles[t + 2])) continue;
                         triangles.Add(slotTriangles[t]);
                         triangles.Add(slotTriangles[t + 1]);
                         triangles.Add(slotTriangles[t + 2]);
@@ -697,20 +934,22 @@ namespace Nekoare.ClickRecolor.Editor.Decal
                     triangles = triangles.ToArray(),
                     remap = remap,
                     flip = flip,
+                    regionRootToBox = BoxMaskBuilder.RootToBox(edit.decalBoxPosition, edit.decalBoxRotation),
+                    regionHalf = regionHalf,
                 };
                 ApplySegment(display, segment, new List<Vector2>(display.vertexCount), new List<int>());
-                // 画像は画像全体で作る（AddEdit の BuildFullImage）ので区画は要らない
-                return true;
+                // ドラッグ中の画像は画像全体で作る（AddEdit の BuildFullImage）ので区画は要らない
+                if (dragging) return true;
             }
 
             if (renderer is SkinnedMeshRenderer)
             {
-                // グラデーションの位置を今のポーズにするため、画像は焼いたメッシュから作った一時メッシュで描く（焼いたメッシュの単位で浮かせる。Renderer に付けないので materialCount は 0）
-                float bakedOffset = OffsetInLocal(rootWorldToLocal * geometry.judgeLocalToWorld);
-                partMesh = DecalOverlayMesh.Build(geometry.judgeMesh, geometry.judgeVertices, slots, judgeToBox, flip, edit.decalBoxSize, fit, bakedOffset,
-                    include: include);
+                // グラデーションの位置を今のポーズにするため、画像は焼いたメッシュから作った一時メッシュで描く
+                partMesh = BuildSkinnedPart(root, geometry, edit, slots, include);
                 if (partMesh == null)
                 {
+                    // 段を持つ（プレビュー）なら、今は箱にかかる三角形が無いだけ（置き直しで出てくる）
+                    if (segment != null) return true;
                     Object.DestroyImmediate(display);
                     display = null;
                     return false;

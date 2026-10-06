@@ -463,10 +463,16 @@ msgid "Scene:Color:Decal"
 msgstr "Place an image"
 
 msgid "Help:Decal"
-msgstr "Turns on a box in the Scene and projects the image onto the surface from the box's front face (the one showing the image). The image is applied only inside this edit's range. While on, the color, shading, opacity and gradient settings apply to the image, not to the range. Use the small window next to the panel to show or hide the box."
+msgstr "Turns on a box in the Scene and projects the image onto the surface from the box's front face (the one showing the image). The image is applied only inside this edit's range. While on, the color, shading, opacity and gradient settings apply to the image, not to the range. Use the small window next to the panel to show or hide the box. Use 'Align box to surface' to turn the box to face the surface you clicked."
 
-msgid "Scene:Color:DecalTexture"
-msgstr "Image"
+msgid "Scene:Color:DecalAlignBox"
+msgstr "Align box to surface"
+
+msgid "Scene:Color:DecalAlignBoxTooltip"
+msgstr "Turns the box to face the surface you clicked (the size stays the same; the box center moves onto the surface)"
+
+msgid "Scene:Color:DecalAlignFailed"
+msgstr "Couldn't find the surface direction. The range is too small or the surface isn't flat"
 
 msgid "Scene:Color:DecalSmooth"
 msgstr "Place smoothly (lilToon/Poiyomi)"

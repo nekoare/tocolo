@@ -146,6 +146,197 @@ namespace Nekoare.ClickRecolor.Tests
             Assert.That(mesh != null, Is.True, "元メッシュは破棄しない");
         }
 
+        /// <summary>重ね貼りサブメッシュ（末尾）の三角形の頂点番号の数</summary>
+        private static int OverlayIndexCount(Mesh display) => display.GetIndices(display.subMeshCount - 1).Length;
+
+        private DecalOverlayAssembler MakeAssembler(Renderer renderer, bool forPreview)
+        {
+            return new DecalOverlayAssembler(new[] { renderer },
+                (r, overlaySource) => Track(new Material(Shader.Find("Standard")) { mainTexture = overlaySource.image }), null)
+            {
+                ForPreview = forPreview,
+            };
+        }
+
+        [Test]
+        public void プレビュー用は箱を動かしても表示用メッシュを作り直さず_描く三角形と画像だけ置き直す()
+        {
+            var source = Track(new Texture2D(Size, Size));
+            var (root, renderer, _) = MakeRenderer(source);
+            var edit = MakeDecalEdit(source);
+            var assembler = MakeAssembler(renderer, forPreview: true);
+            try
+            {
+                assembler.AddEdit(edit, source, root, MakeFullMask(), 64, maskSize: Size);
+                var overlay = assembler.Overlays[renderer];
+                var display = overlay.displayMesh;
+                int vertexCount = display.vertexCount;
+                Assert.That(OverlayIndexCount(display), Is.EqualTo(6), "前提: 箱が四角形全体にかかる");
+                Assert.That(assembler.Placements.Count, Is.EqualTo(1));
+                var placement = assembler.Placements[0];
+                Assert.That(placement.replaceable, Is.True);
+
+                // 左下の三角形だけにかかる小さい箱へ
+                edit.decalBoxPosition = new Vector3(-0.35f, -0.35f, 0f);
+                edit.decalBoxSize = new Vector3(0.3f, 0.3f, 2f);
+                bool rebuilt = DecalOverlayAssembler.RebuildPlacement(placement, edit, r => overlay.displayMesh, MakeFullMask(), false, 64,
+                    out var image, out var imageBase, out var normal, out var bump2ndMask);
+                try
+                {
+                    Assert.That(rebuilt, Is.True);
+                    Assert.That(overlay.displayMesh, Is.SameAs(display), "表示用メッシュは作り直さない");
+                    Assert.That(display.vertexCount, Is.EqualTo(vertexCount));
+                    Assert.That(OverlayIndexCount(display), Is.EqualTo(3), "今の箱にかかる三角形だけ描く");
+                    Assert.That(image, Is.Not.Null);
+                    Assert.That(imageBase, Is.Not.Null, "休止中は色の掛け直し用の下地も作る");
+                }
+                finally
+                {
+                    RecolorPipeline.DestroyWorkTexture(image);
+                    imageBase?.Dispose();
+                    RecolorPipeline.DestroyWorkTexture(normal);
+                    RecolorPipeline.DestroyWorkTexture(bump2ndMask);
+                }
+            }
+            finally
+            {
+                assembler.Dispose();
+            }
+        }
+
+        [Test]
+        public void プレビュー用が今の箱で描く三角形は_ビルド用の組み立てと同じ()
+        {
+            var source = Track(new Texture2D(Size, Size));
+            var (root, renderer, _) = MakeRenderer(source);
+            var edit = MakeDecalEdit(source);
+            edit.decalBoxPosition = new Vector3(-0.35f, -0.35f, 0f);
+            edit.decalBoxSize = new Vector3(0.3f, 0.3f, 2f);
+            var preview = MakeAssembler(renderer, forPreview: true);
+            var build = MakeAssembler(renderer, forPreview: false);
+            try
+            {
+                preview.AddEdit(edit, source, root, MakeFullMask(), 64, maskSize: Size);
+                build.AddEdit(edit, source, root, MakeFullMask(), 64);
+
+                var previewMesh = preview.Overlays[renderer].displayMesh;
+                var buildMesh = build.Overlays[renderer].displayMesh;
+                Assert.That(OverlayIndexCount(previewMesh), Is.EqualTo(OverlayIndexCount(buildMesh)));
+                Assert.That(OverlayIndexCount(previewMesh), Is.EqualTo(3));
+            }
+            finally
+            {
+                preview.Dispose();
+                build.Dispose();
+            }
+        }
+
+        [Test]
+        public void 箱が複製した範囲の外まで動いたら置き直さない()
+        {
+            var source = Track(new Texture2D(Size, Size));
+            var (root, renderer, _) = MakeRenderer(source);
+            var edit = MakeDecalEdit(source);
+            // 左下の小さい箱で作る（複製するのは箱を各軸 2 倍に広げた範囲にかかる左下の三角形だけ）
+            edit.decalBoxPosition = new Vector3(-0.35f, -0.35f, 0f);
+            edit.decalBoxSize = new Vector3(0.3f, 0.3f, 2f);
+            var assembler = MakeAssembler(renderer, forPreview: true);
+            try
+            {
+                assembler.AddEdit(edit, source, root, MakeFullMask(), 64, maskSize: Size);
+                var overlay = assembler.Overlays[renderer];
+                var placement = assembler.Placements[0];
+                var segment = placement.steps[0].segment;
+
+                edit.decalBoxPosition = new Vector3(-0.3f, -0.3f, 0f);
+                Assert.That(DecalOverlayAssembler.CoversBox(segment, edit), Is.True, "少し動かしただけなら範囲の中");
+
+                // 右上へ大きく動かす: 右上の三角形は複製していない
+                edit.decalBoxPosition = new Vector3(0.35f, 0.35f, 0f);
+                Assert.That(DecalOverlayAssembler.CoversBox(segment, edit), Is.False);
+                bool rebuilt = DecalOverlayAssembler.RebuildPlacement(placement, edit, r => overlay.displayMesh, MakeFullMask(), false, 64,
+                    out var image, out var imageBase, out var normal, out var bump2ndMask);
+                Assert.That(rebuilt, Is.False, "作り直す（置き直さない）");
+                Assert.That(image, Is.Null);
+                Assert.That(imageBase, Is.Null);
+            }
+            finally
+            {
+                assembler.Dispose();
+            }
+        }
+
+        [Test]
+        public void 置き直しは今の姿勢で描く三角形を選ぶ()
+        {
+            var source = Track(new Texture2D(Size, Size));
+            var (root, renderer, _) = MakeRenderer(source);
+            var edit = MakeDecalEdit(source);
+            var assembler = MakeAssembler(renderer, forPreview: true);
+            try
+            {
+                // 四角形全体にかかる箱で作る（両方の三角形を複製してある）
+                assembler.AddEdit(edit, source, root, MakeFullMask(), 64, maskSize: Size);
+                var overlay = assembler.Overlays[renderer];
+                var placement = assembler.Placements[0];
+                var segment = placement.steps[0].segment;
+
+                // 作った後で四角形を左下へ動かし、左下の小さい箱にする: 今の位置なら右上の三角形（頂点 1・2・3）にかかる
+                // （作ったときの位置のままだと左下の三角形（頂点 0・1・2）を選んでしまう）
+                renderer.transform.localPosition = new Vector3(-0.6f, -0.6f, 0f);
+                edit.decalBoxPosition = new Vector3(-0.35f, -0.35f, 0f);
+                edit.decalBoxSize = new Vector3(0.3f, 0.3f, 2f);
+                bool rebuilt = DecalOverlayAssembler.RebuildPlacement(placement, edit, r => overlay.displayMesh, MakeFullMask(), false, 64,
+                    out var image, out var imageBase, out var normal, out var bump2ndMask);
+                try
+                {
+                    Assert.That(rebuilt, Is.True);
+                    var indices = overlay.displayMesh.GetIndices(segment.submesh);
+                    var sources = new HashSet<int>();
+                    foreach (int d in indices) sources.Add(segment.sources[d - segment.start]);
+                    Assert.That(sources, Is.EquivalentTo(new[] { 1, 2, 3 }));
+                }
+                finally
+                {
+                    RecolorPipeline.DestroyWorkTexture(image);
+                    imageBase?.Dispose();
+                    RecolorPipeline.DestroyWorkTexture(normal);
+                    RecolorPipeline.DestroyWorkTexture(bump2ndMask);
+                }
+            }
+            finally
+            {
+                assembler.Dispose();
+            }
+        }
+
+        [Test]
+        public void 画像の差し替えは写し直した法線マップのプロパティだけ置き換える()
+        {
+            var material = Track(new Material(Shader.Find("Standard")));
+            var originalNormal = Track(new Texture2D(4, 4));
+            material.SetTexture("_BumpMap", originalNormal);
+            var image = new RenderTexture(4, 4, 0);
+            var normal = new RenderTexture(4, 4, 0);
+            try
+            {
+                DecalOverlayMaterial.SetImages(material, image, normal, null);
+                Assert.That(material.GetTexture("_MainTex"), Is.SameAs(image));
+                Assert.That(material.GetTexture("_BumpMap"), Is.SameAs(originalNormal), "元の法線マップのままのプロパティは触らない");
+
+                var remapped = new RenderTexture(4, 4, 0);
+                material.SetTexture("_BumpMap", remapped);
+                DecalOverlayMaterial.SetImages(material, null, normal, null);
+                Assert.That(material.GetTexture("_BumpMap"), Is.SameAs(normal), "写し直した法線マップは差し替える");
+                Object.DestroyImmediate(remapped);
+            }
+            finally
+            {
+                Object.DestroyImmediate(image);
+                Object.DestroyImmediate(normal);
+            }
+        }
+
         [Test]
         public void マテリアルを作れなかった段は捨て_前段の表示用メッシュを保つ_Detach後は破棄しない()
         {

@@ -193,6 +193,85 @@ namespace Nekoare.ClickRecolor.Tests
             }
         }
 
+        /// <summary>
+        /// 複数のマスクの統計をまとめて取る（色の読み戻しは 1 回・マスクは範囲だけ）と、1 つずつ Compute するのと同じ値になるか。
+        /// 縮めて読む（maxSize 32）・縮めない（0）の両方。範囲は塊にぴったり、または null（全体）
+        /// </summary>
+        [TestCase(32)]
+        [TestCase(0)]
+        public void 複数のマスクをまとめて取っても1つずつ取るのと同じ(int maxSize)
+        {
+            if (!SystemInfo.supportsComputeShaders
+                || !SystemInfo.SupportsRandomWriteOnRenderTextureFormat(RenderTextureFormat.ARGBHalf)
+                || !SystemInfo.SupportsRandomWriteOnRenderTextureFormat(RenderTextureFormat.R8))
+            {
+                Assert.Ignore("この環境はcompute shader（ARGBHalf / R8への書き込み）に対応していません");
+            }
+
+            const int size = 64;
+            var random = new System.Random(3);
+            var pixels = new Color[size * size];
+            for (int i = 0; i < pixels.Length; i++)
+            {
+                pixels[i] = new Color((float)random.NextDouble(), (float)random.NextDouble(), (float)random.NextDouble(), 1f);
+            }
+            // 塊（縁に 0.5 前後の値を混ぜる）と、範囲
+            var blobs = new[] { new RectInt(3, 5, 12, 9), new RectInt(30, 40, 20, 15), new RectInt(50, 2, 10, 30) };
+            var bounds = new RectInt?[] { blobs[0], null, blobs[2] };
+
+            var sourceTex = new Texture2D(size, size, TextureFormat.RGBAFloat, false, true)
+            {
+                filterMode = FilterMode.Point,
+                wrapMode = TextureWrapMode.Clamp,
+            };
+            var source = RecolorPipeline.CreateWorkTexture(size, size, "SelectionStatsTests_Source");
+            var masks = new List<RenderTexture>();
+            var previous = RenderTexture.active;
+            try
+            {
+                sourceTex.SetPixels(pixels);
+                sourceTex.Apply(false);
+                Graphics.Blit(sourceTex, source);
+                RenderTexture.active = previous;
+                foreach (var blob in blobs)
+                {
+                    var bytes = new byte[size * size];
+                    for (int y = blob.yMin; y < blob.yMax; y++)
+                    {
+                        for (int x = blob.xMin; x < blob.xMax; x++)
+                        {
+                            bool edge = x == blob.xMin || y == blob.yMin;
+                            bytes[y * size + x] = edge ? (byte)(120 + (x + y) % 20) : (byte)255;
+                        }
+                    }
+                    var mask = MaskTextures.Create(size, size, "SelectionStatsTests_Mask");
+                    masks.Add(mask);
+                    FloodFill.WriteR8(bytes, mask);
+                }
+
+                var parts = SelectionStats.ComputeParts(source, masks, bounds, maxSize);
+
+                Assert.That(parts.Length, Is.EqualTo(masks.Count));
+                for (int i = 0; i < masks.Count; i++)
+                {
+                    var one = SelectionStats.Compute(source, masks[i], maxSize);
+                    Assert.That(parts[i].count, Is.EqualTo(one.count), $"{i}: count");
+                    Assert.That(parts[i].count, Is.GreaterThan(0), $"{i}: 数えている");
+                    Assert.That(parts[i].lP05, Is.EqualTo(one.lP05), $"{i}: lP05");
+                    Assert.That(parts[i].lP95, Is.EqualTo(one.lP95), $"{i}: lP95");
+                    Assert.That(parts[i].hDominant, Is.EqualTo(one.hDominant), $"{i}: hDominant");
+                    Assert.That(parts[i].rep, Is.EqualTo(one.rep), $"{i}: rep");
+                }
+            }
+            finally
+            {
+                RenderTexture.active = previous;
+                RecolorPipeline.DestroyWorkTexture(source);
+                foreach (var mask in masks) MaskTextures.Destroy(mask);
+                Object.DestroyImmediate(sourceTex);
+            }
+        }
+
         // ── Merge（連結の統計の共有）──
 
         [Test]

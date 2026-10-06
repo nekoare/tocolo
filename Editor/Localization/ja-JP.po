@@ -463,10 +463,16 @@ msgid "Scene:Color:Decal"
 msgstr "画像を入れる"
 
 msgid "Help:Decal"
-msgstr "オンにするとSceneに箱が出て、箱の正面（画像が描かれている面）から画像を表面に貼ります。貼られるのはこの編集の選択範囲の中だけです。オンの間、新しい色・暗部・不透明度・グラデーションは範囲ではなく画像に掛かります。箱の表示はパネルの横の小窓「箱を表示」で切り替えられます。"
+msgstr "オンにするとSceneに箱が出て、箱の正面（画像が描かれている面）から画像を表面に貼ります。貼られるのはこの編集の選択範囲の中だけです。オンの間、新しい色・暗部・不透明度・グラデーションは範囲ではなく画像に掛かります。箱の表示はパネルの横の小窓「箱を表示」で切り替えられます。［箱の向きを合わせる］で、クリックした所の面の向きに箱を合わせられます。"
 
-msgid "Scene:Color:DecalTexture"
-msgstr "画像"
+msgid "Scene:Color:DecalAlignBox"
+msgstr "箱の向きを合わせる"
+
+msgid "Scene:Color:DecalAlignBoxTooltip"
+msgstr "クリックした所の面の向きに箱を合わせます（大きさはそのまま。箱の中心を面の上に移します）"
+
+msgid "Scene:Color:DecalAlignFailed"
+msgstr "面の向きを決められませんでした。範囲が小さすぎるか、平らな面ではありません"
 
 msgid "Scene:Color:DecalSmooth"
 msgstr "なめらかに貼る（lilToon・Poiyomi）"

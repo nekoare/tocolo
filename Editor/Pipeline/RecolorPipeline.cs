@@ -250,6 +250,8 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
             // 画像入りなら統計は画像から取るので、種ごとの部分は要らない（部分は常に合成マスク 1 つ）
             bool perSeed = edit.perSeedStats && seeds.Count > 1 && !edit.HasDecal && !edit.wholeTexture;
             var seedMasks = new List<RenderTexture>();
+            // 種ごとのマスクの 0 でない範囲（統計の読み戻しをそこだけにする。分からなければ null＝全体）。seedMasks と同じ並び
+            var seedBounds = new List<RectInt?>();
             RenderTexture mask = null;
             try
             {
@@ -279,6 +281,7 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
                         if (partMasks.Count > 1)
                         {
                             seedMasks.AddRange(partMasks);
+                            foreach (var _ in partMasks) seedBounds.Add(null);
                             MaskTextures.Destroy(mask);
                             mask = null;
                         }
@@ -293,9 +296,17 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
                 {
                     var seed = seeds[i];
                     FindSeedTransform(users, seed.mesh, seed.submesh, out var uvScale, out var uvOffset);
-                    var seedMask = edit.mode == SelectionMode.Color
-                        ? BuildColorMask(edit, seed, source, uvScale, uvOffset, coverage, usersHash)
-                        : BuildIslandMask(seed, source, uvScale, uvOffset, coverage, edit.padding, edit.cleanupRadius);
+                    RectInt? bounds = null;
+                    RenderTexture seedMask;
+                    if (edit.mode == SelectionMode.Color)
+                    {
+                        seedMask = BuildColorMask(edit, seed, source, uvScale, uvOffset, coverage, usersHash);
+                    }
+                    else
+                    {
+                        seedMask = BuildIslandMask(seed, source, uvScale, uvOffset, coverage, edit.padding, edit.cleanupRadius, out var islandBounds);
+                        bounds = islandBounds;
+                    }
                     if (seedMask == null)
                     {
                         // 主種のマスクが作れなければ従来どおり反映しない。追加の種は飛ばす
@@ -305,6 +316,7 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
                     if (perSeed)
                     {
                         seedMasks.Add(seedMask);
+                        seedBounds.Add(bounds);
                         continue;
                     }
                     if (mask == null)
@@ -332,6 +344,7 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
                     // 追加の種がすべて作れなかった: 種が 1 つのときと同じにする
                     mask = seedMasks[0];
                     seedMasks.Clear();
+                    seedBounds.Clear();
                 }
                 if (seedMasks.Count > 1)
                 {
@@ -340,10 +353,12 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
                     mask = MaskTextures.Create(first.width, first.height, "ClickRecolor_CombinedMask");
                     Graphics.CopyTexture(first, mask);
                     for (int i = 1; i < seedMasks.Count; i++) Morphology.Max(mask, seedMasks[i]);
+                    // 色の読み戻しは 1 回にまとめ、マスクは種ごとの範囲だけ読む（1 つずつ Compute するのと同じ結果）
+                    var partStats = SelectionStats.ComputeParts(statsSource, seedMasks, seedBounds);
                     parts = new List<EditJob.Part>(seedMasks.Count);
-                    foreach (var seedMask in seedMasks)
+                    for (int i = 0; i < seedMasks.Count; i++)
                     {
-                        parts.Add(new EditJob.Part { mask = seedMask, stats = SelectionStats.Compute(statsSource, seedMask) });
+                        parts.Add(new EditJob.Part { mask = seedMasks[i], stats = partStats[i] });
                     }
                 }
                 else
@@ -836,7 +851,13 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
 
         private static RenderTexture BuildIslandMask(
             in SeedSpec seed, RenderTexture source, Vector2 uvScale, Vector2 uvOffset,
-            RenderTexture coverage, int padding, int cleanupRadius)
+            RenderTexture coverage, int padding, int cleanupRadius) =>
+            BuildIslandMask(seed, source, uvScale, uvOffset, coverage, padding, cleanupRadius, out _);
+
+        /// <summary>BuildIslandMask と同じ。bounds はマスクが 0 でない画素をすべて含む矩形（IslandMaskBuilder.Build）</summary>
+        private static RenderTexture BuildIslandMask(
+            in SeedSpec seed, RenderTexture source, Vector2 uvScale, Vector2 uvOffset,
+            RenderTexture coverage, int padding, int cleanupRadius, out RectInt bounds)
         {
             return IslandMaskBuilder.Build(new IslandRequest
             {
@@ -851,7 +872,7 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
                 width = source.width,
                 height = source.height,
                 coverage = coverage,
-            });
+            }, out bounds);
         }
 
         /// <summary>

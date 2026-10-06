@@ -47,6 +47,38 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
         }
 
         /// <summary>
+        /// 複数のマスクの統計を取る（結果は 1 つずつ Compute(sourceLinear, masks[i], maxSize) で取るのと同じ）。
+        /// 作業 RT の色は 1 回だけ読み戻して使い回し、マスクは bounds[i]（マスクの画素の矩形。0 でない画素をすべて含む。
+        /// null なら全体）の範囲だけ読み戻して集計する。パーツが多い選択（矩形選択で数十個など）で、
+        /// 同じ色の読み戻しと全画素の走査をパーツの数だけ繰り返さないため
+        /// </summary>
+        internal static Stats[] ComputeParts(
+            RenderTexture sourceLinear, IReadOnlyList<RenderTexture> masks, IReadOnlyList<RectInt?> bounds, int maxSize = MaxReadbackSize)
+        {
+            if (sourceLinear == null) throw new ArgumentNullException(nameof(sourceLinear));
+            if (masks == null) throw new ArgumentNullException(nameof(masks));
+
+            ReadbackSize(sourceLinear, maxSize, out int w, out int h);
+            var pixels = ReadbackColor(sourceLinear, w, h);
+            var result = new Stats[masks.Count];
+            for (int i = 0; i < masks.Count; i++)
+            {
+                var mask = masks[i];
+                var rect = new RectInt(0, 0, w, h);
+                var partBounds = bounds != null && i < bounds.Count ? bounds[i] : null;
+                if (partBounds.HasValue)
+                {
+                    // 縮めるときの補間で隣の画素にかかる分を 1px 広げる
+                    rect = IslandMaskBuilder.Expand(
+                        IslandMaskBuilder.ScaleBounds(partBounds.Value, mask.width, mask.height, w, h), 1, w, h);
+                }
+                var maskValues = ReadbackMask(mask, w, h, rect);
+                result[i] = Compute(pixels, w, maskValues, rect);
+            }
+            return result;
+        }
+
+        /// <summary>
         /// linearPixels（線形 RGB + α）と mask（0..1、同じ並び）から統計を取る。
         /// M &gt; 0.5 かつ α ≥ 0.01 の画素だけを M 加重で数える。
         /// 数えた画素が MinCount 未満なら、p05 / p95 は代表色の L ± 0.05 に置く（ゼロ除算と暴走を防ぐ）
@@ -56,30 +88,44 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
             if (linearPixels == null) throw new ArgumentNullException(nameof(linearPixels));
             if (mask == null) throw new ArgumentNullException(nameof(mask));
             if (mask.Length < linearPixels.Length) throw new ArgumentException("maskの長さが画素数より短いです", nameof(mask));
+            return Compute(linearPixels, linearPixels.Length, mask, new RectInt(0, 0, linearPixels.Length, 1));
+        }
 
-            var ls = new float[linearPixels.Length];
-            var weights = new float[linearPixels.Length];
+        /// <summary>
+        /// Compute(Color[], float[]) の本体。linearPixels は幅 width の画像（行優先・y=0 が下）、mask は rect の大きさ（同じ並び）。
+        /// rect の画素を行の順に数える（rect の外のマスクが 0 なら、全体で数えるのと同じ画素を同じ順に数える）
+        /// </summary>
+        private static Stats Compute(Color[] linearPixels, int width, float[] mask, RectInt rect)
+        {
+            int area = rect.width * rect.height;
+            var ls = new float[area];
+            var weights = new float[area];
             int count = 0;
             double totalWeight = 0, sumR = 0, sumG = 0, sumB = 0, sumOkA = 0, sumOkB = 0;
 
-            for (int i = 0; i < linearPixels.Length; i++)
+            int i = 0;
+            for (int y = 0; y < rect.height; y++)
             {
-                float m = mask[i];
-                Color c = linearPixels[i];
-                if (!(m > MaskThreshold) || c.a < AlphaThreshold) continue;
+                int row = (rect.y + y) * width + rect.x;
+                for (int x = 0; x < rect.width; x++, i++)
+                {
+                    float m = mask[i];
+                    Color c = linearPixels[row + x];
+                    if (!(m > MaskThreshold) || c.a < AlphaThreshold) continue;
 
-                var lin = new Vector3(c.r, c.g, c.b);
-                Vector3 lab = OklabConverter.LinearRGBToOklab(lin);
-                ls[count] = lab.x;
-                weights[count] = m;
-                count++;
+                    var lin = new Vector3(c.r, c.g, c.b);
+                    Vector3 lab = OklabConverter.LinearRGBToOklab(lin);
+                    ls[count] = lab.x;
+                    weights[count] = m;
+                    count++;
 
-                totalWeight += m;
-                sumR += c.r * m;
-                sumG += c.g * m;
-                sumB += c.b * m;
-                sumOkA += lab.y * m;
-                sumOkB += lab.z * m;
+                    totalWeight += m;
+                    sumR += c.r * m;
+                    sumG += c.g * m;
+                    sumB += c.b * m;
+                    sumOkA += lab.y * m;
+                    sumOkB += lab.z * m;
+                }
             }
 
             Vector3 averageLinear = Vector3.zero;
@@ -189,10 +235,22 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
             if (source == null) throw new ArgumentNullException(nameof(source));
             if (mask == null) throw new ArgumentNullException(nameof(mask));
 
-            float scale = maxSize > 0 ? Mathf.Min(1f, maxSize / (float)Mathf.Max(source.width, source.height)) : 1f;
-            int w = Mathf.Max(1, Mathf.RoundToInt(source.width * scale));
-            int h = Mathf.Max(1, Mathf.RoundToInt(source.height * scale));
+            ReadbackSize(source, maxSize, out int w, out int h);
+            pixels = ReadbackColor(source, w, h);
+            maskValues = ReadbackMask(mask, w, h, new RectInt(0, 0, w, h));
+        }
 
+        /// <summary>読み戻す大きさ（source を長辺 maxSize 以下に縮めた大きさ。0 なら縮めない）</summary>
+        private static void ReadbackSize(RenderTexture source, int maxSize, out int w, out int h)
+        {
+            float scale = maxSize > 0 ? Mathf.Min(1f, maxSize / (float)Mathf.Max(source.width, source.height)) : 1f;
+            w = Mathf.Max(1, Mathf.RoundToInt(source.width * scale));
+            h = Mathf.Max(1, Mathf.RoundToInt(source.height * scale));
+        }
+
+        /// <summary>source（線形 RGB の RT）を w×h に縮めて読み戻す（行優先・y = 0 が下）</summary>
+        private static Color[] ReadbackColor(RenderTexture source, int w, int h)
+        {
             var colorDesc = new RenderTextureDescriptor(w, h, RenderTextureFormat.ARGBHalf, 0)
             {
                 sRGB = false,
@@ -201,29 +259,41 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
                 msaaSamples = 1,
             };
             var colorRt = RenderTexture.GetTemporary(colorDesc);
-            var maskRt = MaskTextures.GetTemporary(w, h);
             var colorTex = new Texture2D(w, h, TextureFormat.RGBAHalf, false, true);
             // Blit / ReadPixels は RenderTexture.active を切り替えたまま戻さないので、最後に元へ戻す
             var previous = RenderTexture.active;
             try
             {
                 Graphics.Blit(source, colorRt);
-                Graphics.Blit(mask, maskRt);
-
                 RenderTexture.active = colorRt;
                 colorTex.ReadPixels(new Rect(0, 0, w, h), 0, 0, false);
                 colorTex.Apply(false);
-                pixels = colorTex.GetPixels();
-
-                var maskBytes = FloodFill.ReadR8(maskRt);
-                maskValues = new float[maskBytes.Length];
-                for (int i = 0; i < maskBytes.Length; i++) maskValues[i] = maskBytes[i] / 255f;
+                return colorTex.GetPixels();
             }
             finally
             {
                 RenderTexture.active = previous;
                 Object.DestroyImmediate(colorTex);
                 RenderTexture.ReleaseTemporary(colorRt);
+            }
+        }
+
+        /// <summary>mask（R8）を w×h に縮め、その rect の範囲だけ読み戻して 0..1 にする（rect の大きさで行優先・y = 0 が下）</summary>
+        private static float[] ReadbackMask(RenderTexture mask, int w, int h, RectInt rect)
+        {
+            var maskRt = MaskTextures.GetTemporary(w, h);
+            var previous = RenderTexture.active;
+            try
+            {
+                Graphics.Blit(mask, maskRt);
+                var maskBytes = FloodFill.ReadR8(maskRt, rect);
+                var maskValues = new float[maskBytes.Length];
+                for (int i = 0; i < maskBytes.Length; i++) maskValues[i] = maskBytes[i] / 255f;
+                return maskValues;
+            }
+            finally
+            {
+                RenderTexture.active = previous;
                 RenderTexture.ReleaseTemporary(maskRt);
             }
         }
