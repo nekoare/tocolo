@@ -20,8 +20,9 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
                 .BeforePlugin("net.rs64.tex-trans-tool")
                 .BeforePlugin("com.nekoare.chimera-hair-master")
                 .Run(RecolorPass.Instance)
-                // 重ね貼り（画像のなめらかな貼り付け）は色変え後のマテリアルを複製元にするので、RecolorPreview の後に置く
-                .PreviewingWith(new RecolorPreview(), new DecalOverlayPreview());
+                // 重ね貼り（画像のなめらかな貼り付け）は色変え後のマテリアルを複製元にするので、RecolorPreview の後に置く。
+                // 髪ツールの髪（その上に掛ける分）は髪用の入口 ClickRecolorChmHairPlugin が担当する
+                .PreviewingWith(new RecolorPreview(RecolorScope.Main), new DecalOverlayPreview(RecolorScope.Main));
 
             // コンポーネント削除は最適化系プラグイン（下の BeforePlugin）より前に行い、未知コンポーネント警告を避ける
             InPhase(BuildPhase.Optimizing)

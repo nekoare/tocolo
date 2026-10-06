@@ -1438,7 +1438,6 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                     EditorUtility.SetDirty(component);
                     ToolSession.CurrentEditId = member.id;
                     ToolSession.SetEditHasTwin(member.id, HasUvTwin(hit.renderer, hit.subMeshIndex, hit.triangleIndex));
-                    ToolSession.SetEditIsHairToolTarget(member.id, HairToolTargetDetector.IsTargetOf(component.gameObject, hit.renderer));
                     return SeedToggleResult.MemberAdded;
                 }
                 edit = member;
@@ -1580,8 +1579,6 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             ToolSession.CurrentEditId = edit.id;
             // 双子判定は覚えるだけ（パネルの案内は撤去済み。将来の表示や警告に使えるよう残す）
             ToolSession.SetEditHasTwin(edit.id, HasUvTwin(renderer, submesh, triangle));
-            // 髪ツールの対象なら、パネルで「先に書き出してから」の警告を出す
-            ToolSession.SetEditIsHairToolTarget(edit.id, HairToolTargetDetector.IsTargetOf(component.gameObject, renderer));
             return edit;
         }
 

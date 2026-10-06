@@ -267,6 +267,12 @@ msgstr "이 아바타에는 TexTransTool이 있어요. 프리뷰에서는 TexTra
 msgid "Scene:Panel:HairToolNotice"
 msgstr "이 파츠는 Chimera Hair Master의 대상이에요. 업로드 시 Chimera Hair Master의 가공이 이 색 변경 위에 적용되므로, 먼저 Chimera Hair Master에서 내보낸 뒤 색을 바꿔 주세요"
 
+msgid "Scene:Panel:HairToolOver"
+msgstr "Chimera Hair Master의 색 맞춤 위에 색을 겹쳐요"
+
+msgid "Scene:Panel:HairToolMerged"
+msgstr "메시 통합이 ON인 머리카락에는 색을 겹칠 수 없어요. Chimera Hair Master의 통합을 OFF로 하거나 먼저 내보낸 뒤 사용해 주세요"
+
 msgid "Scene:Panel:LayerCovers"
 msgstr "색이 잘 바뀌지 않는 위치예요. lilToon 메인 컬러 {0}이(가) 위에 겹쳐 있어요. {0}의 「굽기」로 메인에 구운 뒤 다시 선택하면 한꺼번에 색을 바꿀 수 있어요."
 
@@ -626,6 +632,15 @@ msgstr "텍스처 '{0}'에 색 변경을 적용할 수 없어서 반영하지 �
 
 msgid "Error:ProOutdated"
 msgstr "유료판이 오래되어 '매끄럽게 붙이기' 이미지는 업로드에 반영되지 않아요. 유료판을 업데이트해 주세요"
+
+msgid "Error:ProOutdatedHair"
+msgstr "유료판이 오래되어 Chimera Hair Master 머리카락의 색 변경이 미리보기대로 업로드되지 않아요. 유료판을 업데이트해 주세요"
+
+msgid "Error:ChmMergedHair"
+msgstr "텍스처 '{0}'은(는) 메시 통합이 ON인 Chimera Hair Master 머리카락에 사용되고 있어서 그 머리카락에는 반영하지 않아요"
+
+msgid "Error:ChmHairSlotMismatch"
+msgstr "'{0}'의 머티리얼 수가 빌드 중에 바뀌어서 Chimera Hair Master 머리카락의 색 변경을 반영하지 않아요"
 
 msgid "Error:FreeEdition"
 msgstr "체험판이라 업로드에는 반영되지 않아요(유료판에서 반영할 수 있어요)"

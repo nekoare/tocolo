@@ -248,24 +248,6 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             s_hasTwin[editId] = hasTwin;
         }
 
-        private static readonly Dictionary<string, bool> s_hairToolTarget = new Dictionary<string, bool>();
-
-        /// <summary>現在の編集の種 Renderer が髪ツール（キメラヘアマスター）の対象か（HairToolTargetDetector。覚えていない編集は false）</summary>
-        public static bool CurrentEditIsHairToolTarget
-        {
-            get
-            {
-                string id = CurrentEditId;
-                return id != null && s_hairToolTarget.TryGetValue(id, out var v) && v;
-            }
-        }
-
-        public static void SetEditIsHairToolTarget(string editId, bool value)
-        {
-            if (string.IsNullOrEmpty(editId)) return;
-            s_hairToolTarget[editId] = value;
-        }
-
         private static bool s_eyedropperActive;
 
         /// <summary>
@@ -380,7 +362,6 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             SessionState.EraseString(KeyCurrentEdit);
             SessionState.EraseInt(KeyColorScope);
             s_hasTwin.Clear();
-            s_hairToolTarget.Clear();
             s_transientNoticeKey = null;
             s_transientNoticeArgs = null;
             LastPick = null;

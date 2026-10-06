@@ -100,11 +100,27 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
     /// <summary>
     /// 色変えの結果をシーンに即時反映する NDMF プレビュー（設計 §8）。
     /// アバターごとに 1 グループ。テクスチャごとに RecolorPipeline で結果 RT を作り、
-    /// そのテクスチャをメインに持つマテリアルの複製に束縛して差し替える。元マテリアル・元テクスチャには書かない
+    /// そのテクスチャをメインに持つマテリアルの複製に束縛して差し替える。元マテリアル・元テクスチャには書かない。
+    /// 担当範囲（RecolorScope）ごとに 1 つずつ置く: 本体は髪ツールより前で今までどおり参照の一致で差し替え、
+    /// 髪用は髪ツールの後で、元の Renderer のスロット番号から髪ツールが入れたマテリアルを見つけ、そのメイン（髪ツールの出力）を土台にする
     /// </summary>
     internal class RecolorPreview : IRenderFilter
     {
         private const string LogPrefix = "[Tocolo]";
+
+        private readonly RecolorScope _scope;
+
+        public RecolorPreview() : this(RecolorScope.Main)
+        {
+        }
+
+        public RecolorPreview(RecolorScope scope)
+        {
+            _scope = scope;
+        }
+
+        /// <summary>髪用は、髪ツールが髪用の入口より前に並ぶと宣言しているときだけ動く（宣言が無ければ本体が髪も今までどおり担当する）</summary>
+        public bool IsEnabled(ComputeContext context) => _scope == RecolorScope.Main || HairToolTargets.OrderSupported;
 
         /// <summary>警告を出し済みの「編集 id + 種類」。同じ警告を Instantiate のたびに並べない</summary>
         private static readonly HashSet<string> s_warned = new HashSet<string>();
@@ -119,20 +135,43 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
         // ── グループ ──
 
         /// <summary>GetTargetGroups から Instantiate へ渡すデータ。比較は参照（要素ごと）で行う</summary>
-        private sealed class GroupData
+        internal sealed class GroupData
         {
             public GameObject avatar;
             public ClickRecolor[] components;
+            /// <summary>
+            /// 範囲の利用者（被覆・位置マップ・種の Tiling/Offset）にする Renderer: 対象テクスチャを使う全 Renderer（担当範囲で絞る前）。
+            /// 本体と髪用で同じ一覧にして、同じ編集の範囲マスクを一致させる（MaskCache も共有される）
+            /// </summary>
+            public Renderer[] users;
+            /// <summary>髪ツールから見た役割（対象でない Renderer は入らない）</summary>
+            public Dictionary<Renderer, HairToolRole> roles;
 
             public static bool Same(GroupData a, GroupData b)
             {
                 if (ReferenceEquals(a, b)) return true;
                 if (a == null || b == null || a.avatar != b.avatar) return false;
-                if (a.components == null || b.components == null) return a.components == b.components;
-                if (a.components.Length != b.components.Length) return false;
-                for (int i = 0; i < a.components.Length; i++)
+                return SameArray(a.components, b.components) && SameArray(a.users, b.users) && SameRoles(a.roles, b.roles);
+            }
+
+            private static bool SameArray<T>(T[] a, T[] b) where T : Object
+            {
+                if (a == null || b == null) return a == b;
+                if (a.Length != b.Length) return false;
+                for (int i = 0; i < a.Length; i++)
                 {
-                    if (a.components[i] != b.components[i]) return false;
+                    if (a[i] != b[i]) return false;
+                }
+                return true;
+            }
+
+            private static bool SameRoles(Dictionary<Renderer, HairToolRole> a, Dictionary<Renderer, HairToolRole> b)
+            {
+                if (a == null || b == null) return a == b;
+                if (a.Count != b.Count) return false;
+                foreach (var pair in a)
+                {
+                    if (!b.TryGetValue(pair.Key, out var role) || role != pair.Value) return false;
                 }
                 return true;
             }
@@ -157,6 +196,8 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
                         CollectTargetTextures(component, textures, highlight);
                     }
                     if (textures.Count == 0) continue;
+                    // 髪ツールの対象・統合の切り替えで、本体と髪用の担当が入れ替わる
+                    var roles = HairToolTargets.ObserveRoles(context, avatar);
 
                     var candidates = new List<Renderer>();
                     foreach (var renderer in context.GetComponentsInChildren<Renderer>(avatar, true))
@@ -173,10 +214,11 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
                         candidates.Add(renderer);
                     }
 
-                    var renderers = CollectRenderers(candidates, textures);
+                    var users = CollectRenderers(candidates, textures);
+                    var renderers = HairToolTargets.FilterScope(users, roles, _scope);
                     if (renderers.Count == 0) continue;
 
-                    var data = new GroupData { avatar = avatar, components = components };
+                    var data = new GroupData { avatar = avatar, components = components, users = users.ToArray(), roles = roles };
                     groups.Add(RenderGroup.For(renderers).WithData(data, GroupData.Same));
                 }
                 catch (Exception ex)
@@ -193,7 +235,7 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
             ComputeContext context)
         {
             var entries = new List<PreviewTextureCache.Entry>();
-            // 結果 RT を描き直すテクスチャ（元テクスチャのハンドルは Entry へ渡すまでここが持つ）
+            // 結果 RT を描き直す単位（元テクスチャのハンドルは Entry へ渡すまでここが持つ）
             var pendings = new List<PendingTexture>();
             var clones = new List<Material>();
             // ハイライトを掛けた RT（ノード所有。キャッシュしない）
@@ -209,51 +251,67 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
                 if (plans.Count == 0) return Task.FromResult<IRenderFilterNode>(new EmptyNode());
 
                 var pairs = new List<(Renderer original, Renderer proxy)>();
-                var originals = new List<Renderer>();
                 foreach (var (original, proxy) in proxyPairs)
                 {
                     if (original == null || proxy == null) continue;
-                    var materials = context.Observe(original, r => r.sharedMaterials, SameMaterialArray);
-                    if (materials != null)
-                    {
-                        // 元マテリアルの編集（色・Tiling/Offset 等）に追従させる（複製を作り直す）
-                        foreach (var material in materials)
-                        {
-                            if (material != null) context.Observe(material);
-                        }
-                    }
                     pairs.Add((original, proxy));
-                    originals.Add(original);
                 }
+                var originals = new List<Renderer>();
+                if (data?.users != null)
+                {
+                    foreach (var renderer in data.users)
+                    {
+                        if (renderer != null) originals.Add(renderer);
+                    }
+                }
+                foreach (var renderer in originals)
+                {
+                    var materials = context.Observe(renderer, r => r.sharedMaterials, SameMaterialArray);
+                    if (materials == null) continue;
+                    // 元マテリアルの編集（色・Tiling/Offset 等）に追従させる（複製を作り直す）
+                    foreach (var material in materials)
+                    {
+                        if (material != null) context.Observe(material);
+                    }
+                }
+
+                // 髪用: 元の Renderer のスロット番号から、髪ツールが入れたマテリアルと土台を決める
+                var hairSlots = _scope == RecolorScope.ChmHair ? PlanHairSlots(pairs, plans) : null;
+                var units = hairSlots != null ? UnitsOf(hairSlots, order) : UnitsOf(order, pairs);
 
                 // 連結の統計を共有する編集（全テクスチャぶん）。結果 RT の鍵に、同じ連結の他のメンバーの中身も入れる
                 var groupMembers = CollectGroupStatsMembers(plans, order);
 
-                // 1 段目: テクスチャごとに結果 RT のキャッシュを引き、無いものは PrepareJob まで済ませる
-                // （連結の統計は全テクスチャの Job がそろってから共有する）
+                // 1 段目: 単位ごとに結果 RT のキャッシュを引き、無いものは PrepareJob まで済ませる
+                // （連結の統計は全単位の Job がそろってから共有する）
                 var usersOf = new Dictionary<Texture2D, List<(Mesh mesh, int submesh, Vector2 uvScale, Vector2 uvOffset)>>();
-                var entryOf = new Dictionary<Texture2D, PreviewTextureCache.Entry>();
-                foreach (var texture in order)
+                var entryOf = new Dictionary<TextureUnit, PreviewTextureCache.Entry>();
+                foreach (var unit in units)
                 {
-                    // 再インポート（画素の変更）でも作り直す
-                    context.Observe(texture, t => t.imageContentsHash);
+                    var texture = unit.source;
                     var plan = plans[texture];
-                    // 「画像を入れる」の画像も、描き直して再インポートしたら作り直す
-                    // （HashEdit に畳むだけでは、コンポーネントが変わったときにしか観測されない）
-                    foreach (var edit in plan.edits)
+                    if (!usersOf.TryGetValue(texture, out var users))
                     {
-                        if (edit != null && edit.HasDecal) context.Observe(edit.decalTexture, t => t.imageContentsHash);
+                        // 再インポート（画素の変更）でも作り直す
+                        context.Observe(texture, t => t.imageContentsHash);
+                        // 「画像を入れる」の画像も、描き直して再インポートしたら作り直す
+                        // （HashEdit に畳むだけでは、コンポーネントが変わったときにしか観測されない）
+                        foreach (var edit in plan.edits)
+                        {
+                            if (edit != null && edit.HasDecal) context.Observe(edit.decalTexture, t => t.imageContentsHash);
+                        }
+                        users = CollectUsers(originals, texture);
+                        usersOf[texture] = users;
+                        WarnUnreadableUsers(texture, users);
                     }
-                    var users = CollectUsers(originals, texture);
-                    usersOf[texture] = users;
-                    WarnUnreadableUsers(texture, users);
 
-                    var key = new PreviewTextureCache.Key(texture, ComputeTextureHash(plan.edits, users, groupMembers, plan.overlay), plan.size);
+                    var hash = TextureUnit.FoldBase(ComputeTextureHash(plan.edits, users, groupMembers, plan.overlay), unit.baseTexture);
+                    var key = new PreviewTextureCache.Key(texture, hash, plan.size);
                     var entry = PreviewTextureCache.TryAcquire(key);
                     if (entry != null)
                     {
                         entries.Add(entry);
-                        entryOf[texture] = entry;
+                        entryOf[unit] = entry;
                         continue;
                     }
 
@@ -261,14 +319,16 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
                     // このハンドルのキャッシュに当たる。スライダー操作でノードを作り直すときは、新ノードの Instantiate の間
                     // 旧ノードの Entry がまだハンドルを持っているので参照が途切れず、PNG を再デコードしない
                     // （旧ノードは新ノードができた後に破棄される）
-                    var pending = new PendingTexture { texture = texture, plan = plan, key = key };
+                    var pending = new PendingTexture { unit = unit, plan = plan, key = key };
                     pendings.Add(pending);
                     pending.source = SourceTextureLoader.Acquire(texture, plan.size);
-                    pending.jobs = PrepareJobs(texture, plan, users, originals);
+                    pending.jobs = RecolorPipeline.RebaseStats(
+                        PrepareJobs(texture, plan, users, originals), unit.baseTexture, texture, plan.size,
+                        MaskContext.For(plan.root, originals));
                 }
 
-                // 描き直すテクスチャの連結の統計を共有する。キャッシュに当たったテクスチャのメンバーも、統計を取るためだけに PrepareJob する
-                // （そのテクスチャは Run しない。マスクは MaskCache に当たることが多い）
+                // 描き直す単位の連結の統計を共有する。キャッシュに当たった単位のメンバーも、統計を取るためだけに PrepareJob する
+                // （その単位は Run しない。マスクは MaskCache に当たることが多い）
                 var allJobs = new List<EditJob>();
                 var sharedGroups = new HashSet<string>();
                 foreach (var pending in pendings)
@@ -281,83 +341,55 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
                 }
                 if (sharedGroups.Count > 0)
                 {
-                    foreach (var texture in order)
+                    foreach (var unit in units)
                     {
-                        if (!entryOf.ContainsKey(texture)) continue;
+                        if (!entryOf.ContainsKey(unit)) continue;
+                        var texture = unit.source;
                         var plan = plans[texture];
+                        var maskContext = MaskContext.For(plan.root, originals);
                         foreach (var edit in plan.edits)
                         {
                             if (!RecolorPipeline.SharesGroupStats(edit) || !sharedGroups.Contains(edit.groupId)) continue;
                             if (edit.seedRenderer == null && RecolorPipeline.NeedsSeedRenderer(edit)) continue;
-                            var job = RecolorPipeline.PrepareJob(edit, texture, plan.size, usersOf[texture], context: MaskContext.For(plan.root, originals));
-                            if (job != null) allJobs.Add(job);
+                            var job = RecolorPipeline.PrepareJob(edit, texture, plan.size, usersOf[texture], context: maskContext);
+                            if (job == null) continue;
+                            allJobs.AddRange(RecolorPipeline.RebaseStats(new[] { job }, unit.baseTexture, texture, plan.size, maskContext));
                         }
                     }
                 }
                 RecolorPipeline.ShareGroupStats(allJobs);
 
-                // 2 段目: 描き直すテクスチャごとに Run
+                // 2 段目: 描き直す単位ごとに Run
                 foreach (var pending in pendings)
                 {
-                    var rt = Render(pending.texture, pending.plan, pending.jobs, originals);
+                    var rt = Render(pending.unit, pending.plan, pending.jobs, originals);
                     if (rt == null) continue;
                     var entry = PreviewTextureCache.Add(pending.key, rt, pending.source);
                     pending.source = null; // 所有権を Entry へ渡した（Entry の破棄で Dispose）
                     entries.Add(entry);
-                    entryOf[pending.texture] = entry;
+                    entryOf[pending.unit] = entry;
                 }
 
-                // テクスチャごとの結果 RT
-                var results = new Dictionary<Texture2D, RenderTexture>();
-                foreach (var texture in order)
+                // 単位ごとの結果 RT
+                var results = new Dictionary<TextureUnit, RenderTexture>();
+                foreach (var unit in units)
                 {
-                    if (!entryOf.TryGetValue(texture, out var entry)) continue;
-                    results[texture] = entry.texture;
+                    if (!entryOf.TryGetValue(unit, out var entry)) continue;
+                    results[unit] = entry.texture;
 
                     // 現在の編集がこのテクスチャに効いていれば、結果 RT にハイライトを掛けた別の RT を束縛する
-                    var highlighted = CreateHighlighted(highlight, texture, plans[texture], usersOf[texture], entry.texture, originals);
+                    var highlighted = CreateHighlighted(highlight, unit.source, plans[unit.source], usersOf[unit.source], entry.texture, originals);
                     if (highlighted != null)
                     {
                         owned.Add(highlighted);
-                        results[texture] = highlighted;
+                        results[unit] = highlighted;
                     }
                 }
 
                 // マテリアルの差し替え配列（Renderer ごと。OnFrame でアロケーションしないよう先に作る）
-                var cloneOf = new Dictionary<Material, Material>();
-                var overrides = new Dictionary<Renderer, Material[]>();
-                foreach (var (original, proxy) in pairs)
-                {
-                    // 上流のフィルタが差し替えた結果を入力にする
-                    var materials = proxy.sharedMaterials;
-                    Material[] replaced = null;
-                    for (int i = 0; i < materials.Length; i++)
-                    {
-                        var material = materials[i];
-                        if (!MaterialTextureResolver.TryGetMainTexture(material, out var info)) continue;
-                        if (!results.TryGetValue(info.texture, out var rt) || rt == null) continue;
-
-                        if (!cloneOf.TryGetValue(material, out var clone))
-                        {
-                            clone = MaterialCloner.Clone(material, " (ClickRecolor)");
-                            clone.hideFlags = HideFlags.HideAndDontSave;
-                            // Tiling/Offset は複製で引き継がれる。結果 RT は Linear（シェーダーは線形値として読む）
-                            clone.SetTexture(info.propertyName, rt);
-                            // 同じ元テクスチャを参照する他のプロパティも差し替える（ビルド・書き出しと同じ）。
-                            // Poiyomi のロック済みマテリアルで _MainTex を改名してアニメートにすると、シェーダーは _MainTex_<名前> を読むため
-                            foreach (var name in clone.GetTexturePropertyNames())
-                            {
-                                if (name != info.propertyName && clone.GetTexture(name) == info.texture) clone.SetTexture(name, rt);
-                            }
-                            cloneOf.Add(material, clone);
-                            clones.Add(clone);
-                        }
-                        replaced ??= (Material[])materials.Clone();
-                        replaced[i] = clone;
-                    }
-                    if (replaced != null) overrides[original] = replaced;
-                }
-
+                var overrides = hairSlots != null
+                    ? ReplaceHairSlots(pairs, hairSlots, results, clones)
+                    : ReplaceMainSlots(pairs, results, clones);
                 if (overrides.Count == 0) return Task.FromResult<IRenderFilterNode>(new EmptyNode());
 
                 handedOver = true;
@@ -381,11 +413,156 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
                 }
                 // Entry へ渡せなかった（Run できなかった・例外）元テクスチャのハンドルを手放す
                 foreach (var pending in pendings) pending.source?.Dispose();
-                // 全テクスチャの Run とハイライトでマスクを使い終えたので、ここで 1 回だけ減らす
+                // 全単位の Run とハイライトでマスクを使い終えたので、ここで 1 回だけ減らす
                 // （Run の途中で減らすと、連結の統計のために先に準備した他のテクスチャのマスクを捨ててしまう）。
                 // あふれて捨てた編集のマスクは、次にその編集を描くときに PrepareJob が作り直す
                 MaskCache.Trim();
             }
+        }
+
+        // ── 差し替え ──
+
+        /// <summary>
+        /// 本体: 計画のテクスチャのうち、担当する Renderer（pairs）がメインに使っているものごとに 1 単位（土台なし）。
+        /// 髪用の入口だけが使うテクスチャの結果は作らない（範囲の利用者には入るので計画には残る）
+        /// </summary>
+        private static List<TextureUnit> UnitsOf(List<Texture2D> order, List<(Renderer original, Renderer proxy)> pairs)
+        {
+            var used = new HashSet<Texture2D>();
+            foreach (var (_, proxy) in pairs)
+            {
+                foreach (var material in proxy.sharedMaterials)
+                {
+                    if (MaterialTextureResolver.TryGetMainTexture(material, out var info)) used.Add(info.texture);
+                }
+            }
+            var units = new List<TextureUnit>(order.Count);
+            foreach (var texture in order)
+            {
+                if (used.Contains(texture)) units.Add(new TextureUnit(texture, null));
+            }
+            return units;
+        }
+
+        /// <summary>髪用: 差し替えるスロットに現れる (元テクスチャ, 土台) の組（計画のテクスチャ順）</summary>
+        private static List<TextureUnit> UnitsOf(Dictionary<Renderer, List<HairSlot>> hairSlots, List<Texture2D> order)
+        {
+            var units = new List<TextureUnit>();
+            var seen = new HashSet<TextureUnit>();
+            foreach (var texture in order)
+            {
+                foreach (var slots in hairSlots.Values)
+                {
+                    foreach (var slot in slots)
+                    {
+                        if (slot.source != texture) continue;
+                        var unit = new TextureUnit(slot.source, slot.baseTexture);
+                        if (seen.Add(unit)) units.Add(unit);
+                    }
+                }
+            }
+            return units;
+        }
+
+        /// <summary>髪用: 元の Renderer のマテリアルと、上流（髪ツール）が差し替えた後の proxy のマテリアルを番号で対応させる</summary>
+        private static Dictionary<Renderer, List<HairSlot>> PlanHairSlots(
+            List<(Renderer original, Renderer proxy)> pairs, Dictionary<Texture2D, TexturePlan> plans)
+        {
+            var result = new Dictionary<Renderer, List<HairSlot>>();
+            var sources = new HashSet<Texture2D>(plans.Keys);
+            foreach (var (original, proxy) in pairs)
+            {
+                var slots = ChmHairSlots.Plan(original.sharedMaterials, proxy.sharedMaterials, sources, out bool mismatch);
+                if (mismatch)
+                {
+                    WarnOnceByKey($"hair-slots:{original.GetInstanceID()}",
+                        $"「{original.name}」のマテリアルの数が他のツールのプレビューで変わったため、色変えをプレビューに出せません");
+                }
+                if (slots.Count > 0) result[original] = slots;
+            }
+            return result;
+        }
+
+        /// <summary>本体: proxy のメインが計画のテクスチャ（参照の一致）のスロットを、結果 RT を束縛した複製に差し替える</summary>
+        private static Dictionary<Renderer, Material[]> ReplaceMainSlots(
+            List<(Renderer original, Renderer proxy)> pairs, Dictionary<TextureUnit, RenderTexture> results, List<Material> clones)
+        {
+            var cloneOf = new Dictionary<Material, Material>();
+            var overrides = new Dictionary<Renderer, Material[]>();
+            foreach (var (original, proxy) in pairs)
+            {
+                // 上流のフィルタが差し替えた結果を入力にする
+                var materials = proxy.sharedMaterials;
+                Material[] replaced = null;
+                for (int i = 0; i < materials.Length; i++)
+                {
+                    var material = materials[i];
+                    if (!MaterialTextureResolver.TryGetMainTexture(material, out var info)) continue;
+                    if (!results.TryGetValue(new TextureUnit(info.texture, null), out var rt) || rt == null) continue;
+
+                    if (!cloneOf.TryGetValue(material, out var clone))
+                    {
+                        clone = CloneWithResult(material, info.propertyName, info.texture, rt);
+                        cloneOf.Add(material, clone);
+                        clones.Add(clone);
+                    }
+                    replaced ??= (Material[])materials.Clone();
+                    replaced[i] = clone;
+                }
+                if (replaced != null) overrides[original] = replaced;
+            }
+            return overrides;
+        }
+
+        /// <summary>髪用: 計画したスロットを、今のマテリアル（髪ツールの複製）に結果 RT を束縛した複製に差し替える</summary>
+        private static Dictionary<Renderer, Material[]> ReplaceHairSlots(
+            List<(Renderer original, Renderer proxy)> pairs,
+            Dictionary<Renderer, List<HairSlot>> hairSlots,
+            Dictionary<TextureUnit, RenderTexture> results,
+            List<Material> clones)
+        {
+            var cloneOf = new Dictionary<(Material, TextureUnit), Material>();
+            var overrides = new Dictionary<Renderer, Material[]>();
+            foreach (var (original, proxy) in pairs)
+            {
+                if (!hairSlots.TryGetValue(original, out var slots)) continue;
+                var materials = proxy.sharedMaterials;
+                Material[] replaced = null;
+                foreach (var slot in slots)
+                {
+                    if (slot.slot >= materials.Length || materials[slot.slot] != slot.current) continue;
+                    var unit = new TextureUnit(slot.source, slot.baseTexture);
+                    if (!results.TryGetValue(unit, out var rt) || rt == null) continue;
+
+                    if (!cloneOf.TryGetValue((slot.current, unit), out var clone))
+                    {
+                        var replacedTexture = slot.baseTexture != null ? slot.baseTexture : slot.source;
+                        clone = CloneWithResult(slot.current, slot.propertyName, replacedTexture, rt);
+                        cloneOf.Add((slot.current, unit), clone);
+                        clones.Add(clone);
+                    }
+                    replaced ??= (Material[])materials.Clone();
+                    replaced[slot.slot] = clone;
+                }
+                if (replaced != null) overrides[original] = replaced;
+            }
+            return overrides;
+        }
+
+        /// <summary>material の複製（保存しない）。メインと、同じ replacedTexture を参照する他のプロパティに rt を束縛する</summary>
+        private static Material CloneWithResult(Material material, string propertyName, Texture replacedTexture, RenderTexture rt)
+        {
+            var clone = MaterialCloner.Clone(material, " (ClickRecolor)");
+            clone.hideFlags = HideFlags.HideAndDontSave;
+            // Tiling/Offset は複製で引き継がれる。結果 RT は Linear（シェーダーは線形値として読む）
+            clone.SetTexture(propertyName, rt);
+            // 同じテクスチャを参照する他のプロパティも差し替える（ビルド・書き出しと同じ）。
+            // Poiyomi のロック済みマテリアルで _MainTex を改名してアニメートにすると、シェーダーは _MainTex_<名前> を読むため
+            foreach (var name in clone.GetTexturePropertyNames())
+            {
+                if (name != propertyName && clone.GetTexture(name) == replacedTexture) clone.SetTexture(name, rt);
+            }
+            return clone;
         }
 
         // ── テクスチャごとの計画 ──
@@ -494,10 +671,10 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
             }
         }
 
-        /// <summary>結果 RT を描き直すテクスチャ 1 枚ぶん（Instantiate の 1 段目で作り、2 段目で Run する）</summary>
+        /// <summary>結果 RT を描き直す単位 1 つぶん（Instantiate の 1 段目で作り、2 段目で Run する）</summary>
         private sealed class PendingTexture
         {
-            public Texture2D texture;
+            public TextureUnit unit;
             public TexturePlan plan;
             public PreviewTextureCache.Key key;
             /// <summary>元テクスチャのハンドル（Entry へ渡したら null）</summary>
@@ -537,13 +714,13 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
         }
 
         /// <summary>
-        /// 1 テクスチャぶんの結果 RT（ミップ付き・ARGBHalf・Linear）を準備済みの jobs から作る。反映できる編集が 1 つも無ければ null
+        /// 1 単位ぶんの結果 RT（ミップ付き・ARGBHalf・Linear）を準備済みの jobs から作る（土台があれば土台から始める）。反映できる編集が 1 つも無ければ null
         /// </summary>
         /// <remarks>
         /// 元テクスチャの読み込みは呼び出し側（Instantiate）が同じ大きさで先に取り、結果の Entry に持たせている
         /// </remarks>
         private static RenderTexture Render(
-            Texture2D texture,
+            TextureUnit unit,
             TexturePlan plan,
             List<EditJob> jobs,
             IReadOnlyList<Renderer> renderers)
@@ -553,7 +730,8 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
             // Run の結果は最初からミップ付き（遠目でちらつかない）なので、そのまま束縛する
             var result = RecolorPipeline.Run(new PipelineInput
             {
-                sourceAsset = texture,
+                sourceAsset = unit.source,
+                baseTexture = unit.baseTexture,
                 workingSize = plan.size,
                 jobs = jobs,
                 // グラデーションの位置の基準はそのテクスチャに最初に効くコンポーネントの GameObject（対象ルート）

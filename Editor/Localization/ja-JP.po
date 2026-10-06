@@ -267,6 +267,12 @@ msgstr "このアバターにはTexTransToolがあります。プレビューで
 msgid "Scene:Panel:HairToolNotice"
 msgstr "このパーツはキメラヘアマスターの対象です。アップロード時はキメラヘアマスターの加工がこの色変えの上に掛かるため、先にキメラヘアマスターでエクスポートしてから色を変えてください"
 
+msgid "Scene:Panel:HairToolOver"
+msgstr "キメラヘアマスターの色合わせの上に色を重ねます"
+
+msgid "Scene:Panel:HairToolMerged"
+msgstr "メッシュ統合がONの髪には色を重ねられません。キメラヘアマスターの統合をOFFにするか、エクスポートしてから使ってください"
+
 msgid "Scene:Panel:LayerCovers"
 msgstr "色が変わりにくい場所です。lilToonのメインカラー{0}が上に重なっています。{0}の「焼き込み」でメインに焼き込んでから選び直すと、まとめて色を変えられます。"
 
@@ -626,6 +632,15 @@ msgstr "テクスチャ「{0}」に色変えを適用できなかったため、
 
 msgid "Error:ProOutdated"
 msgstr "有料版が古いため、「なめらかに貼る」の画像はアップロードに反映されません。有料版を更新してください"
+
+msgid "Error:ProOutdatedHair"
+msgstr "有料版が古いため、キメラヘアマスターの髪の色変えがプレビューどおりにアップロードされません。有料版を更新してください"
+
+msgid "Error:ChmMergedHair"
+msgstr "テクスチャ「{0}」はメッシュ統合がONのキメラヘアマスターの髪に使われているため、その髪には反映しません"
+
+msgid "Error:ChmHairSlotMismatch"
+msgstr "「{0}」のマテリアルの数がビルド中に変わったため、キメラヘアマスターの髪の色変えを反映しません"
 
 msgid "Error:FreeEdition"
 msgstr "体験版のためアップロードには反映されません（有料版で反映できます）"

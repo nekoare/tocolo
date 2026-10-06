@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using nadena.dev.ndmf;
 using Nekoare.ClickRecolor.Editor.Localization;
 using UnityEngine;
@@ -19,11 +20,13 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
 
         protected override void Execute(BuildContext context)
         {
-            var bake = RecolorBuildHook.Bake;
+            var scoped = RecolorBuildHook.BakeScoped;
+            var legacy = RecolorBuildHook.Bake;
+            Func<int> bake = scoped != null ? () => scoped(context, RecolorScope.Main)
+                : legacy != null ? () => legacy(context)
+                : (Func<int>)null;
             if (bake != null) WarnUnsupportedFeatures(context.AvatarRootObject, RecolorBuildHook.SupportedFeatures);
-            int total = ExecuteCore(
-                context.AvatarRootObject,
-                bake != null ? () => bake(context) : (Func<int>)null);
+            int total = ExecuteCore(context.AvatarRootObject, bake);
             if (total > 0) Debug.Log($"{LogPrefix} {total}枚のテクスチャに反映");
         }
 
@@ -45,23 +48,74 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
         }
 
         /// <summary>
-        /// 有料版が対応していない機能の編集があれば NonFatal で 1 回警告し、警告したら true（無料版だけ更新されて有料版が古いとき）。
-        /// 今は「なめらかに貼る」（重ね貼り）だけ: 古い有料版は重ね貼りを知らず焼き込みに回すが、無料版はその層を素通しするので画像が消える
+        /// 有料版が対応していない機能の編集があれば機能ごとに NonFatal で 1 回警告し、警告したら true（無料版だけ更新されて有料版が古いとき）。
+        /// 「なめらかに貼る」（重ね貼り）: 古い有料版は重ね貼りを知らず焼き込みに回すが、無料版はその層を素通しするので画像が消える。
+        /// 髪ツールの髪の上: 古い有料版は髪も本体の入口（髪ツールより前）で焼くので、プレビュー（髪ツールの上）と違う色になる
         /// </summary>
-        internal static bool WarnUnsupportedFeatures(GameObject avatarRoot, int supportedFeatures)
+        internal static bool WarnUnsupportedFeatures(GameObject avatarRoot, int supportedFeatures) =>
+            WarnUnsupportedFeatures(avatarRoot, supportedFeatures, HairToolTargets.OrderSupported);
+
+        /// <summary>WarnUnsupportedFeatures の、髪ツールの宣言の有無を渡せる版（テスト用）</summary>
+        internal static bool WarnUnsupportedFeatures(GameObject avatarRoot, int supportedFeatures, bool orderSupported)
         {
-            if (avatarRoot == null || (supportedFeatures & RecolorBuildHook.FeatureDecalOverlay) != 0) return false;
+            if (avatarRoot == null) return false;
+            bool warned = false;
+            if ((supportedFeatures & RecolorBuildHook.FeatureDecalOverlay) == 0)
+            {
+                var component = FindFirstWithOverlayEdit(avatarRoot);
+                if (component != null)
+                {
+                    ErrorReport.ReportError(Locales.L, ErrorSeverity.NonFatal, "Error:ProOutdated", component);
+                    warned = true;
+                }
+            }
+            if (orderSupported && (supportedFeatures & RecolorBuildHook.FeatureChmHair) == 0)
+            {
+                var component = FindFirstWithHairEdit(avatarRoot, orderSupported);
+                if (component != null)
+                {
+                    ErrorReport.ReportError(Locales.L, ErrorSeverity.NonFatal, "Error:ProOutdatedHair", component);
+                    warned = true;
+                }
+            }
+            return warned;
+        }
+
+        private static ClickRecolor FindFirstWithOverlayEdit(GameObject avatarRoot)
+        {
             foreach (var component in avatarRoot.GetComponentsInChildren<ClickRecolor>(true))
             {
                 if (component == null || !component.applyOnBuild || component.edits == null) continue;
                 foreach (var edit in component.edits)
                 {
-                    if (!RecolorPreview.IsPreviewTarget(edit) || !Decal.DecalOverlayMaterial.UseOverlay(component, edit)) continue;
-                    ErrorReport.ReportError(Locales.L, ErrorSeverity.NonFatal, "Error:ProOutdated", component);
-                    return true;
+                    if (RecolorPreview.IsPreviewTarget(edit) && Decal.DecalOverlayMaterial.UseOverlay(component, edit)) return component;
                 }
             }
-            return false;
+            return null;
+        }
+
+        /// <summary>効く編集の対象テクスチャを、髪用の入口が担当する髪（役割 Over）が使っているコンポーネントの先頭。無ければ null</summary>
+        private static ClickRecolor FindFirstWithHairEdit(GameObject avatarRoot, bool orderSupported)
+        {
+            var hairTextures = new HashSet<Texture2D>();
+            foreach (var pair in HairToolTargets.RolesIn(avatarRoot, orderSupported))
+            {
+                if (pair.Key == null || pair.Value != HairToolRole.Over) continue;
+                foreach (var material in pair.Key.sharedMaterials)
+                {
+                    if (Picking.MaterialTextureResolver.TryGetMainTexture(material, out var info)) hairTextures.Add(info.texture);
+                }
+            }
+            if (hairTextures.Count == 0) return null;
+            foreach (var component in avatarRoot.GetComponentsInChildren<ClickRecolor>(true))
+            {
+                if (component == null || !component.applyOnBuild || component.edits == null) continue;
+                foreach (var edit in component.edits)
+                {
+                    if (RecolorPreview.IsPreviewTarget(edit) && hairTextures.Contains(edit.sourceTexture)) return component;
+                }
+            }
+            return null;
         }
 
         /// <summary>

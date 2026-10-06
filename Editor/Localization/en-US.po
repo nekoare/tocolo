@@ -267,6 +267,12 @@ msgstr "This avatar uses TexTransTool. In the preview, TexTransTool effects are 
 msgid "Scene:Panel:HairToolNotice"
 msgstr "This part is handled by Chimera Hair Master. On upload its processing is applied on top of this recolor, so export from Chimera Hair Master first, then recolor."
 
+msgid "Scene:Panel:HairToolOver"
+msgstr "This recolor is applied on top of Chimera Hair Master's color matching."
+
+msgid "Scene:Panel:HairToolMerged"
+msgstr "Hair with mesh merging ON in Chimera Hair Master can't be recolored. Turn merging OFF, or export from Chimera Hair Master first."
+
 msgid "Scene:Panel:LayerCovers"
 msgstr "The color change may be hard to see here. lilToon Main Color {0} overlaps this spot. Bake it into the main texture with the Bake button under Main Color {0}, then pick again to recolor it all together."
 
@@ -626,6 +632,15 @@ msgstr "Could not apply recoloring to texture '{0}', so it is skipped."
 
 msgid "Error:ProOutdated"
 msgstr "The paid edition is outdated, so images placed with 'Place smoothly' are not applied on upload. Please update the paid edition."
+
+msgid "Error:ProOutdatedHair"
+msgstr "The paid edition is outdated, so recolors on Chimera Hair Master hair are not uploaded as previewed. Please update the paid edition."
+
+msgid "Error:ChmMergedHair"
+msgstr "Texture '{0}' is used by Chimera Hair Master hair with mesh merging ON, so the recolor is not applied to that hair."
+
+msgid "Error:ChmHairSlotMismatch"
+msgstr "The material count of '{0}' changed during the build, so the recolor over Chimera Hair Master is not applied."
 
 msgid "Error:FreeEdition"
 msgstr "Trial edition: not applied on upload (available in the paid edition)."

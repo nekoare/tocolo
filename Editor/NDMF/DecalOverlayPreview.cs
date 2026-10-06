@@ -8,6 +8,7 @@ using Nekoare.ClickRecolor.Editor.Masks;
 using Nekoare.ClickRecolor.Editor.Picking;
 using Nekoare.ClickRecolor.Editor.Pipeline;
 using UnityEngine;
+using GroupData = Nekoare.ClickRecolor.Editor.NDMF.RecolorPreview.GroupData;
 using Object = UnityEngine.Object;
 
 namespace Nekoare.ClickRecolor.Editor.NDMF
@@ -28,7 +29,8 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
     /// 既知の制限:
     /// - 姿勢（ボーン・Transform）は観測しない。アニメーションでポーズを変えた後は、別の変更が起きるまで三角形の選び方・投影は古いまま
     ///   （表示用メッシュはバインドポーズに足しているので、スキニング・ブレンドシェイプでの追従はする）
-    /// - 上流のフィルタがメッシュを差し替えている Renderer には貼らない（CHM の FakeShadow と同時に使うと、影を足した髪には重ね貼りが出ない）
+    /// - 上流のフィルタがメッシュを差し替えている Renderer には貼らない（髪用の入口はキメラヘアマスターの後なので、その FakeShadow・メッシュ変形を
+    ///   使っている髪にはプレビューで出ない。ビルドは髪ツールの後のメッシュに貼るので出る）
     /// - マテリアル数がサブメッシュ数より少ない（描かれないサブメッシュがある）Renderer には貼らない。
     ///   多い（余分なマテリアルで最後のサブメッシュを重ね描きする）Renderer は、表示用メッシュで最後のサブメッシュを複製して数を揃えてから貼る
     /// - 1 つの Renderer で対象テクスチャを使うスロットが複数あり Tiling/Offset が違うとき、画像の選択マスクは最初のスロットの Tiling/Offset で引く
@@ -42,6 +44,20 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
     internal class DecalOverlayPreview : IRenderFilter
     {
         private const string LogPrefix = "[Tocolo]";
+
+        private readonly RecolorScope _scope;
+
+        public DecalOverlayPreview() : this(RecolorScope.Main)
+        {
+        }
+
+        /// <summary>担当範囲（RecolorPreview と同じ分け方）。貼る Renderer だけ絞り、範囲の利用者は絞る前の全 Renderer にする</summary>
+        public DecalOverlayPreview(RecolorScope scope)
+        {
+            _scope = scope;
+        }
+
+        public bool IsEnabled(ComputeContext context) => _scope == RecolorScope.Main || HairToolTargets.OrderSupported;
 
         /// <summary>警告を出し済みのキー。Instantiate・OnFrame のたびに同じ警告を並べない</summary>
         private static readonly HashSet<string> s_warned = new HashSet<string>();
@@ -67,24 +83,16 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
 
         // ── グループ ──
 
-        /// <summary>GetTargetGroups から Instantiate へ渡すデータ。比較は参照（要素ごと）で行う</summary>
-        private sealed class GroupData
+        /// <summary>範囲の利用者（被覆・位置マップ）にする Renderer: 担当範囲で絞る前の全 Renderer（RecolorPreview と同じ）</summary>
+        private static List<Renderer> UserRenderers(GroupData data)
         {
-            public GameObject avatar;
-            public ClickRecolor[] components;
-
-            public static bool Same(GroupData a, GroupData b)
+            var result = new List<Renderer>();
+            if (data?.users == null) return result;
+            foreach (var renderer in data.users)
             {
-                if (ReferenceEquals(a, b)) return true;
-                if (a == null || b == null || a.avatar != b.avatar) return false;
-                if (a.components == null || b.components == null) return a.components == b.components;
-                if (a.components.Length != b.components.Length) return false;
-                for (int i = 0; i < a.components.Length; i++)
-                {
-                    if (a.components[i] != b.components[i]) return false;
-                }
-                return true;
+                if (renderer != null) result.Add(renderer);
             }
+            return result;
         }
 
         public ImmutableList<RenderGroup> GetTargetGroups(ComputeContext context)
@@ -132,10 +140,12 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
 
                     // 除外リストの Renderer もグループに入れる（Instantiate で貼らない）。選択マスクの利用者・文脈を RecolorPreview と揃え、
                     // MaskCache の鍵を共有させるため（除外は貼る対象の判定だけに使う）
-                    var renderers = RecolorPreview.CollectRenderers(candidates, textures);
+                    var users = RecolorPreview.CollectRenderers(candidates, textures);
+                    var roles = HairToolTargets.ObserveRoles(context, avatar);
+                    var renderers = HairToolTargets.FilterScope(users, roles, _scope);
                     if (renderers.Count == 0) continue;
 
-                    var data = new GroupData { avatar = avatar, components = components };
+                    var data = new GroupData { avatar = avatar, components = components, users = users.ToArray(), roles = roles };
                     groups.Add(RenderGroup.For(renderers).WithData(data, GroupData.Same));
                 }
                 catch (Exception ex)
@@ -315,8 +325,10 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
                     proxyOf[original] = proxy;
                     originals.Add(original);
                 }
+                // 選択マスクの利用者・文脈は担当範囲で絞る前の全 Renderer（貼るのは originals だけ）
+                var users = UserRenderers(data);
                 // Refresh で同じ観測を新しい context に張り直して比べるので、観測は 1 か所（ObserveInputs）にまとめる
-                int signature = ObserveInputs(context, data, originals, out int lookSignature, out int placementSignature);
+                int signature = ObserveInputs(context, data, users, out int lookSignature, out int placementSignature);
 
                 // テクスチャごとの解像度と基準（RecolorPreview の TexturePlan と同じ: そのテクスチャに最初に効くコンポーネント）。
                 // 重ね貼りの編集もまとめて決めるので、色変えの編集と同じ大きさ・同じ文脈の選択マスクになり MaskCache を共有できる
@@ -354,7 +366,7 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
                     bool dragging = SceneTool.ToolSession.IsDecalBoxDraggingFor(edit);
                     int maxSize = dragging ? DecalLayerCache.DragMaxSize : DecalImageBuilder.MaxSize;
                     var texture = edit.sourceTexture;
-                    BuildEdit(assembler, edit, texture, sizeOf[texture], rootOf[texture], originals, maxSize, dragging);
+                    BuildEdit(assembler, edit, texture, sizeOf[texture], rootOf[texture], users, maxSize, dragging);
                 }
 
                 var nodeOverlays = new Dictionary<Renderer, NodeOverlay>();
@@ -847,7 +859,8 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
                         pairs.Add((original, proxy));
                         originals.Add(original);
                     }
-                    if (ObserveInputs(context, _data, originals, out int lookSignature, out int placementSignature) != _signature)
+                    var users = UserRenderers(_data);
+                    if (ObserveInputs(context, _data, users, out int lookSignature, out int placementSignature) != _signature)
                     {
                         return Task.FromResult<IRenderFilterNode>(null);
                     }
@@ -872,7 +885,7 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
                     bool placed = false;
                     if (placementSignature != _placementSignature)
                     {
-                        if (!sameUpstream || !_shared.IsExclusive || !ReapplyPlacements(originals)) return Task.FromResult<IRenderFilterNode>(null);
+                        if (!sameUpstream || !_shared.IsExclusive || !ReapplyPlacements(users)) return Task.FromResult<IRenderFilterNode>(null);
                         placed = true;
                     }
 

@@ -1,0 +1,16 @@
+{
+  "name": "dev.nekoare.click-recolor.tests.fakes",
+  "rootNamespace": "Nekoare.ClickRecolor.Tests.Fakes",
+  "references": [],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [
+    "UNITY_INCLUDE_TESTS"
+  ],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

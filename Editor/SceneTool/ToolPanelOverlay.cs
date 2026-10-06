@@ -483,11 +483,28 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         /// 「色」ブロックの中身（現在の編集があるとき）。元の色・新しい色（16 進入力）・ホイール・HSV／RGB・最近の色・
         /// 種ごとの色揃え・陰影の暗さ・強さを出す。現在の編集が連結（「アバター全体」・島の連結）なら、変更は連結の全編集に効かせる（EditGroups.ForEachInGroup）
         /// </summary>
+        private static void DrawHairToolNotice(NDMF.HairToolRole role)
+        {
+            switch (role)
+            {
+                case NDMF.HairToolRole.Over:
+                    EditorGUILayout.HelpBox(Locales.Tr("Scene:Panel:HairToolOver"), MessageType.Info);
+                    break;
+                case NDMF.HairToolRole.Merged:
+                    EditorGUILayout.HelpBox(Locales.Tr("Scene:Panel:HairToolMerged"), MessageType.Warning);
+                    break;
+                case NDMF.HairToolRole.Legacy:
+                    EditorGUILayout.HelpBox(Locales.Tr("Scene:Panel:HairToolNotice"), MessageType.Warning);
+                    break;
+            }
+        }
+
         private static void DrawColorSection(ClickRecolor component, RecolorEdit edit)
         {
             // 「色未設定」と「同じ UV の双子」の案内は 2026-09-24 に撤去（ユーザー判断: 不要）。双子判定自体は残している
-            // 髪ツール（キメラヘアマスター）の対象パーツなら、先にそちらで書き出すよう警告（ユーザー要望 2026-09-25）
-            if (ToolSession.CurrentEditIsHairToolTarget) EditorGUILayout.HelpBox(Locales.Tr("Scene:Panel:HairToolNotice"), MessageType.Warning);
+            // 髪ツール（キメラヘアマスター）の対象パーツなら、髪ツールとの重なり方を案内する。
+            // 編集を作ったときの判定を覚えておかず描くたびに判定する: 髪ツールの削除・有効/無効・統合の切り替えをすぐ案内に映すため
+            DrawHairToolNotice(NDMF.HairToolTargets.RoleOf(edit.seedRenderer));
             // クリックした場所に lilToon の 2nd／3rd が重なっているときの案内（その編集を選んでいる間だけ）
             var layerNotice = ToolSession.LayerNotice;
             if (ToolSession.LayerNoticeEditId == edit.id)

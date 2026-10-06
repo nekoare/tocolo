@@ -10,6 +10,11 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
     {
         /// <summary>元テクスチャ資産</summary>
         public Texture2D sourceAsset;
+        /// <summary>
+        /// 色を掛ける土台（null なら元テクスチャ）。他のツールが先に加工した同じ UV 配置のテクスチャの上に掛けるときに渡す。
+        /// 範囲は元テクスチャで選んだまま（jobs のマスク）、作業 RT だけ土台から作る。統計は RebaseStats で土台から取り直しておくこと
+        /// </summary>
+        public Texture baseTexture;
         /// <summary>作業解像度（長辺の上限。0 = 縮小しない）。PrepareJob に渡した size と同じ値を渡すこと</summary>
         public int workingSize;
         /// <summary>適用順の編集。null・マスクの無い要素は飛ばす</summary>
@@ -532,6 +537,72 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
         }
 
         /// <summary>
+        /// 土台 baseTexture の上に掛けるための Job の一覧: 範囲マスクはそのまま、各部分の明るさの統計（と帯の統計）を土台から取り直した新しい Job。
+        /// 統計を元テクスチャのままにすると、土台で明るさが変わっていたとき陰影の写し方がずれる。
+        /// 画像入り（統計は画像から取る）・重ね貼り（テクスチャを変えない）の Job は元のまま。PrepareJob が返した Job と部分の一覧は
+        /// MaskCache の持ち物なので書き換えない。baseTexture が null なら jobs をそのまま返す。
+        /// 連結の統計を共有するなら、この後で ShareGroupStats に渡す
+        /// </summary>
+        internal static List<EditJob> RebaseStats(
+            IReadOnlyList<EditJob> jobs, Texture baseTexture, Texture2D sourceAsset, int size, MaskContext context = null)
+        {
+            var result = new List<EditJob>(jobs?.Count ?? 0);
+            if (jobs == null) return result;
+            if (baseTexture == null || sourceAsset == null)
+            {
+                result.AddRange(jobs);
+                return result;
+            }
+
+            RenderTexture work = null;
+            try
+            {
+                foreach (var job in jobs)
+                {
+                    if (job == null) continue;
+                    if (job.edit == null || job.decal != null || job.overlay)
+                    {
+                        result.Add(job);
+                        continue;
+                    }
+                    work ??= CreateBaseWorkTexture(baseTexture, sourceAsset, size);
+                    if (work == null)
+                    {
+                        result.Add(job);
+                        continue;
+                    }
+
+                    var source = job.ShiftParts;
+                    var masks = new List<RenderTexture>(source.Count);
+                    foreach (var part in source) masks.Add(part.mask);
+                    var stats = masks.Count == 1
+                        ? new[] { SelectionStats.Compute(work, masks[0]) }
+                        : SelectionStats.ComputeParts(work, masks, null);
+                    var parts = new List<EditJob.Part>(source.Count);
+                    for (int i = 0; i < source.Count; i++)
+                    {
+                        parts.Add(new EditJob.Part { mask = source[i].mask, stats = stats[i], bands = source[i].bands });
+                    }
+                    if (job.edit.flattenBase) AttachBandStats(job.edit, sourceAsset, work, context, parts);
+                    result.Add(new EditJob
+                    {
+                        edit = job.edit,
+                        mask = job.mask,
+                        stats = parts[0].stats,
+                        parts = parts,
+                        decal = job.decal,
+                        overlay = job.overlay,
+                    });
+                }
+            }
+            finally
+            {
+                DestroyWorkTexture(work);
+            }
+            return result;
+        }
+
+        /// <summary>
         /// マスクを作るのに種の Renderer（メッシュ）が要るか。色モード・アバター全体・共有の種色あり（hasSeedOklab）の編集だけは要らない
         /// （種色は保存済み、範囲は色だけで選ぶ）。それ以外で種の Renderer が消えていたら、その編集は反映できない
         /// </summary>
@@ -972,7 +1043,9 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
         {
             if (input == null || input.sourceAsset == null) return null;
             // ping-pong のどちらが最後になっても結果をそのまま返せるよう、最初からミップ付きで作る（結果を写し直さない）
-            var work = CreateSourceWorkTexture(input.sourceAsset, input.workingSize, useMipMap: true);
+            var work = input.baseTexture != null
+                ? CreateBaseWorkTexture(input.baseTexture, input.sourceAsset, input.workingSize, useMipMap: true)
+                : CreateSourceWorkTexture(input.sourceAsset, input.workingSize, useMipMap: true);
             if (work == null) return null;
             // グラデーションの編集があるときだけ位置マップを取る（作業 RT と同じ大きさ。PositionMap のキャッシュ所有なので解放しない）
             RenderTexture positionMap = null;
@@ -1395,6 +1468,39 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
             {
                 handle?.Dispose();
             }
+        }
+
+        /// <summary>
+        /// 土台 baseTexture を写した作業 RT。大きさ・サンプラ設定は元テクスチャの作業 RT（CreateSourceWorkTexture）と同じにする
+        /// （選択マスク・位置マップは元テクスチャの作業サイズで作られ、結果も元テクスチャの代わりに束縛・圧縮されるため）。
+        /// 土台が sRGB なら Blit のサンプリングで線形になる。読めなければ null
+        /// </summary>
+        private static RenderTexture CreateBaseWorkTexture(Texture baseTexture, Texture2D sourceAsset, int workingSize, bool useMipMap = false)
+        {
+            if (baseTexture == null || sourceAsset == null) return null;
+            int width, height;
+            // 元テクスチャの作業サイズは読み込み結果の大きさで決まる（インポート後サイズで頭打ち）。呼び出し側が同じ大きさで先に取っていればキャッシュに当たる
+            using (var handle = SourceTextureLoader.Acquire(sourceAsset, workingSize))
+            {
+                if (handle == null || !handle.IsValid) return null;
+                ScaleToFit(handle.Texture.width, handle.Texture.height, workingSize, out width, out height);
+            }
+            var rt = CreateWorkTexture(width, height, "ClickRecolor_Work", sourceAsset, useMipMap);
+            var previous = RenderTexture.active;
+            try
+            {
+                Graphics.Blit(baseTexture, rt);
+            }
+            catch
+            {
+                DestroyWorkTexture(rt);
+                throw;
+            }
+            finally
+            {
+                RenderTexture.active = previous;
+            }
+            return rt;
         }
 
         /// <summary>
