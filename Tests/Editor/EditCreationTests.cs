@@ -1173,5 +1173,90 @@ namespace Nekoare.ClickRecolor.Tests
             Assert.That(edit.darkEndRatio, Is.EqualTo(DarkEndAutoAdjust.Compute(Color.green)).Within(1e-5f));
             Assert.That(edit.gradientDarkEndRatio, Is.EqualTo(DarkEndAutoAdjust.Compute(Color.blue)).Within(1e-5f));
         }
-    }
+    
+        // ── テクスチャの残りを選択（RemainingParts）──
+
+        [Test]
+        public void テクスチャの残りを選択するとまだ選んでいないパーツだけが点として足され_Ctrlクリックで外せる()
+        {
+            var (component, renderer, texture) = MakeChartAvatar();
+            var edit = RecolorSceneTool.CreateEditFromHit(component, MakeChartHit(renderer, texture, 0, ChartPx(20, 10)), null);
+
+            Assert.That(RemainingParts.Add(component, edit), Is.EqualTo(1), "チャート A は主種なので、足すのはチャート B だけ");
+            Assert.That(edit.extraSeeds[0].triangle, Is.EqualTo(2).Or.EqualTo(3));
+            Assert.That(RemainingParts.Add(component, edit), Is.EqualTo(0), "もう一度押しても重ねて足さない");
+
+            var result = RecolorSceneTool.ResolveSeedToggle(component, edit, MakeChartHit(renderer, texture, 3, ChartPx(50, 50)));
+
+            Assert.That(result, Is.EqualTo(SeedToggleResult.Removed));
+            Assert.That(edit.extraSeeds, Is.Empty);
+        }
+
+        [Test]
+        public void テクスチャの残りを選択は除外リストのRendererのパーツを足さない()
+        {
+            var (component, renderer, texture) = MakeChartAvatar();
+            var other = new GameObject("Other");
+            other.transform.SetParent(component.transform);
+            other.AddComponent<MeshFilter>().sharedMesh = MakeTwoChartMesh();
+            var otherRenderer = other.AddComponent<MeshRenderer>();
+            otherRenderer.sharedMaterials = renderer.sharedMaterials;
+            component.excludedRenderers.Add(otherRenderer);
+            var edit = RecolorSceneTool.CreateEditFromHit(component, MakeChartHit(renderer, texture, 0, ChartPx(20, 10)), null);
+
+            Assert.That(RemainingParts.Add(component, edit), Is.EqualTo(1), "除外した Renderer の 2 チャートは足さない");
+            component.excludedRenderers.Clear();
+            Assert.That(RemainingParts.Add(component, edit), Is.EqualTo(2), "除外を外せば、別のメッシュのチャートとして足す");
+        }
+
+        [Test]
+        public void 古い全体の印はまたいで足したメンバーに写さず_Ctrlクリックでパーツの集まりに置き換えてから外す()
+        {
+            var (component, renderer, texture) = MakeChartAvatar();
+            var edit = RecolorSceneTool.CreateEditFromHit(component, MakeChartHit(renderer, texture, 0, ChartPx(20, 10)), null);
+            edit.wholeTexture = true;
+            edit.perSeedStats = true;
+
+            var member = EditGroups.LinkSeedBased(component, edit, Track(new Texture2D(4, 4)), renderer, 0, 2, ChartPx(50, 50));
+            Assert.That(member.wholeTexture, Is.False, "足したメンバーはクリックしたパーツだけから始まる");
+
+            var result = RecolorSceneTool.ResolveSeedToggle(component, edit, MakeChartHit(renderer, texture, 3, ChartPx(50, 50)));
+
+            Assert.That(edit.wholeTexture, Is.False);
+            Assert.That(edit.perSeedStats, Is.False, "全体で 1 つの分布だった見た目を保つ");
+            Assert.That(result, Is.EqualTo(SeedToggleResult.Removed), "置き換えた後なので、チャート B を外せる");
+            Assert.That(edit.extraSeeds, Is.Empty);
+        }
+
+        [Test]
+        public void パーツをまとめて描いたマスクは_パーツの上では種ごとに作って合成したマスクと同じ_すき間では狭くならない()
+        {
+            var (component, renderer, texture) = MakeChartAvatar();
+            var edit = RecolorSceneTool.CreateEditFromHit(component, MakeChartHit(renderer, texture, 0, ChartPx(20, 10)), null);
+            RemainingParts.Add(component, edit);
+            var renderers = new List<Renderer> { renderer };
+            var users = RecolorPreview.CollectUsers(renderers, texture);
+
+            edit.perSeedStats = true;
+            var separate = FloodFill.ReadR8(RecolorPipeline.PrepareJob(edit, texture, ChartSize, users, context: MaskContext.For(component, renderers)).mask);
+            MaskCache.ClearCache();
+            edit.perSeedStats = false;
+            var batched = FloodFill.ReadR8(RecolorPipeline.PrepareJob(edit, texture, ChartSize, users, context: MaskContext.For(component, renderers)).mask);
+            var coverage = FloodFill.ReadR8(CoverageMask.GetOrBuild(texture, users, ChartSize, ChartSize, out _));
+
+            // パーツの上（被覆の中）は同じ。すき間（どのパーツにも属さない画素）は、両側のはみ出し幅が出会う所のぼかしで
+            // まとめて描いたほうが少し濃くなる（種ごとのぼかしは自分のはみ出しだけを見る）。メッシュには映らない画素
+            Assert.That(batched.Length, Is.EqualTo(separate.Length));
+            var problems = new List<string>();
+            for (int i = 0; i < batched.Length; i++)
+            {
+                bool onPart = coverage[i] >= 128;
+                if (onPart ? Mathf.Abs(batched[i] - separate[i]) > 2 : batched[i] + 2 < separate[i])
+                {
+                    problems.Add($"({i % ChartSize},{i / ChartSize}) {(onPart ? "パーツ" : "すき間")} まとめ={batched[i]} 種ごと={separate[i]}");
+                }
+            }
+            Assert.That(problems, Is.Empty, string.Join(" / ", problems));
+        }
+}
 }

@@ -296,6 +296,13 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
                         }
                     }
                 }
+                else if (edit.mode == SelectionMode.Island && !perSeed && seeds.Count > 1)
+                {
+                    // パーツを合成するだけなら、同じメッシュ・サブメッシュのパーツをまとめて 1 回で描く
+                    // （種ごとに作ると、［テクスチャの残りを選択］で全パーツを足した編集で数百回の GPU 処理と読み戻しになる）
+                    mask = BuildIslandUnion(seeds, users, source, coverage, edit.padding, edit.cleanupRadius);
+                    if (mask == null) return null;
+                }
                 else
                 for (int i = 0; i < seeds.Count; i++)
                 {
@@ -943,6 +950,75 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
             in SeedSpec seed, RenderTexture source, Vector2 uvScale, Vector2 uvOffset,
             RenderTexture coverage, int padding, int cleanupRadius) =>
             BuildIslandMask(seed, source, uvScale, uvOffset, coverage, padding, cleanupRadius, out _);
+
+        /// <summary>
+        /// 島モードの種 seeds（先頭が主種）のパーツをすべて合わせたマスク。同じメッシュ・サブメッシュの種はまとめて 1 回で描き（IslandMaskBuilder.BuildCharts）、
+        /// メッシュ・サブメッシュごとのマスクを画素ごとの最大値で合成する。主種のパーツが作れなければ null（種ごとに作るときと同じ）
+        /// </summary>
+        private static RenderTexture BuildIslandUnion(
+            List<SeedSpec> seeds, IReadOnlyList<(Mesh mesh, int submesh, Vector2 uvScale, Vector2 uvOffset)> users,
+            RenderTexture source, RenderTexture coverage, int padding, int cleanupRadius)
+        {
+            // 主種のメッシュ・サブメッシュを先頭にして、出てきた順にまとめる
+            var groups = new List<(Mesh mesh, int submesh, List<int> triangles)>();
+            foreach (var seed in seeds)
+            {
+                if (seed.mesh == null) continue;
+                int index = groups.FindIndex(g => g.mesh == seed.mesh && g.submesh == seed.submesh);
+                if (index < 0)
+                {
+                    groups.Add((seed.mesh, seed.submesh, new List<int>()));
+                    index = groups.Count - 1;
+                }
+                groups[index].triangles.Add(seed.triangle);
+            }
+            RenderTexture mask = null;
+            try
+            {
+                for (int i = 0; i < groups.Count; i++)
+                {
+                    var (mesh, submesh, triangles) = groups[i];
+                    FindSeedTransform(users, mesh, submesh, out var uvScale, out var uvOffset);
+                    var part = IslandMaskBuilder.BuildCharts(new IslandRequest
+                    {
+                        mesh = mesh,
+                        submesh = submesh,
+                        uvScale = uvScale,
+                        uvOffset = uvOffset,
+                        padding = padding,
+                        cleanupRadius = cleanupRadius,
+                        width = source.width,
+                        height = source.height,
+                        coverage = coverage,
+                    }, triangles, out _);
+                    if (part == null)
+                    {
+                        if (i == 0) return null;
+                        continue;
+                    }
+                    if (mask == null)
+                    {
+                        mask = part;
+                        continue;
+                    }
+                    try
+                    {
+                        Morphology.Max(mask, part);
+                    }
+                    finally
+                    {
+                        MaskTextures.Destroy(part);
+                    }
+                }
+                var result = mask;
+                mask = null;
+                return result;
+            }
+            finally
+            {
+                if (mask != null) MaskTextures.Destroy(mask);
+            }
+        }
 
         /// <summary>BuildIslandMask と同じ。bounds はマスクが 0 でない画素をすべて含む矩形（IslandMaskBuilder.Build）</summary>
         private static RenderTexture BuildIslandMask(

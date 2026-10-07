@@ -368,6 +368,8 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         /// <summary>影響範囲（島／箱の中／同じ色／似た色）のプリセット。パネル最上部に置く（ユーザー要望 2026-09-24）</summary>
         private static void DrawModeSection(GameObject root)
         {
+            // ［テクスチャの残りを選択］を出すかは、影響範囲のボタンを押す前の編集で決める（押したイベントの中で行が増減すると IMGUI の並びが崩れる）
+            bool showRemainingParts = IsRemainingPartsTarget(root);
             using (new EditorGUILayout.HorizontalScope())
             {
                 GUILayout.Label(Locales.Tr("Scene:Panel:Mode"));
@@ -430,19 +432,28 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 }
             }
 
-            DrawSelectWholeTextureButton(root);
+            if (showRemainingParts) DrawSelectWholeTextureButton(root);
+        }
+
+        /// <summary>現在の編集が［テクスチャの残りを選択］の対象か: 影響範囲がパーツの編集（「アバター全体」の連結はもとから全体なので除く）</summary>
+        private static bool IsRemainingPartsTarget(GameObject root)
+        {
+            var component = root.GetComponent<ClickRecolor>();
+            var edit = component != null ? component.FindEdit(ToolSession.CurrentEditId) : null;
+            return edit != null && edit.mode == SelectionMode.Island && !EditGroups.IsWholeAvatarGroup(edit);
         }
 
         /// <summary>
-        /// 影響範囲のボタンの真下・右端の「テクスチャの残りを選択」。押すと現在の編集の範囲を、その編集のテクスチャ全体
-        /// （そのテクスチャを使う全メッシュの UV が覆う所）へ広げる（RecolorEdit.wholeTexture。戻すのは Ctrl+Z か、影響範囲のモードを選び直す）。
-        /// 連結なら全メンバー（それぞれのテクスチャ）に効かせる。編集が無い・すでに全体・「アバター全体」の連結（もとから全体）なら押せない（ユーザー要望 2026-10-04）
+        /// 影響範囲のボタンの真下・右端の「テクスチャの残りを選択」（影響範囲がパーツの編集のときだけ出す。箱の中・色のモードは範囲を箱・色で決めるので要らない）。
+        /// 押すと、編集（連結なら各メンバー）のテクスチャのまだ選んでいないパーツを全部、点として足し、各点の色を揃えるを OFF にする（RemainingParts）。
+        /// 要らないパーツは Ctrl＋クリックで外せる
         /// </summary>
         private static void DrawSelectWholeTextureButton(GameObject root)
         {
             var component = root.GetComponent<ClickRecolor>();
             var edit = component != null ? component.FindEdit(ToolSession.CurrentEditId) : null;
-            bool enabled = edit != null && !edit.wholeTexture && !EditGroups.IsWholeAvatarGroup(edit);
+            // 出すかは押す前の状態で決めているので、このイベントで影響範囲を変えたときは押せなくするだけ
+            bool enabled = IsRemainingPartsTarget(root);
             using (new EditorGUILayout.HorizontalScope())
             {
                 GUILayout.FlexibleSpace();
@@ -452,7 +463,17 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                     if (GUILayout.Button(content, GUILayout.ExpandWidth(false)) && enabled)
                     {
                         Undo.RecordObject(component, "Tocolo: テクスチャの残りを選択");
-                        EditGroups.ForEachInGroup(component, edit, e => e.wholeTexture = true);
+                        EditGroups.ForEachInGroup(component, edit, e =>
+                        {
+                            if (e.wholeTexture)
+                            {
+                                RemainingParts.ConvertLegacyWholeTexture(component, e);
+                                return;
+                            }
+                            RemainingParts.Add(component, e);
+                            // 全体で 1 つの明るさの分布にする（パーツごとに揃えると、テクスチャ全体を選んだときと見た目が変わる）
+                            e.perSeedStats = false;
+                        });
                         EditorUtility.SetDirty(component);
                         SceneView.RepaintAll();
                     }

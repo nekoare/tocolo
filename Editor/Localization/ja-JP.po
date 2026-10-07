@@ -331,7 +331,7 @@ msgid "Scene:Panel:SelectWholeTexture"
 msgstr "テクスチャの残りを選択"
 
 msgid "Scene:Panel:SelectWholeTextureTooltip"
-msgstr "いま選んでいる編集の範囲を、そのテクスチャを使っている所すべてに広げます（Ctrl+Zか、影響範囲を選び直すと戻ります）"
+msgstr "まだ選んでいないパーツを全部足します。要らないパーツはCtrl＋クリックで外せます（Ctrl+Zで戻せます）"
 
 msgid "Scene:Panel:Mode:Island"
 msgstr "パーツ"

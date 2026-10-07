@@ -331,7 +331,7 @@ msgid "Scene:Panel:SelectWholeTexture"
 msgstr "Select rest of texture"
 
 msgid "Scene:Panel:SelectWholeTextureTooltip"
-msgstr "Expands the current edit to everything that uses its texture (undo with Ctrl+Z, or pick an influence range again)"
+msgstr "Adds every part of this texture that is not selected yet. Ctrl+click a part to remove it (undo with Ctrl+Z)"
 
 msgid "Scene:Panel:Mode:Island"
 msgstr "Part"

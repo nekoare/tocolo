@@ -1109,6 +1109,26 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         }
 
         /// <summary>
+        /// edit の連結に 0.5.0 までの「全体」の印が付いたメンバーがあれば、パーツの集まりに置き換える（印のままだと、足した島が
+        /// 見た目に効かない種として溜まり、影響範囲を選び直したときに急に効く）。置き換えたら Undo に記録する
+        /// </summary>
+        private static void ConvertLegacyWholeTextureInGroup(ClickRecolor component, RecolorEdit edit)
+        {
+            bool recorded = false;
+            foreach (var member in EditGroups.Members(component, edit))
+            {
+                if (member == null || !member.wholeTexture) continue;
+                if (!recorded)
+                {
+                    Undo.RecordObject(component, "Tocolo: テクスチャ全体をパーツに置き換え");
+                    recorded = true;
+                }
+                RemainingParts.ConvertLegacyWholeTexture(component, member);
+            }
+            if (recorded) EditorUtility.SetDirty(component);
+        }
+
+        /// <summary>
         /// 矩形で集めた島 islands を編集 edit（と、その島の連結のメンバー）の種として足す。島モードの編集だけ（色モードなら一時メッセージで何もしない）。
         /// 「アバター全体」の連結も何もしない（Ctrl＋クリックと同じ一時メッセージ）。
         /// edit と同じテクスチャの島は edit の追加の種に、別のテクスチャの島はそのテクスチャの連結のメンバーの追加の種に足す。
@@ -1132,6 +1152,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 result.rejected = true;
                 return result;
             }
+            ConvertLegacyWholeTextureInGroup(component, edit);
 
             // テクスチャごとに、足す先（既存の編集。無ければ null＝メンバーを作る）と足す種をまとめる（最初に出てきた順）
             var plans = new List<(Texture2D texture, RecolorEdit target, List<RecolorSeed> seeds)>();
@@ -1708,6 +1729,8 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             }
 
             Undo.RecordObject(component, "Tocolo: 種を追加／外す");
+            // 0.5.0 までの「全体」の印は種に関係なく全体を選ぶので、そのままだと足し引きしても見た目が変わらない。先にパーツの集まりに置き換える
+            RemainingParts.ConvertLegacyWholeTexture(component, edit);
             if (edit.extraSeeds == null) edit.extraSeeds = new List<RecolorSeed>();
 
             // 島モードは主種の島もクリックで外せる

@@ -121,6 +121,67 @@ namespace Nekoare.ClickRecolor.Editor.Masks
         }
 
         /// <summary>
+        /// 同じメッシュ・サブメッシュの複数のパーツ（seedTriangles の三角形が属するチャート）をまとめた島マスクを 1 回で作る。
+        /// パーツごとに Build して合成するのと同じ範囲になる（はみ出し幅は被覆の外への 1px ずつの膨張なので、和集合に掛けても同じ）。
+        /// 種画素から 4 連結で届かない画素を落とす安全網は掛けない（パーツごとに読み戻すと、全パーツを足した編集で数百回になる）。
+        /// 返した RT は呼び出し側の所有。作れなければ null
+        /// </summary>
+        internal static RenderTexture BuildCharts(IslandRequest r, IReadOnlyList<int> seedTriangles, out RectInt bounds)
+        {
+            bounds = default;
+            if (r == null || r.mesh == null || seedTriangles == null || r.width <= 0 || r.height <= 0) return null;
+            if (!UvRasterizer.IsAvailable || !Morphology.IsAvailable) return null;
+            var table = UvChartDetector.GetOrBuild(r.mesh, r.submesh);
+            if (table == null) return null;
+
+            var selected = new bool[table.chartCount];
+            bool any = false;
+            foreach (int t in seedTriangles)
+            {
+                if (t < 0 || t >= table.chartOfTriangle.Length) continue;
+                selected[table.chartOfTriangle[t]] = true;
+                any = true;
+            }
+            if (!any) return null;
+
+            var uv = r.mesh.uv;
+            var triangles = r.mesh.GetTriangles(r.submesh);
+            var verts = new List<Vector2>();
+            for (int t = 0; t < table.chartOfTriangle.Length; t++)
+            {
+                if (!selected[table.chartOfTriangle[t]]) continue;
+                UvRasterizer.AppendTriangle(verts, uv, triangles, t, r.width, r.height, r.uvScale, r.uvOffset);
+            }
+            var chartBounds = TexelBounds(verts, r.width, r.height, BoundsMargin);
+
+            var rt = MaskTextures.Create(r.width, r.height, "ClickRecolor_IslandMask");
+            try
+            {
+                UvRasterizer.Clear(rt);
+                UvRasterizer.Draw(rt, verts);
+                Morphology.Close(rt, 1);
+                Morphology.Open(rt, r.cleanupRadius);
+                if (r.padding > 0 && r.coverage != null)
+                {
+                    Morphology.DilateInto(rt, r.coverage, r.padding, invertAllowed: true);
+                }
+                else if (r.padding < 0)
+                {
+                    Morphology.Erode(rt, -r.padding);
+                }
+                if (r.coverage != null) Morphology.Blur1(rt, r.coverage, invertAllowed: true);
+                else Morphology.Blur1(rt);
+                bounds = Expand(chartBounds, Mathf.Max(r.padding, 0) + 1, r.width, r.height);
+                return rt;
+            }
+            catch
+            {
+                MaskTextures.Destroy(rt);
+                throw;
+            }
+        }
+
+        /// <summary>
         /// RestrictToConnectedFull と同じ結果を、チャートの外接矩形 chartBounds の中だけ読み戻して求める
         /// （矩形の外は 0 なので、到達もその中で決まる）。落とす画素が無ければ書き戻さない（掛けても変わらないため）。
         /// 落とす画素があるとき（まれ）は RestrictToConnectedFull で全体をやり直す
