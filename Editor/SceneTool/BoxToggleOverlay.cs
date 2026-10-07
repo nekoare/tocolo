@@ -36,6 +36,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             {
                 if (!RecolorSceneTool.IsActive) displayed = false;
                 OverlayScaler.ClearUnitySizeOverride(this);
+                OverlayTitle.Bind(this, "Scene:Overlay:BoxToggle");
             };
         }
 

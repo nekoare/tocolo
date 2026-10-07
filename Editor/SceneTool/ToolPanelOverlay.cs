@@ -280,6 +280,9 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             }
         }
 
+        /// <summary>ブロックの左右の余白（影響範囲のボタンが 1 行に収まるかの判定にも使う）</summary>
+        private const float BlockPadding = 4f;
+
         private readonly struct BlockScope : System.IDisposable
         {
             public BlockScope(Color background, string headingKey)
@@ -287,7 +290,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 var rect = EditorGUILayout.BeginVertical(GUILayout.Width(PanelWidth));
                 if (Event.current.type == EventType.Repaint) EditorGUI.DrawRect(rect, background);
                 EditorGUILayout.BeginHorizontal();
-                GUILayout.Space(4);
+                GUILayout.Space(BlockPadding);
                 EditorGUILayout.BeginVertical();
                 GUILayout.Label(Locales.Tr(headingKey), EditorStyles.miniBoldLabel);
             }
@@ -295,7 +298,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             public void Dispose()
             {
                 EditorGUILayout.EndVertical();
-                GUILayout.Space(4);
+                GUILayout.Space(BlockPadding);
                 EditorGUILayout.EndHorizontal();
                 EditorGUILayout.EndVertical();
             }
@@ -380,13 +383,18 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             // ボタンの並びは パーツ・箱の中・同じ色・似た色（「箱の中」はパーツの右。ユーザー要望 2026-09-29）。enum の値とは別
             int current = System.Array.IndexOf(ModeButtonOrder, ToolSession.Preset);
             if (current < 0) current = 0;
-            int selected = GUILayout.Toolbar(current, new[]
+            string[] modeLabels =
             {
                 Locales.Tr("Scene:Panel:Mode:Island"),
                 Locales.Tr("Scene:Panel:Mode:Box"),
                 Locales.Tr("Scene:Panel:Mode:SameColor"),
                 Locales.Tr("Scene:Panel:Mode:SimilarColor"),
-            });
+            };
+            // 1 行の Toolbar は「一番長いボタンの幅 × 数」を求めるので、英語などで収まらないとパネルの中身ごと広がり、
+            // 右寄せのボタンまで見切れる。そのときだけ「範囲」の 4 択と同じ 2 列にする（日本語は 1 行のまま）
+            int selected = FitsToolbarInBlock(modeLabels)
+                ? GUILayout.Toolbar(current, modeLabels)
+                : GUILayout.SelectionGrid(current, modeLabels, 2);
             // 次のクリックで作る編集の選択仕様になる。現在の編集があればその編集にも即反映する
             // （設計 §5.3: ボタンはプリセット、調整は現在の編集に効く。色や暗部の明るさなどは保つ）
             if (selected != current)
@@ -434,6 +442,21 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
 
             if (showRemainingParts) DrawSelectWholeTextureButton(root);
         }
+
+        /// <summary>
+        /// labels を GUILayout.Toolbar（既定の button スタイル）で 1 行に並べてブロックの中に収まるか。
+        /// Unity は端と中のボタンに別のスタイルを使い、余白が数 px 違うので、その分 ToolbarFitSlack だけ早めに収まらない扱いにする
+        /// </summary>
+        private static bool FitsToolbarInBlock(string[] labels)
+        {
+            var style = GUI.skin.button;
+            float widest = 0f;
+            foreach (string label in labels) widest = Mathf.Max(widest, style.CalcSize(new GUIContent(label)).x);
+            float available = PanelWidth - BlockPadding * 2f - style.margin.horizontal;
+            return widest * labels.Length + ToolbarFitSlack <= available;
+        }
+
+        private const float ToolbarFitSlack = 4f;
 
         /// <summary>現在の編集が［テクスチャの残りを選択］の対象か: 影響範囲がパーツの編集（「アバター全体」の連結はもとから全体なので除く）</summary>
         private static bool IsRemainingPartsTarget(GameObject root)

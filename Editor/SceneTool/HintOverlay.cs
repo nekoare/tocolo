@@ -37,7 +37,11 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         /// <summary>ToolPanelOverlay と同じく、保存レイアウトの復元より後にツールの状態へ合わせる</summary>
         public override void OnCreated()
         {
-            EditorApplication.delayCall += () => displayed = RecolorSceneTool.IsActive;
+            EditorApplication.delayCall += () =>
+            {
+                displayed = RecolorSceneTool.IsActive;
+                OverlayTitle.Bind(this, "Scene:Overlay:Hints");
+            };
             OverlayScaler.ClearUnitySizeOverride(this);
         }
 

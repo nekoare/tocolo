@@ -45,6 +45,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 // 除外リストと同じ場所に出すので、両方が開いた状態で復元されたらこちらを閉じる
                 if (!RecolorSceneTool.IsActive || ExcludeListOverlay.IsShown(containerWindow as SceneView)) displayed = false;
                 OverlayScaler.ClearUnitySizeOverride(this);
+                OverlayTitle.Bind(this, "Scene:Overlay:EditList");
             };
         }
 

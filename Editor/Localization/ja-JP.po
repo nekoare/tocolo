@@ -225,6 +225,18 @@ msgstr "設定"
 msgid "Scene:Panel:SettingsChanged"
 msgstr "設定（変更あり）"
 
+msgid "Scene:Overlay:Hints"
+msgstr "Tocolo: 操作"
+
+msgid "Scene:Overlay:ExcludeList"
+msgstr "Tocolo: 除外リスト"
+
+msgid "Scene:Overlay:EditList"
+msgstr "Tocolo: 編集一覧"
+
+msgid "Scene:Overlay:BoxToggle"
+msgstr "Tocolo: 表示切替"
+
 msgid "Scene:Box:SelectionRange"
 msgstr "選択範囲"
 
