@@ -82,6 +82,34 @@ namespace Nekoare.ClickRecolor.Tests
         }
 
         [Test]
+        public void 顔の目元のような細かい三角形でも_当たった面の向きは長さ1でレイ側を向く()
+        {
+            // 2mm 四方の四角形。三角形 1 枚の外積の長さは 4e-6 で、Vector3.normalized はこれをゼロにしてしまう（長さ 1e-5 未満）
+            _go = new GameObject("tiny");
+            var mf = _go.AddComponent<MeshFilter>();
+            var renderer = _go.AddComponent<MeshRenderer>();
+            var mesh = new Mesh();
+            _cleanup.Add(mesh);
+            const float s = 0.002f;
+            mesh.vertices = new[] { new Vector3(0, 0, 0), new Vector3(s, 0, 0), new Vector3(0, s, 0), new Vector3(s, s, 0) };
+            mesh.uv = new[] { new Vector2(0, 0), new Vector2(1, 0), new Vector2(0, 1), new Vector2(1, 1) };
+            mesh.triangles = new[] { 0, 2, 1, 1, 2, 3 };
+            mesh.RecalculateBounds();
+            mf.sharedMesh = mesh;
+            var ray = new Ray(new Vector3(s * 0.75f, s * 0.25f, -1f), Vector3.forward);
+
+            Assert.IsTrue(MeshRaycaster.Raycast(ray, renderer, out var hit));
+            Assert.AreEqual(1f, hit.worldNormal.magnitude, 1e-4f, "1 つだけ拾う判定");
+            Assert.Greater(Vector3.Dot(hit.worldNormal, -ray.direction), 0.999f);
+
+            var hits = new System.Collections.Generic.List<MeshRaycaster.RaycastHit>();
+            MeshRaycaster.RaycastMeshAll(ray, mesh, _go.transform.localToWorldMatrix, renderer, hits);
+            Assert.AreEqual(1, hits.Count);
+            Assert.AreEqual(1f, hits[0].worldNormal.magnitude, 1e-4f, "すべて拾う判定（クリック・ホバーで使う）");
+            Assert.Greater(Vector3.Dot(hits[0].worldNormal, -ray.direction), 0.999f);
+        }
+
+        [Test]
         public void Raycast_二つ目の三角形なら_triangleIndex_1_と重心係数を返す()
         {
             _go = new GameObject("quad");

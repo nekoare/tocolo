@@ -219,6 +219,30 @@ msgstr "除外リスト"
 msgid "Scene:Panel:ExcludeListCount"
 msgstr "除外リスト({0})"
 
+msgid "Scene:Panel:Settings"
+msgstr "設定"
+
+msgid "Scene:Panel:SettingsChanged"
+msgstr "設定（変更あり）"
+
+msgid "Scene:Box:SelectionRange"
+msgstr "選択範囲"
+
+msgid "Scene:Panel:EditList"
+msgstr "編集一覧"
+
+msgid "Scene:Panel:EditListCount"
+msgstr "編集一覧({0})"
+
+msgid "Scene:EditList:Caption"
+msgstr "押すとその編集を選べます"
+
+msgid "Scene:EditList:Empty"
+msgstr "まだ編集はありません"
+
+msgid "Scene:EditList:Unnamed"
+msgstr "名前なし"
+
 msgid "Scene:Exclude:DropHere"
 msgstr "ここにHierarchyからGameObjectをドロップ（選択しないパーツとして登録。Renderer単位）"
 
@@ -294,8 +318,8 @@ msgstr "色が狙いとずれます。lilToonの色調補正（HSVG）かグラ�
 msgid "Scene:Panel:MainColorTint"
 msgstr "色が狙いとずれます。マテリアルの色（Color）が白以外で、掛け合わされます。"
 
-msgid "Scene:Panel:ShowRange"
-msgstr "範囲を表示"
+msgid "Scene:Panel:OpenMaterial"
+msgstr "マテリアルを開く"
 
 msgid "Scene:Panel:UseSelection"
 msgstr "選択中: {0}"
@@ -335,6 +359,9 @@ msgstr "Ctrl＋ドラッグで範囲内のパーツをまとめて追加"
 
 msgid "Scene:Panel:RectHint:Select"
 msgstr "Ctrl＋ドラッグで範囲内のパーツをまとめて選択"
+
+msgid "Scene:Panel:DecalDragHint"
+msgstr "画像をドラッグで表面に沿って動かす"
 
 msgid "Scene:Panel:PerSeedStats"
 msgstr "各点の色を揃える"
@@ -454,7 +481,10 @@ msgid "Scene:Color:GradientResetTooltip"
 msgstr "色2と箱を、オンにした直後の状態に戻します"
 
 msgid "Scene:Color:DecalResetTooltip"
-msgstr "箱を範囲を囲む位置に置き直します（画像と詳細設定はそのまま）"
+msgstr "箱を範囲を囲む位置に置き直します（画像と「設定」はそのまま）"
+
+msgid "Scene:Color:DecalResetTooltip:Sticker"
+msgstr "最初にクリックした所に、面の向き・標準の大きさで置き直します（画像と「設定」はそのまま）"
 
 msgid "Scene:Box:Gradient"
 msgstr "グラデーション"
@@ -469,16 +499,25 @@ msgid "Scene:Color:Decal"
 msgstr "画像を入れる"
 
 msgid "Help:Decal"
-msgstr "オンにするとSceneに箱が出て、箱の正面（画像が描かれている面）から画像を表面に貼ります。貼られるのはこの編集の選択範囲の中だけです。オンの間、新しい色・暗部・不透明度・グラデーションは範囲ではなく画像に掛かります。箱の表示はパネルの横の小窓「箱を表示」で切り替えられます。［箱の向きを合わせる］で、クリックした所の面の向きに箱を合わせられます。"
+msgstr "オンにすると、この編集の選択範囲の中に画像を貼ります。「設定」の「箱で貼る」をオンにすると、箱からまっすぐ写す貼り方になります。オンの間、新しい色・暗部・不透明度・グラデーションは範囲ではなく画像に掛かります。Sceneで画像をドラッグすると、表面に沿って動かせます（シールは面に向いたまま動きます）。つまみの表示はパネルの横の小窓「表示切替」で切り替えられます。"
 
-msgid "Scene:Color:DecalAlignBox"
-msgstr "箱の向きを合わせる"
+msgid "Scene:Color:DecalStickerCaption"
+msgstr "クリックした所にシールのように貼ります。画像をドラッグで動かし、四隅で大きさ、輪で回転を変えられます"
 
-msgid "Scene:Color:DecalAlignBoxTooltip"
-msgstr "クリックした所の面の向きに箱を合わせます（大きさはそのまま。箱の中心を面の上に移します）"
+msgid "Scene:Color:DecalBoxMode"
+msgstr "箱で貼る"
 
-msgid "Scene:Color:DecalAlignFailed"
-msgstr "面の向きを決められませんでした。範囲が小さすぎるか、平らな面ではありません"
+msgid "Help:DecalPlacement"
+msgstr "オンにすると、シールのように面に沿って貼る代わりに、箱の正面からまっすぐ写して貼ります（平行投影）。箱のギズモと面のつまみで、奥行き・縦横別の大きさ・反転・向きを細かく決められます。ネクタイ一面のように範囲いっぱいに貼りたいときや、離れたパーツにまたがって貼りたいときに使います。編集ごとに覚えます（新しく画像を入れる編集はオフで始まります）。オフに戻すと、画像の大きさはそのままで、中心を面の上に移して面に向けます。画像を選び直すときは、オフなら枠の中のどこでも、オンなら画像の透明でない所をクリックします。小窓「表示切替」の［画像］で、つまみを出したり隠したりできます。"
+
+msgid "Scene:Color:DecalBoxCaption"
+msgstr "青緑の箱の中の面に、箱の正面からまっすぐ画像を写して貼ります"
+
+msgid "Scene:Color:DecalFollowSurface"
+msgstr "向きも面に合わせる"
+
+msgid "Help:DecalFollowSurface"
+msgstr "オンなら、画像をドラッグしたときに箱の向きもカーソルの下の面に合わせます。オフなら、写す向きはそのままで位置だけ動かします（正面から写したまま滑らせたいとき）。箱で貼るときだけの設定です。"
 
 msgid "Scene:Color:DecalSmooth"
 msgstr "なめらかに貼る（lilToon・Poiyomi）"
@@ -500,9 +539,6 @@ msgstr "比率を保つ"
 
 msgid "Help:DecalKeepAspect"
 msgstr "オンだと画像の縦横比を保って箱に収めます。オフだと箱のXYいっぱいに引き伸ばします。"
-
-msgid "Scene:Color:DecalAdvanced"
-msgstr "詳細設定"
 
 msgid "Scene:Color:GradientPreview"
 msgstr "色1 → 色2"
@@ -589,7 +625,7 @@ msgid "Help:Strength"
 msgstr "色変えの不透明度です。１で完全に指定した色になり、下げるほど元の色が残ります。"
 
 msgid "Help:Gradient"
-msgstr "オンにするとSceneに箱が出ます。箱の下端から上端に向けて「色1」から「色2」へ変化します。箱を動かして向きと範囲を決めてください。箱の表示はパネルの横の小窓「箱を表示」で切り替えられます。"
+msgstr "オンにするとSceneに箱が出ます。箱の下端から上端に向けて「色1」から「色2」へ変化します。箱を動かして向きと範囲を決めてください。箱の表示はパネルの横の小窓「表示切替」で切り替えられます。"
 
 msgid "Help:GradientInsideOnly"
 msgstr "オンにすると、箱の上端より上と下端より下は色変えせず元の色のままになり、箱の高さの範囲だけがグラデーションになります。横方向は箱で切りません。オフでは上下の外側も端の色で続きます。"

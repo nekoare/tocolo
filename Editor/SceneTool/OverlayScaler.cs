@@ -12,6 +12,45 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
     /// </summary>
     internal static class OverlayScaler
     {
+        /// <summary>
+        /// オーバーレイの今の実際の幅（見出し込み）。Unity は見出し（表示名）の文字幅より狭くしないので、倍率を小さくすると中身の幅より広くなる。
+        /// 隣に並べる位置を中身の幅だけで決めると、その差だけパネルに食い込む。測れなければ、中身の幅 fallback に枠の左右の余白を足したものと、
+        /// 見出しの文字幅の見積もりの大きいほう
+        /// </summary>
+        internal static float ActualWidth(Overlay overlay, float fallback)
+        {
+            if (overlay == null) return fallback;
+            float width = float.NaN;
+            try
+            {
+                // 公開されていないので名前で引く（無い版では見出しの文字幅から見積もる）
+                if (!s_rootLooked)
+                {
+                    s_rootLooked = true;
+                    s_rootProperty = typeof(Overlay).GetProperty("rootVisualElement",
+                        System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic);
+                }
+                if (s_rootProperty?.GetValue(overlay) is UnityEngine.UIElements.VisualElement root) width = root.layout.width;
+            }
+            catch (System.Exception)
+            {
+                width = float.NaN;
+            }
+            if (float.IsNaN(width) || width <= 0f)
+            {
+                return Mathf.Max(fallback + FrameSidePadding, EditorStyles.boldLabel.CalcSize(new GUIContent(overlay.displayName)).x + HeaderPadding);
+            }
+            return Mathf.Max(width, fallback);
+        }
+
+        /// <summary>オーバーレイの枠が中身の左右に足す余白の見積もり（実際の幅を測れないときだけ使う）</summary>
+        private const float FrameSidePadding = 12f;
+
+        /// <summary>見出しの文字の左右（つまみの印と余白）の幅の見積もり</summary>
+        private const float HeaderPadding = 32f;
+        private static System.Reflection.PropertyInfo s_rootProperty;
+        private static bool s_rootLooked;
+
         private const float MinScale = 0.5f;
         private const float MaxScale = 1.5f;
         /// <summary>中身（スクロールバー含む）とつまみの間に空ける隙間（基準倍率での px）。スクロールバーに干渉して掴み直しにくい（実機 2026-09-27）ので広めに</summary>

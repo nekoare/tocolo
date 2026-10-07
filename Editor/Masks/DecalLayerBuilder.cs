@@ -43,6 +43,7 @@ namespace Nekoare.ClickRecolor.Editor.Masks
         private static readonly int BoxSizeId = Shader.PropertyToID("_BoxSize");
         private static readonly int FitScaleId = Shader.PropertyToID("_FitScale");
         private static readonly int UvScaleOffsetId = Shader.PropertyToID("_UvScaleOffset");
+        private static readonly int UseImageUvId = Shader.PropertyToID("_UseImageUv");
 
         private static readonly int DilateInId = Shader.PropertyToID("In");
         private static readonly int DilateOutId = Shader.PropertyToID("Out");
@@ -93,11 +94,15 @@ namespace Nekoare.ClickRecolor.Editor.Masks
         /// 返した RT は呼び出し側の所有（RecolorPipeline.DestroyWorkTexture）。
         /// 描くスロットが無い・画像が無い・シェーダー（割り戻し・縁埋めの compute を含む）が無ければ null。
         /// 読み取り不可（Read/Write 無効）のメッシュは三角形の向きを見られないので描かない（案内は呼び出し側で出す）。
-        /// supersample が false なら等倍で描く（箱のドラッグ中の軽さ優先。離したときに掛け直す）
+        /// supersample が false なら等倍で描く（箱のドラッグ中の軽さ優先。離したときに掛け直す）。
+        /// sticker（置き方がシールの編集。箱の値はこの編集のもの）を渡すと、箱から投影せず面に沿った展開（DecalMappings）で画像の座標を頂点ごとに決め、
+        /// 展開の届いた三角形だけを描く（重ね貼りと同じ割り付けにする）。selectionMask（R8 を読み戻した選択マスク、selectionWidth×selectionHeight）を渡すと、
+        /// 展開の種を選択範囲の三角形から選ぶ（重ね貼りと同じ種にする）
         /// </summary>
         internal static RenderTexture Build(
             Transform root, IReadOnlyList<PositionMap.Slot> slots, int width, int height, Texture2D image,
-            Vector3 boxPosition, Quaternion boxRotation, Vector3 boxSize, bool keepAspect, bool supersample = true)
+            Vector3 boxPosition, Quaternion boxRotation, Vector3 boxSize, bool keepAspect, bool supersample = true, RecolorEdit sticker = null,
+            byte[] selectionMask = null, int selectionWidth = 0, int selectionHeight = 0)
         {
             if (root == null || slots == null || slots.Count == 0 || width <= 0 || height <= 0 || image == null) return null;
             var shader = ShaderAssets.LoadShader(ShaderAssets.DecalLayerGuid);
@@ -128,13 +133,15 @@ namespace Nekoare.ClickRecolor.Editor.Masks
                     material.SetMatrix(RootToBoxId, rootToBox);
                     material.SetVector(BoxSizeId, SafeSize(boxSize));
                     material.SetVector(FitScaleId, FitScale(image, boxSize, keepAspect));
+                    material.SetFloat(UseImageUvId, sticker != null ? 1f : 0f);
 
                     Graphics.SetRenderTarget(target);
                     GL.Clear(false, true, Color.clear);
                     GL.PushMatrix();
                     try
                     {
-                        DrawFrontFacingSlots(material, slots, rootWorldToLocal, rootToBox, Abs(SafeSize(boxSize)) * 0.5f);
+                        DrawFrontFacingSlots(material, slots, root, rootWorldToLocal, rootToBox, Abs(SafeSize(boxSize)) * 0.5f, sticker,
+                            selectionMask, selectionWidth, selectionHeight);
                     }
                     finally
                     {
@@ -195,10 +202,12 @@ namespace Nekoare.ClickRecolor.Editor.Masks
         /// <summary>
         /// slots を順に、箱の +Z 側を向く三角形だけ描く（PositionMap.DrawSlots と同じ流れ。同じ Renderer が続くスロットは焼いたメッシュと配列を使い回す）。
         /// 読み取り不可のメッシュ・範囲外のサブメッシュ・三角形でないトポロジは飛ばす（三角形の向きを見られないため）。
-        /// メッシュの境界箱が箱と交わらないスロットも飛ばす（三角形を絞る手間を省く）
+        /// メッシュの境界箱が箱と交わらないスロットも飛ばす（三角形を絞る手間を省く）。
+        /// sticker を渡すと、向きでは絞らず、Renderer ごとに面に沿った展開を作って届いた三角形を描く（画像の座標は頂点の TEXCOORD1 に入れる）
         /// </summary>
         private static void DrawFrontFacingSlots(
-            Material material, IReadOnlyList<PositionMap.Slot> slots, Matrix4x4 rootWorldToLocal, Matrix4x4 rootToBox, Vector3 boxHalf)
+            Material material, IReadOnlyList<PositionMap.Slot> slots, Transform root, Matrix4x4 rootWorldToLocal, Matrix4x4 rootToBox, Vector3 boxHalf,
+            RecolorEdit sticker, byte[] selectionMask, int selectionWidth, int selectionHeight)
         {
             // 将来案: 表裏の判定は箱の回転（とポーズ）にしか依存しないので、箱の移動・拡縮だけのときはキャッシュできる
             var worldToBox = rootToBox * rootWorldToLocal;
@@ -209,6 +218,7 @@ namespace Nekoare.ClickRecolor.Editor.Masks
             bool ownsMesh = false;
             bool flip = false;
             Bounds localBounds = default;
+            IDecalMapping mapping = null;
             try
             {
                 foreach (var slot in slots)
@@ -233,6 +243,37 @@ namespace Nekoare.ClickRecolor.Editor.Masks
                         // SkinnedMeshRenderer は BakeMesh がスケール（鏡像も）を頂点に焼き込み、TryGetMeshData の行列はスケール無しなので、
                         // toBox の行列式では気づけない。Renderer の Transform の行列式で見る
                         flip = worldToBox.determinant * slot.renderer.transform.localToWorldMatrix.determinant < 0f;
+                        mapping = null;
+                        if (sticker != null && arrays != null)
+                        {
+                            // 展開はこの Renderer の、このテクスチャのスロットすべての三角形をたどる（スロットごとに切ると、サブメッシュの境目で止まる）
+                            var rendererSlots = new List<int>();
+                            // 選択範囲の三角形（この Renderer のスロットの Tiling/Offset のどれかで選択マスクに入るもの）。展開の種をここから選ぶ
+                            var filters = new List<System.Func<int, int, int, bool>>();
+                            foreach (var other in slots)
+                            {
+                                if (other.renderer != current) continue;
+                                rendererSlots.Add(other.submesh);
+                                var filter = DecalOverlayAssembler.SelectionFilter(selectionMask, selectionWidth, selectionHeight, arrays.uv, other.uvScale, other.uvOffset);
+                                if (filter != null) filters.Add(filter);
+                            }
+                            System.Func<int, int, int, bool> selected = null;
+                            if (filters.Count > 0)
+                            {
+                                selected = (a, b, c) =>
+                                {
+                                    foreach (var f in filters)
+                                    {
+                                        if (f(a, b, c)) return true;
+                                    }
+                                    return false;
+                                };
+                            }
+                            SurfaceUnfoldGraph graph = null;
+                            var bakedMesh = mesh;
+                            mapping = DecalMappings.For(sticker, root, arrays.vertices, localToWorld, flip,
+                                () => DecalMappings.TrianglesOf(bakedMesh, rendererSlots), ref graph, selected: selected);
+                        }
                     }
                     if (arrays == null)
                     {
@@ -245,7 +286,7 @@ namespace Nekoare.ClickRecolor.Editor.Masks
 
                     var toBox = worldToBox * localToWorld;
                     if (!BoundsOverlapBox(localBounds, toBox, boxHalf)) continue;
-                    var front = BuildFrontFacingMesh(mesh, arrays, triangles, toBox, flip);
+                    var front = mapping != null ? BuildMappedMesh(mesh, arrays, triangles, mapping) : BuildFrontFacingMesh(mesh, arrays, triangles, toBox, flip);
                     if (front == null) continue;
                     try
                     {
@@ -347,6 +388,31 @@ namespace Nekoare.ClickRecolor.Editor.Masks
             front.uv = arrays.uv;
             front.SetTriangles(kept, 0);
             return front;
+        }
+
+        /// <summary>
+        /// triangles（mesh のサブメッシュ 1 つ分）のうち mapping が描く三角形だけを持ち、頂点の TEXCOORD1 に mapping の画像の座標を入れた一時メッシュ
+        /// （シールの面に沿った展開）。描く三角形が 1 つも無ければ null。呼び出し側が DestroyImmediate すること
+        /// </summary>
+        private static Mesh BuildMappedMesh(Mesh mesh, MeshRaycaster.MeshArrays arrays, int[] triangles, IDecalMapping mapping)
+        {
+            var kept = new List<int>(triangles.Length);
+            for (int t = 0; t + 2 < triangles.Length; t += 3)
+            {
+                if (!mapping.Draws(triangles[t], triangles[t + 1], triangles[t + 2])) continue;
+                kept.Add(triangles[t]);
+                kept.Add(triangles[t + 1]);
+                kept.Add(triangles[t + 2]);
+            }
+            if (kept.Count == 0) return null;
+            var imageUvs = new Vector2[arrays.vertices.Length];
+            for (int v = 0; v < imageUvs.Length; v++) imageUvs[v] = mapping.Uv(v);
+            var mapped = new Mesh { hideFlags = HideFlags.HideAndDontSave, indexFormat = mesh.indexFormat };
+            mapped.vertices = arrays.vertices;
+            mapped.uv = arrays.uv;
+            mapped.uv2 = imageUvs;
+            mapped.SetTriangles(kept, 0);
+            return mapped;
         }
 
         /// <summary>

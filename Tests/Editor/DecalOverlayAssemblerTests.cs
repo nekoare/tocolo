@@ -232,6 +232,49 @@ namespace Nekoare.ClickRecolor.Tests
         }
 
         [Test]
+        public void シールは面に沿って奥行きの外へ回り込む分まで複製した範囲に収まるかで見る()
+        {
+            // 作ったときの箱（原点・正面向き・0.2 四方・奥行き 0.2）を各軸 2 倍に広げた範囲
+            var segment = new DecalOverlayAssembler.OverlaySegment
+            {
+                regionRootToBox = BoxMaskBuilder.RootToBox(Vector3.zero, Quaternion.identity),
+                regionHalf = new Vector3(0.2f, 0.2f, 0.2f),
+            };
+            var sticker = MakePlacedEdit(sticker: true, new Vector3(0.2f, 0.2f, 0.2f));
+            var box = MakePlacedEdit(sticker: false, new Vector3(0.2f, 0.2f, 0.2f));
+            Assert.That(DecalOverlayAssembler.CoversBox(segment, sticker), Is.True, "つかんだだけなら範囲の中");
+
+            // 奥行きの向きに 0.06 ずらす: 箱（奥行きの半分 0.1）は収まるが、シールは届く距離（対角線の半分 × 1.15 ≒ 0.163）まで回り込むので外
+            sticker.decalBoxPosition = box.decalBoxPosition = new Vector3(0f, 0f, 0.06f);
+            Assert.That(DecalOverlayAssembler.CoversBox(segment, box), Is.True);
+            Assert.That(DecalOverlayAssembler.CoversBox(segment, sticker), Is.False);
+        }
+
+        [Test]
+        public void 横長のシールもつかんだだけなら複製した範囲の中()
+        {
+            // 0.4 × 0.1 のシール（奥行きは長い辺の 0.4）。届く距離（≒ 0.237）は縦の範囲（0.1）より大きいが、縦横は箱のまま見る
+            var segment = new DecalOverlayAssembler.OverlaySegment
+            {
+                regionRootToBox = BoxMaskBuilder.RootToBox(Vector3.zero, Quaternion.identity),
+                regionHalf = new Vector3(0.4f, 0.1f, 0.4f),
+            };
+
+            Assert.That(DecalOverlayAssembler.CoversBox(segment, MakePlacedEdit(sticker: true, new Vector3(0.4f, 0.1f, 0.4f))), Is.True);
+        }
+
+        private static RecolorEdit MakePlacedEdit(bool sticker, Vector3 size)
+        {
+            var edit = RecolorEdit.CreateNew();
+            edit.decalEnabled = true;
+            edit.decalSticker = sticker;
+            edit.decalBoxPosition = Vector3.zero;
+            edit.decalBoxRotation = Quaternion.identity;
+            edit.decalBoxSize = size;
+            return edit;
+        }
+
+        [Test]
         public void 箱が複製した範囲の外まで動いたら置き直さない()
         {
             var source = Track(new Texture2D(Size, Size));

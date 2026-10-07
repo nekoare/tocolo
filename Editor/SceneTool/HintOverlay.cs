@@ -26,6 +26,14 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             return component != null && component.FindEdit(ToolSession.CurrentEditId) != null;
         }
 
+        /// <summary>対象 root の現在の編集が画像入り（HasDecal）か</summary>
+        private static bool CurrentEditHasDecal(GameObject root)
+        {
+            var component = root != null ? root.GetComponent<ClickRecolor>() : null;
+            var edit = component != null ? component.FindEdit(ToolSession.CurrentEditId) : null;
+            return edit != null && edit.HasDecal;
+        }
+
         /// <summary>ToolPanelOverlay と同じく、保存レイアウトの復元より後にツールの状態へ合わせる</summary>
         public override void OnCreated()
         {
@@ -75,6 +83,8 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 {
                     GUILayout.Label(Locales.Tr(hasEdit ? "Scene:Panel:RectHint" : "Scene:Panel:RectHint:Select"), EditorStyles.miniLabel);
                 }
+                // 画像入りの編集を選んでいる間は、画像をつかんで動かせることを案内する
+                if (hasRoot && CurrentEditHasDecal(root)) GUILayout.Label(Locales.Tr("Scene:Panel:DecalDragHint"), EditorStyles.miniLabel);
                 EditorGUILayout.Space(4);
                 // 対象の表示・切り替え・候補のボタンは ToolPanelOverlay（「範囲」の上）に置く（ユーザー要望 2026-09-26）
                 // 終了はボタンでも Esc でもできる

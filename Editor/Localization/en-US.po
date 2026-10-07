@@ -219,6 +219,30 @@ msgstr "Exclusions"
 msgid "Scene:Panel:ExcludeListCount"
 msgstr "Exclusions ({0})"
 
+msgid "Scene:Panel:Settings"
+msgstr "Settings"
+
+msgid "Scene:Panel:SettingsChanged"
+msgstr "Settings (changed)"
+
+msgid "Scene:Box:SelectionRange"
+msgstr "Selection"
+
+msgid "Scene:Panel:EditList"
+msgstr "Edits"
+
+msgid "Scene:Panel:EditListCount"
+msgstr "Edits ({0})"
+
+msgid "Scene:EditList:Caption"
+msgstr "Click a row to select that edit"
+
+msgid "Scene:EditList:Empty"
+msgstr "No edits yet"
+
+msgid "Scene:EditList:Unnamed"
+msgstr "Unnamed"
+
 msgid "Scene:Exclude:DropHere"
 msgstr "Drop GameObjects here from the Hierarchy (registered per Renderer as not selectable)"
 
@@ -294,8 +318,8 @@ msgstr "The result will differ from the target color. lilToon tone correction (H
 msgid "Scene:Panel:MainColorTint"
 msgstr "The result will differ from the target color. The material Color is not white and is multiplied in."
 
-msgid "Scene:Panel:ShowRange"
-msgstr "Show selection"
+msgid "Scene:Panel:OpenMaterial"
+msgstr "Open material"
 
 msgid "Scene:Panel:UseSelection"
 msgstr "Selected: {0}"
@@ -335,6 +359,9 @@ msgstr "Ctrl+drag: add all parts in the box"
 
 msgid "Scene:Panel:RectHint:Select"
 msgstr "Ctrl+drag: select all parts in the box"
+
+msgid "Scene:Panel:DecalDragHint"
+msgstr "Drag the image to slide it along the surface"
 
 msgid "Scene:Panel:PerSeedStats"
 msgstr "Match color per point"
@@ -454,7 +481,10 @@ msgid "Scene:Color:GradientResetTooltip"
 msgstr "Returns color 2 and the box to how they were right after turning this on"
 
 msgid "Scene:Color:DecalResetTooltip"
-msgstr "Places the box around the range again (the image and advanced settings are kept)"
+msgstr "Places the box around the range again (the image and the settings are kept)"
+
+msgid "Scene:Color:DecalResetTooltip:Sticker"
+msgstr "Places the image again where you first clicked, facing the surface, at the standard size (the image and the settings stay)"
 
 msgid "Scene:Box:Gradient"
 msgstr "Gradient"
@@ -469,16 +499,25 @@ msgid "Scene:Color:Decal"
 msgstr "Place an image"
 
 msgid "Help:Decal"
-msgstr "Turns on a box in the Scene and projects the image onto the surface from the box's front face (the one showing the image). The image is applied only inside this edit's range. While on, the color, shading, opacity and gradient settings apply to the image, not to the range. Use the small window next to the panel to show or hide the box. Use 'Align box to surface' to turn the box to face the surface you clicked."
+msgstr "Applies an image inside this edit's range. Turn on 'Place with a box' in Settings to project it straight from a box instead. While on, the color, shading, opacity and gradient settings apply to the image, not to the range. Drag the image in the Scene to slide it along the surface (a sticker keeps facing the surface). Use the small window next to the panel to show or hide the handles."
 
-msgid "Scene:Color:DecalAlignBox"
-msgstr "Align box to surface"
+msgid "Scene:Color:DecalStickerCaption"
+msgstr "Places the image like a sticker where you clicked. Drag the image to move it, use the corners to resize and the ring to rotate."
 
-msgid "Scene:Color:DecalAlignBoxTooltip"
-msgstr "Turns the box to face the surface you clicked (the size stays the same; the box center moves onto the surface)"
+msgid "Scene:Color:DecalBoxMode"
+msgstr "Place with a box"
 
-msgid "Scene:Color:DecalAlignFailed"
-msgstr "Couldn't find the surface direction. The range is too small or the surface isn't flat"
+msgid "Help:DecalPlacement"
+msgstr "When on, the image is projected straight from the front of a box (parallel projection) instead of being laid along the surface like a sticker. Use the box gizmo and face handles to set the depth, width and height, flipping and direction in detail. Useful to fill a whole part such as a tie, or to span separate parts. Each edit remembers this (a new image starts with it off). Turning it off keeps the image size, moves its center onto the surface and turns it to face the surface. To select the image again, click anywhere inside its frame when off, or on a non-transparent part when on. The 'Image' button in the small window next to the panel shows or hides the handles."
+
+msgid "Scene:Color:DecalBoxCaption"
+msgstr "The image is projected straight from the front of the teal box onto the surfaces inside it."
+
+msgid "Scene:Color:DecalFollowSurface"
+msgstr "Also turn to the surface"
+
+msgid "Help:DecalFollowSurface"
+msgstr "When on, dragging the image also turns the box to face the surface under the cursor. When off, the box keeps its projection direction and only moves (to slide it while still projecting from the front). Only for placing with a box."
 
 msgid "Scene:Color:DecalSmooth"
 msgstr "Place smoothly (lilToon/Poiyomi)"
@@ -500,9 +539,6 @@ msgstr "Keep aspect ratio"
 
 msgid "Help:DecalKeepAspect"
 msgstr "On keeps the image's aspect ratio inside the box. Off stretches it to fill the box's XY."
-
-msgid "Scene:Color:DecalAdvanced"
-msgstr "Advanced settings"
 
 msgid "Scene:Color:GradientPreview"
 msgstr "Color 1 → Color 2"

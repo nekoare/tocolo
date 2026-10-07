@@ -159,6 +159,12 @@ namespace Nekoare.ClickRecolor
         /// </summary>
         public bool decalInitialized;
         /// <summary>
+        /// 画像の置き方がシールか（false なら箱）。シールは箱の中心を面の上に保ち、面に向け、奥行きを画像の長い辺にそろえて扱う。
+        /// 箱で置いた箱（中心が体の中・正面向き・奥行きは範囲全体）をシールの操作で触るとこの前提が崩れるので、置き方はツールではなく編集ごとに持つ。
+        /// この項目が無い版で作った編集は箱
+        /// </summary>
+        public bool decalSticker;
+        /// <summary>
         /// なめらかに貼る。lilToon・Poiyomi Toon（ロックなし）のマテリアルでは焼き込まずに、箱に入る三角形を複製したサブメッシュとして重ね、
         /// 元マテリアルの複製（透過）で画像を直接サンプリングする（焼き込みは貼る場所のテクスチャ密度より細かくなれないため）。
         /// それ以外のマテリアルが混ざると効かず焼き込みになる（DecalOverlayMaterial.CanOverlay）

@@ -17,6 +17,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         private const string KeyCurrentEdit = "ClickRecolor.CurrentEditId";
         private const string KeyHighlight = "ClickRecolor.HighlightEnabled";
         private const string KeyColorScope = "ClickRecolor.ColorScopePreference";
+        private const string KeyDecalFollowSurface = "ClickRecolor.DecalDragFollowsSurface";
 
         public static RangePreset Preset
         {
@@ -64,6 +65,8 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         /// </summary>
         public static void BeginDecalBoxDrag(RecolorEdit edit, bool overlay = false)
         {
+            // 同じドラッグ中の呼び直しでは下ろさない（下ろすと作り直しの合図が毎フレーム消える）
+            if (!DecalBoxDragging || s_decalDragEditId != edit?.id) DecalDragNeedsFullCopy = false;
             DecalBoxDragging = edit != null;
             s_decalDragEditId = edit?.id;
             s_decalDragGroupId = edit != null && !string.IsNullOrEmpty(edit.groupId) ? edit.groupId : null;
@@ -76,11 +79,23 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         /// </summary>
         public static bool DecalBoxDragIsOverlay { get; private set; }
 
+        /// <summary>
+        /// ドラッグ中の重ね貼りが、作ったときに複製した範囲の外へ出た（DecalOverlayPreview が立てる）。ドラッグ中は箱の値をプレビューのハッシュに入れないので、
+        /// 代わりにこれを入れて 1 回だけ作り直させる（ドラッグ中に作り直した段は範囲で絞らないので、その後は立たない）
+        /// </summary>
+        public static bool DecalDragNeedsFullCopy { get; private set; }
+
+        public static void RequestDecalDragFullCopy()
+        {
+            if (DecalBoxDragging) DecalDragNeedsFullCopy = true;
+        }
+
         /// <summary>画像の箱のドラッグを終えた</summary>
         public static void EndDecalBoxDrag()
         {
             DecalBoxDragging = false;
             DecalBoxDragIsOverlay = false;
+            DecalDragNeedsFullCopy = false;
             s_decalDragEditId = null;
             s_decalDragGroupId = null;
         }
@@ -288,7 +303,17 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             set => SessionState.SetBool(KeyCrossTexture, value);
         }
 
-        /// <summary>［範囲を表示］: 現在の編集の選択範囲をプレビューにハイライトするか（既定 ON）</summary>
+        /// <summary>
+        /// 箱で貼る画像をドラッグしたとき、箱の向きをカーソルの下の面に合わせるか（既定 ON。OFF なら向きはそのままで位置だけ動かす。シールはいつも合わせる）。
+        /// 動かした結果の向きは編集に残るので、動かし方の好みとしてツール側に持つ（編集には保存しない。再起動後も残す）
+        /// </summary>
+        public static bool DecalDragFollowsSurface
+        {
+            get => EditorPrefs.GetBool(KeyDecalFollowSurface, true);
+            set => EditorPrefs.SetBool(KeyDecalFollowSurface, value);
+        }
+
+        /// <summary>小窓「表示切替」の［選択範囲］: 現在の編集の選択範囲をプレビューにハイライトするか（既定 ON）</summary>
         public static bool HighlightEnabled
         {
             // 再起動後も残す（EditorPrefs。ユーザー要望 2026-09-27）。既定 ON
@@ -301,7 +326,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         }
 
         /// <summary>
-        /// 現在の編集と［範囲を表示］をプレビューのハイライト状態へ反映する。連結なら全メンバーをハイライトする。
+        /// 現在の編集と小窓「表示切替」の［選択範囲］をプレビューのハイライト状態へ反映する。連結なら全メンバーをハイライトする。
         /// 編集が無ければ出さない。同じ値なら publish しない（プレビューを無駄に作り直さない）
         /// </summary>
         public static void PublishHighlight()
@@ -310,7 +335,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             SetHighlight(ResolveHighlight(id, HighlightEnabled && id != null));
         }
 
-        /// <summary>ハイライトを消す（ツールの終了時。現在の編集と［範囲を表示］の設定はそのまま）</summary>
+        /// <summary>ハイライトを消す（ツールの終了時。現在の編集と小窓「表示切替」の［選択範囲］の設定はそのまま）</summary>
         public static void HideHighlight()
         {
             SetHighlight(ResolveHighlight(CurrentEditId, false));

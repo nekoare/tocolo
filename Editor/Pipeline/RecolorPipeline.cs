@@ -421,7 +421,7 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
                 stats = default;
                 bands = null;
                 // 画像の縁の 2 倍スーパーサンプリングはドラッグ中（低解像度の層）は掛けない（書き出しは常に掛ける）
-                var built = BuildDecalLayer(edit, sourceAsset, width, height, context, supersample: !dragging);
+                var built = BuildDecalLayer(edit, sourceAsset, width, height, context, supersample: !dragging, selectionMask: mask);
                 if (built == null) return null;
                 try
                 {
@@ -774,6 +774,8 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
                 // 画像を描き直して再インポートしたら作り直す
                 h = h * 31 + edit.decalTexture.imageContentsHash.GetHashCode();
                 h = h * 31 + (edit.decalKeepAspect ? 1 : 0);
+                // シールは面に沿った展開、箱は平行投影で割り付ける（DecalLayerBuilder.Build の sticker）
+                h = h * 31 + (edit.decalSticker ? 1 : 0);
                 h = h * 31 + edit.decalBoxPosition.GetHashCode();
                 h = h * 31 + edit.decalBoxRotation.GetHashCode();
                 h = h * 31 + edit.decalBoxSize.GetHashCode();
@@ -790,16 +792,33 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
         /// supersample は画像の縁の 2 倍スーパーサンプリング（DecalLayerBuilder.Build）
         /// </summary>
         private static RenderTexture BuildDecalLayer(
-            RecolorEdit edit, Texture2D sourceAsset, int width, int height, MaskContext context, bool supersample)
+            RecolorEdit edit, Texture2D sourceAsset, int width, int height, MaskContext context, bool supersample, RenderTexture selectionMask = null)
         {
             if (context == null || context.root == null) return null;
             var renderers = context.RenderersWithoutExcluded();
             if (renderers == null || renderers.Count == 0) return null;
             var slots = PositionMap.CollectSlots(renderers, sourceAsset);
             if (slots.Count == 0) return null;
+            // シールは展開の種を選択範囲の三角形から選ぶ（画像の中心が範囲の外へ出ても範囲に画像が続くように）ので、選択マスクを CPU に読む
+            byte[] maskBytes = edit.decalSticker && selectionMask != null ? ReadStickerMask(selectionMask) : null;
             return DecalLayerBuilder.Build(
                 context.root, slots, width, height, edit.decalTexture,
-                edit.decalBoxPosition, edit.decalBoxRotation, edit.decalBoxSize, edit.decalKeepAspect, supersample);
+                edit.decalBoxPosition, edit.decalBoxRotation, edit.decalBoxSize, edit.decalKeepAspect, supersample, edit.decalSticker ? edit : null,
+                maskBytes, selectionMask != null ? selectionMask.width : 0, selectionMask != null ? selectionMask.height : 0);
+        }
+
+        /// <summary>シールの展開の種を選ぶための選択マスクの読み戻し（同じ RT なら使い回す。画像の箱をドラッグしている間も選択マスクは変わらない）</summary>
+        private static int s_stickerMaskId;
+        private static byte[] s_stickerMaskBytes;
+
+        private static byte[] ReadStickerMask(RenderTexture mask)
+        {
+            if (s_stickerMaskBytes == null || mask.GetInstanceID() != s_stickerMaskId)
+            {
+                s_stickerMaskBytes = FloodFill.ReadR8(mask);
+                s_stickerMaskId = mask.GetInstanceID();
+            }
+            return s_stickerMaskBytes;
         }
 
         /// <summary>

@@ -154,6 +154,82 @@ namespace Nekoare.ClickRecolor.Tests
         }
 
         [Test]
+        public void シールは筒の真横を越えた裏側にも描き_箱は描かない()
+        {
+            // 半径 5cm・高さ 4cm の筒。UV は周に沿って u = 角度 / 360°（継ぎ目で頂点を分ける）、高さに沿って v。角度 0 が +Z（正面）
+            const float radius = 0.05f;
+            const int segments = 72, rows = 4;
+            var mesh = Track(new Mesh());
+            var vertices = new List<Vector3>();
+            var uvs = new List<Vector2>();
+            for (int j = 0; j <= rows; j++)
+            {
+                for (int i = 0; i <= segments; i++)
+                {
+                    float theta = i * 2f * Mathf.PI / segments;
+                    vertices.Add(new Vector3(radius * Mathf.Sin(theta), (j - rows * 0.5f) * 0.01f, radius * Mathf.Cos(theta)));
+                    uvs.Add(new Vector2(i / (float)segments, j / (float)rows));
+                }
+            }
+            var triangles = new List<int>();
+            for (int j = 0; j < rows; j++)
+            {
+                for (int i = 0; i < segments; i++)
+                {
+                    int a = j * (segments + 1) + i, b = a + 1, c = a + segments + 1, d = c + 1;
+                    triangles.AddRange(new[] { a, b, c, b, d, c });
+                }
+            }
+            mesh.SetVertices(vertices);
+            mesh.SetUVs(0, uvs);
+            mesh.SetTriangles(triangles, 0);
+            var texture = Track(new Texture2D(4, 4));
+            var root = Track(new GameObject("Root"));
+            root.AddComponent<ClickRecolor>();
+            var child = new GameObject("Tube");
+            child.transform.SetParent(root.transform, false);
+            child.AddComponent<MeshFilter>().sharedMesh = mesh;
+            var renderer = child.AddComponent<MeshRenderer>();
+            var material = Track(new Material(Shader.Find("Standard")));
+            material.SetTexture("_MainTex", texture);
+            renderer.sharedMaterial = material;
+            var slots = PositionMap.CollectSlots(new Renderer[] { renderer }, texture);
+            var image = MakeImage(2, 2, (x, y) => Color.red);
+            // 正面に貼った横 30cm（±172° ぶんの弧）・縦 5cm のシール
+            var sticker = RecolorEdit.CreateNew();
+            sticker.decalSticker = true;
+            sticker.decalTexture = image;
+            sticker.decalKeepAspect = false;
+            sticker.decalBoxPosition = new Vector3(0f, 0f, radius);
+            sticker.decalBoxRotation = Quaternion.identity;
+            sticker.decalBoxSize = new Vector3(0.3f, 0.05f, 0.3f);
+
+            Color[] Bake(RecolorEdit edit)
+            {
+                var layer = DecalLayerBuilder.Build(root.transform, slots, Size, Size, image, sticker.decalBoxPosition, sticker.decalBoxRotation,
+                    sticker.decalBoxSize, false, true, edit);
+                try
+                {
+                    Assert.That(layer, Is.Not.Null);
+                    return ReadLinear(layer);
+                }
+                finally
+                {
+                    RecolorPipeline.DestroyWorkTexture(layer);
+                }
+            }
+
+            var unfolded = Bake(sticker);
+            var planar = Bake(null);
+            // 角度 150°（u = 0.4167）の高さの真ん中
+            int x150 = Mathf.FloorToInt(150f / 360f * Size);
+            AssertRed(At(unfolded, x150, Size / 2), "シールは裏側（150°）まで回り込む");
+            AssertRed(At(unfolded, Size - 1 - x150, Size / 2), "反対側（−150°）にも回り込む");
+            Assert.That(At(planar, x150, Size / 2).a, Is.LessThan(0.01f), "箱（まっすぐ写す）は裏側に描かない");
+            AssertRed(At(unfolded, 1, Size / 2), "正面（UV の継ぎ目のすぐ横）も描く");
+        }
+
+        [Test]
         public void 正面から見た向きで画像が貼られ_左右が反転していない()
         {
             var pixels = BuildLayer(MakeRedLeftBlueRight(), true, Quaternion.identity, new Vector3(1f, 1f, 2f), false);

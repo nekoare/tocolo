@@ -13,7 +13,7 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
         private const int ThreadGroupSize = 16;
 
         /// <summary>ハイライト色（sRGB の橙）。compute には線形にして渡す</summary>
-        private static readonly Color TintSrgb = new Color(1f, 0.6f, 0.1f, 1f);
+        internal static readonly Color TintSrgb = new Color(1f, 0.6f, 0.1f, 1f);
 
         private static ComputeShader s_shader;
         private static int s_kernel;

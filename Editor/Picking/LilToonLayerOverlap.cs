@@ -24,6 +24,11 @@ namespace Nekoare.ClickRecolor.Editor.Picking
             public bool colorAdjust;
             /// <summary>メインの色（_Color）が白以外で、テクスチャに掛け合わされる（シェーダーを問わない）</summary>
             public bool mainColorTint;
+            /// <summary>調べたマテリアル（クリックした所）。パネルの「マテリアルを開く」で選ぶ</summary>
+            public Material material;
+
+            /// <summary>マテリアルの設定で直せる案内があるか</summary>
+            public bool HasMaterialNotice => kind != Kind.None || colorAdjust || mainColorTint;
         }
 
         /// <summary>lilToon の合成モード（_Main2ndTexBlendMode）の「通常」</summary>

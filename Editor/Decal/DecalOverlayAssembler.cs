@@ -75,14 +75,14 @@ namespace Nekoare.ClickRecolor.Editor.Decal
             public int[] remap;
             /// <summary>鏡像の Renderer（箱の回転では変わらない）</summary>
             public bool flip;
-            /// <summary>箱のローカルの位置の作業用（sources と同じ並び）</summary>
-            public Vector3[] boxPositions;
             /// <summary>
             /// プレビュー（ForPreview）で複製した範囲: 作ったときの箱（対象ルート → 箱のローカル）を各軸 RegionScale 倍に広げた箱（regionHalf）にかかる三角形だけ
             /// 複製してある。箱がこの外まで動いたら置き直せない（作り直す。CoversBox）。ドラッグ中に作ったものは regionHalf が無限大（範囲で絞らない）
             /// </summary>
             public Matrix4x4 regionRootToBox = Matrix4x4.identity;
             public Vector3 regionHalf = Vector3.positiveInfinity;
+            /// <summary>シールの展開の面のつながり（triangles と judgeVertices から最初の置き直しで作り、段が変わるまで使い回す）</summary>
+            public SurfaceUnfoldGraph unfoldGraph;
         }
 
         /// <summary>
@@ -91,7 +91,11 @@ namespace Nekoare.ClickRecolor.Editor.Decal
         /// </summary>
         internal const float RegionScale = 2f;
 
-        /// <summary>今の箱（edit の画像の箱）が、segment を作ったときに複製した範囲に収まっているか（収まっていなければ作り直す）</summary>
+        /// <summary>
+        /// 今の箱（edit の画像の箱）が、segment を作ったときに複製した範囲に収まっているか（収まっていなければ作り直す）。
+        /// シールは面に沿って箱の奥行きの外まで回り込むので、奥行きは中心から展開が届く距離（面に沿った距離は直線距離以上なので、描く所はこの中）まで広げて見る。
+        /// 縦横は箱のまま: 回り込むと面に沿った向きの見かけの広がりは縮むだけで、届く距離の球で見ると横長のシールはつかんだだけで範囲の外になる
+        /// </summary>
         internal static bool CoversBox(OverlaySegment segment, RecolorEdit edit)
         {
             if (segment == null || edit == null) return false;
@@ -100,6 +104,11 @@ namespace Nekoare.ClickRecolor.Editor.Decal
             var toRegion = segment.regionRootToBox * boxToRoot;
             var safe = DecalLayerBuilder.SafeSize(edit.decalBoxSize);
             var half = new Vector3(Mathf.Abs(safe.x), Mathf.Abs(safe.y), Mathf.Abs(safe.z)) * 0.5f;
+            if (edit.decalSticker)
+            {
+                var fit = DecalLayerBuilder.FitScale(edit.decalTexture, edit.decalBoxSize, edit.decalKeepAspect);
+                half.z = Mathf.Max(half.z, DecalMappings.ImageHalfDiagonal(edit.decalBoxSize, fit) * DecalMappings.ReachMargin);
+            }
             for (int i = 0; i < 8; i++)
             {
                 var corner = new Vector3((i & 1) == 0 ? -half.x : half.x, (i & 2) == 0 ? -half.y : half.y, (i & 4) == 0 ? -half.z : half.z);
@@ -524,12 +533,12 @@ namespace Nekoare.ClickRecolor.Editor.Decal
             Func<int, int, int, bool> include)
         {
             var worldToBox = BoxMaskBuilder.RootToBox(edit.decalBoxPosition, edit.decalBoxRotation) * root.worldToLocalMatrix;
-            var judgeToBox = worldToBox * geometry.judgeLocalToWorld;
             bool flip = worldToBox.determinant * geometry.renderer.transform.localToWorldMatrix.determinant < 0f;
-            var fit = DecalLayerBuilder.FitScale(edit.decalTexture, edit.decalBoxSize, edit.decalKeepAspect);
             float bakedOffset = OffsetInLocal(root.worldToLocalMatrix * geometry.judgeLocalToWorld);
-            return DecalOverlayMesh.Build(geometry.judgeMesh, geometry.judgeVertices, slots, judgeToBox, flip, edit.decalBoxSize, fit, bakedOffset,
-                include: include);
+            SurfaceUnfoldGraph graph = null;
+            var mapping = DecalMappings.For(edit, root, geometry.judgeVertices, geometry.judgeLocalToWorld, flip,
+                () => DecalMappings.TrianglesOf(geometry.judgeMesh, slots), ref graph, selected: include);
+            return DecalOverlayMesh.Build(geometry.judgeMesh, mapping, slots, bakedOffset, include: include);
         }
 
         /// <summary>
@@ -639,21 +648,13 @@ namespace Nekoare.ClickRecolor.Editor.Decal
                 || segment.triangles == null || segment.remap == null || uvs == null || triangles == null) return false;
             if (segment.start + segment.sources.Length > uvs.Count) return false;
             var edit = segment.edit;
-            var judgeToBox = BoxMaskBuilder.RootToBox(edit.decalBoxPosition, edit.decalBoxRotation) * segment.root.worldToLocalMatrix
-                             * segment.judgeLocalToWorld;
-            var safeSize = DecalLayerBuilder.SafeSize(edit.decalBoxSize);
-            var half = new Vector3(Mathf.Abs(safeSize.x), Mathf.Abs(safeSize.y), Mathf.Abs(safeSize.z)) * 0.5f;
-            var fit = DecalLayerBuilder.FitScale(edit.decalTexture, edit.decalBoxSize, edit.decalKeepAspect);
-            if (segment.boxPositions == null || segment.boxPositions.Length != segment.sources.Length)
-            {
-                segment.boxPositions = new Vector3[segment.sources.Length];
-            }
-            var box = segment.boxPositions;
+            // 段の三角形と頂点はドラッグ中も変わらないので、展開の面のつながりは 1 回だけ作って使い回す（種が動いても届くよう、範囲で絞らず段の三角形すべて）
+            var mapping = DecalMappings.For(edit, segment.root, segment.judgeVertices, segment.judgeLocalToWorld, segment.flip,
+                () => segment.triangles, ref segment.unfoldGraph, regionOnly: false);
             for (int k = 0; k < segment.sources.Length; k++)
             {
                 int s = segment.sources[k];
-                box[k] = s >= 0 && s < segment.judgeVertices.Length ? judgeToBox.MultiplyPoint3x4(segment.judgeVertices[s]) : Vector3.zero;
-                uvs[segment.start + k] = DecalProjection.ProjectUv(box[k], safeSize, fit);
+                uvs[segment.start + k] = mapping.Uv(s);
             }
 
             triangles.Clear();
@@ -662,11 +663,7 @@ namespace Nekoare.ClickRecolor.Editor.Decal
             {
                 int d0 = segment.remap[t[i]], d1 = segment.remap[t[i + 1]], d2 = segment.remap[t[i + 2]];
                 if (d0 < 0 || d1 < 0 || d2 < 0) continue;
-                var p0 = box[d0 - segment.start];
-                var p1 = box[d1 - segment.start];
-                var p2 = box[d2 - segment.start];
-                if (!DecalProjection.IsFrontFacing(p0, p1, p2, segment.flip)) continue;
-                if (!DecalProjection.TriangleTouchesBox(p0, p1, p2, half)) continue;
+                if (!mapping.Draws(t[i], t[i + 1], t[i + 2])) continue;
                 triangles.Add(d0);
                 triangles.Add(d1);
                 triangles.Add(d2);
@@ -874,7 +871,6 @@ namespace Nekoare.ClickRecolor.Editor.Decal
             var judgeToBox = worldToBox * geometry.judgeLocalToWorld;
             // 鏡像の Renderer はカリングが反転する（DecalLayerBuilder と同じ式。SkinnedMeshRenderer は焼いた行列にスケールが無いので Transform で見る）
             bool flip = worldToBox.determinant * renderer.transform.localToWorldMatrix.determinant < 0f;
-            var fit = DecalLayerBuilder.FitScale(edit.decalTexture, edit.decalBoxSize, edit.decalKeepAspect);
             var rootWorldToLocal = root.worldToLocalMatrix;
             // 表示用メッシュの頂点は Renderer のローカル（SkinnedMeshRenderer はバインドポーズ≒Transform のローカル）なので Transform の行列で換算する
             float displayOffset = OffsetInLocal(rootWorldToLocal * renderer.transform.localToWorldMatrix);
@@ -898,7 +894,10 @@ namespace Nekoare.ClickRecolor.Editor.Decal
                 buildInclude = (i0, i1, i2) => (include == null || include(i0, i1, i2))
                     && DecalProjection.TriangleTouchesBox(boxPositions[i0], boxPositions[i1], boxPositions[i2], half);
             }
-            display = DecalOverlayMesh.Build(current, judge, slots, judgeToBox, flip, edit.decalBoxSize, fit, displayOffset, materialCount,
+            SurfaceUnfoldGraph graph = null;
+            var mapping = DecalMappings.For(edit, root, judge, geometry.judgeLocalToWorld, flip, () => DecalMappings.TrianglesOf(current, slots), ref graph,
+                selected: include);
+            display = DecalOverlayMesh.Build(current, mapping, slots, displayOffset, materialCount,
                 allTriangles: allTriangles, duplicatedSources: duplicated, include: buildInclude);
             if (display == null) return false;
 

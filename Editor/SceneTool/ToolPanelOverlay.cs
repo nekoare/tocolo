@@ -123,13 +123,17 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                         if (GUILayout.Button(Locales.Tr("Scene:Panel:ChangeTarget"), GUILayout.ExpandWidth(false))) ChangeTarget();
                     }
                 }
-                // 除外リスト（右寄せ。押すと別のオーバーレイを開閉。ユーザー要望 2026-09-27）
+                // 編集一覧と除外リスト（右寄せ。押すと別のオーバーレイを開閉する。同じ場所に出すので、片方を開くともう片方は閉じる）
                 using (new EditorGUILayout.HorizontalScope())
                 {
                     GUILayout.FlexibleSpace();
                     var component = root.GetComponent<ClickRecolor>();
-                    int count = component != null && component.excludedRenderers != null ? component.excludedRenderers.Count : 0;
                     var view = containerWindow as SceneView;
+                    int edits = EditListOverlay.CountDecided(component);
+                    bool listShown = EditListOverlay.IsShown(view);
+                    string listLabel = edits > 0 ? Locales.Tr("Scene:Panel:EditListCount", edits) : Locales.Tr("Scene:Panel:EditList");
+                    if (GUILayout.Toggle(listShown, listLabel, EditorStyles.miniButton, GUILayout.ExpandWidth(false)) != listShown) EditListOverlay.Toggle(view);
+                    int count = component != null && component.excludedRenderers != null ? component.excludedRenderers.Count : 0;
                     bool shown = ExcludeListOverlay.IsShown(view);
                     string label = count > 0 ? Locales.Tr("Scene:Panel:ExcludeListCount", count) : Locales.Tr("Scene:Panel:ExcludeList");
                     if (GUILayout.Toggle(shown, label, EditorStyles.miniButton, GUILayout.ExpandWidth(false)) != shown) ExcludeListOverlay.Toggle(view);
@@ -188,50 +192,25 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                     component = root.GetComponent<ClickRecolor>();
                     edit = component != null ? component.FindEdit(ToolSession.CurrentEditId) : null;
 
-                    // 別のマテリアル（テクスチャ）の島も同じ編集に足せるか（島の連結）。既定 OFF
-                    using (new EditorGUILayout.HorizontalScope())
-                    {
-                        bool cross = EditorGUILayout.ToggleLeft(Locales.Tr("Scene:Panel:CrossTexture"), ToolSession.CrossTextureEnabled);
-                        if (cross != ToolSession.CrossTextureEnabled)
-                        {
-                            ToolSession.CrossTextureEnabled = cross;
-                            // 「箱の中」の編集は、ON なら箱に触れる他テクスチャのメンバーを作り、OFF なら外して 1 テクスチャに戻す
-                            if (edit != null && edit.mode == SelectionMode.Box)
-                            {
-                                Undo.RecordObject(component, "Tocolo: マテリアルをまたいで選ぶ");
-                                SelectionBox.SyncMembers(component, edit);
-                            }
-                        }
-                        HelpMark.Draw("Help:CrossTexture");
-                    }
-                    HelpMark.DrawBoxIfOpen("Help:CrossTexture");
-
-                    // 矩形選択で奥に隠れている島も拾うか（UV アイランドモードの矩形選択だけに効く）。既定 OFF（ユーザー要望 2026-09-25）
-                    using (new EditorGUILayout.HorizontalScope())
-                    {
-                        bool hidden = EditorGUILayout.ToggleLeft(Locales.Tr("Scene:Panel:SelectHidden"), ToolSession.SelectHiddenEnabled);
-                        if (hidden != ToolSession.SelectHiddenEnabled) ToolSession.SelectHiddenEnabled = hidden;
-                        HelpMark.Draw("Help:SelectHidden");
-                    }
-                    HelpMark.DrawBoxIfOpen("Help:SelectHidden");
-
-                    // 現在の編集の選択範囲をプレビューに縞で重ねる（ビルドには乗らない）
-                    bool showRange = ToolSession.HighlightEnabled;
-                    bool newShowRange;
-                    using (new EditorGUILayout.HorizontalScope())
-                    {
-                        newShowRange = EditorGUILayout.ToggleLeft(Locales.Tr("Scene:Panel:ShowRange"), showRange);
-                        HelpMark.Draw("Help:ShowRange");
-                    }
-                    HelpMark.DrawBoxIfOpen("Help:ShowRange");
-                    if (newShowRange != showRange) ToolSession.HighlightEnabled = newShowRange;
-
                     // 編集の有無はこのイベント内で変わらないので、部品の数は Layout と Repaint で揃う
                     if (edit != null)
                     {
                         // 範囲の切り替えで連結を解くと、現在の編集が入れ替わることがある
                         edit = DrawSelectionSettings(component, edit);
-                        DrawPadding(component, edit);
+                    }
+
+                    // 使う人の少ない設定は「▸ 設定」に畳む。またぐ・隠れているは次のクリックに効くので、編集が無くても出す。
+                    // 縞の表示は小窓「表示切替」の［選択範囲］
+                    if (DrawSettingsFoldout(RangeSettingsOpenKey, RangeSettingsChanged(edit)))
+                    {
+                        using (new EditorGUILayout.HorizontalScope())
+                        {
+                            GUILayout.Space(16);
+                            using (new EditorGUILayout.VerticalScope())
+                            {
+                                DrawRangeSettings(component, edit);
+                            }
+                        }
                     }
                 }
 
@@ -369,8 +348,10 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         private const int SliderModeRgb = 1;
         private static readonly string[] s_sliderModeNames = { "HSV", "RGB" };
 
-        /// <summary>「画像を入れる」の詳細設定を開いているか（SessionState）</summary>
-        private const string DecalAdvancedOpenKey = "ClickRecolor.DecalAdvancedOpen";
+        /// <summary>範囲ブロック・「画像を入れる」・色ブロックの「▸ 設定」を開いているか（EditorUserSettings。DrawSettingsFoldout）</summary>
+        private const string RangeSettingsOpenKey = "ClickRecolor.RangeSettingsOpen";
+        private const string DecalSettingsOpenKey = "ClickRecolor.DecalSettingsOpen";
+        private const string ColorSettingsOpenKey = "ClickRecolor.ColorSettingsOpen";
 
         /// <summary>グラデーション ON のとき、ホイール・スライダー・最近の色の書き込み先を「終了色」にするか（SessionState。0 = 新しい色、1 = 終了色）</summary>
         private const string ColorEditTargetKey = "ClickRecolor.ColorEditTarget";
@@ -523,6 +504,18 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                         Locales.Tr(layerNotice.poiyomi ? "Scene:Panel:PoiColorAdjust" : "Scene:Panel:LilColorAdjust"), MessageType.Info);
                 }
                 if (layerNotice.mainColorTint) EditorGUILayout.HelpBox(Locales.Tr("Scene:Panel:MainColorTint"), MessageType.Info);
+                // 上の案内はどれもクリックした所のマテリアルの設定で直すので、そのマテリアルを Inspector に出すボタンを 1 つだけ置く
+                if (layerNotice.HasMaterialNotice && layerNotice.material != null)
+                {
+                    using (new EditorGUILayout.HorizontalScope())
+                    {
+                        GUILayout.FlexibleSpace();
+                        if (GUILayout.Button(Locales.Tr("Scene:Panel:OpenMaterial"), EditorStyles.miniButton, GUILayout.ExpandWidth(false)))
+                        {
+                            InspectorJump.Select(layerNotice.material);
+                        }
+                    }
+                }
                 if (ToolSession.TexTransToolNotice) EditorGUILayout.HelpBox(Locales.Tr("Scene:Panel:TexTransToolNotice"), MessageType.Warning);
             }
             // Ctrl＋クリックで種を足せなかった理由など（数秒で消える）
@@ -573,21 +566,6 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
 
             DrawRecentColors(component, edit, end);
 
-            // 種の数（主種＋Ctrl＋クリックで足した種。共有の種色の編集は追加の種を使わないので 1）
-            int seedCount = 1 + (!edit.hasSeedOklab && edit.extraSeeds != null ? edit.extraSeeds.Count : 0);
-            // 種が複数か連結のメンバーが複数のときだけ、種（メンバー）ごとに色を揃えるかを選べる（どちらも 1 つなら効かない）
-            if (seedCount > 1 || EditGroups.Count(component, edit) > 1)
-            {
-                bool perSeedStats = WithHelp("Help:PerSeedStats",
-                    () => EditorGUILayout.ToggleLeft(Locales.Tr("Scene:Panel:PerSeedStats"), edit.perSeedStats));
-                if (perSeedStats != edit.perSeedStats)
-                {
-                    Undo.RecordObject(component, "Tocolo: 種ごとに色を揃えるかを変更");
-                    EditGroups.ForEachInGroup(component, edit, e => e.perSeedStats = perSeedStats);
-                    EditorUtility.SetDirty(component);
-                }
-            }
-
             // 色を決める前は新しい色が仮の値（元の色）なので、自動調整の基準にしない
             // end（色 2 を編集中）なら自動調整・陰影の暗さ・強さは色 2 側の値（gradientDarkEndRatio / gradientStrength）を読み書きする
             using (new EditorGUI.DisabledScope(!edit.hasTarget))
@@ -615,20 +593,16 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             float currentDarkEndRatio = end ? edit.gradientDarkEndRatio : edit.darkEndRatio;
             float currentStrength = end ? edit.gradientStrength : edit.strength;
             string darkEndLabel = Locales.Tr("Scene:Color:DarkEnd") + shadingSuffix;
-            string stretchLabel = Locales.Tr("Scene:Color:ShadingStretch");
             string strengthLabel = Locales.Tr("Scene:Color:Strength") + shadingSuffix;
-            // 「（色 2）」付きの文言がパネル既定のラベル幅（70px）に収まらず見切れるので、3 本のラベル幅は
-            // 「（色 2）」付きの文言に合わせる。色 1 の編集中も同じ幅にして、切り替えでスライダーの位置が動かないようにする（ユーザー要望 2026-09-25）
+            // 「（色 2）」付きの文言がパネル既定のラベル幅（70px）に収まらず見切れるので、ラベル幅は「（色 2）」付きの文言に合わせる。
+            // 色 1 の編集中も同じ幅にして、切り替えでスライダーの位置が動かないようにする
             string suffix2 = Locales.Tr("Scene:Color:ShadingFor2");
             float previousLabelWidth = EditorGUIUtility.labelWidth;
             EditorGUIUtility.labelWidth = Mathf.Max(previousLabelWidth,
-                SliderLabelWidth(Locales.Tr("Scene:Color:DarkEnd") + suffix2, stretchLabel, Locales.Tr("Scene:Color:Strength") + suffix2) + 4f);
+                SliderLabelWidth(Locales.Tr("Scene:Color:DarkEnd") + suffix2, Locales.Tr("Scene:Color:Strength") + suffix2) + 4f);
             // 表示は「陰影の暗さ」（右ほど暗い）。保存値 darkEndRatio は「暗部の明るさ」（右ほど明るい）なので 1 − 値で表裏を変換する
             float darkEnd = 1f - WithHelp("Help:DarkEnd",
                 () => EditorGUILayout.Slider(darkEndLabel, 1f - currentDarkEndRatio, 0f, 1f));
-            // 陰影の強調は色 1・色 2 で共通なので「（色 2）」は付けない
-            float shadingStretch = WithHelp("Help:ShadingStretch",
-                () => EditorGUILayout.Slider(stretchLabel, edit.shadingStretch, 0f, 1f));
             float strength = WithHelp("Help:Strength",
                 () => EditorGUILayout.Slider(strengthLabel, currentStrength, 0f, 1f));
             EditorGUIUtility.labelWidth = previousLabelWidth;
@@ -638,7 +612,6 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 Undo.RecordObject(component, "Tocolo: 色の設定を変更");
                 EditGroups.ForEachInGroup(component, edit, e =>
                 {
-                    e.shadingStretch = shadingStretch;
                     if (end)
                     {
                         e.gradientDarkEndRatio = darkEnd;
@@ -653,30 +626,16 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 EditorUtility.SetDirty(component);
             }
 
-            // 元のグラデーションを打ち消す（実験的。ユーザー要望 2026-09-29）。トグルを押したイベントで部品の数が変わらないよう押す前の値で出し分ける
-            bool wasFlatten = edit.flattenBase;
-            using (new EditorGUI.DisabledScope(!edit.hasTarget))
+            // 陰影の強調・各点の色を揃える・元のグラデーションを打ち消すは「▸ 設定」に畳む
+            if (DrawSettingsFoldout(ColorSettingsOpenKey, ColorSettingsChanged(component, edit)))
             {
-                bool flatten = WithHelp("Help:FlattenBase",
-                    () => EditorGUILayout.ToggleLeft(Locales.Tr("Scene:Color:FlattenBase"), wasFlatten));
-                float flattenStrength = edit.flattenStrength;
-                if (wasFlatten)
+                using (new EditorGUILayout.HorizontalScope())
                 {
-                    float previousWidth = EditorGUIUtility.labelWidth;
-                    EditorGUIUtility.labelWidth = 105f;
-                    flattenStrength = EditorGUILayout.Slider(Locales.Tr("Scene:Color:FlattenStrength"), edit.flattenStrength, 0f, 1f);
-                    EditorGUIUtility.labelWidth = previousWidth;
-                }
-                if (flatten != wasFlatten || !Mathf.Approximately(flattenStrength, edit.flattenStrength))
-                {
-                    BeginDragIfGrabbing("Tocolo: 元のグラデーションを打ち消す");
-                    Undo.RecordObject(component, "Tocolo: 元のグラデーションを打ち消す");
-                    EditGroups.ForEachInGroup(component, edit, e =>
+                    GUILayout.Space(16);
+                    using (new EditorGUILayout.VerticalScope())
                     {
-                        e.flattenBase = flatten;
-                        e.flattenStrength = flattenStrength;
-                    });
-                    EditorUtility.SetDirty(component);
+                        DrawColorSettings(component, edit);
+                    }
                 }
             }
 
@@ -692,8 +651,8 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         }
 
         /// <summary>
-        /// 「画像を入れる」トグルと、ON のときの画像・詳細設定（なめらかに貼る・ノーマルも反映・比率を保つ）。
-        /// ON にすると Scene に箱が出る（RecolorSceneTool.DrawDecalBox。出すかどうかは小窓「箱を表示」の BoxToggleOverlay）。連結なら連結の全編集に効かせる（DrawGradient と同じ構造）
+        /// 「画像を入れる」トグルと、ON のときの画像・「▸ 設定」（箱で貼る・なめらかに貼る・ノーマルも反映・比率を保つ）。
+        /// ON にすると Scene に置き方（［シール｜箱］）の操作部品が出る（RecolorSceneTool.DrawDecalBox。出すかどうかは小窓「箱を表示」の BoxToggleOverlay）。連結なら連結の全編集に効かせる（DrawGradient と同じ構造）
         /// </summary>
         /// <summary>画像の欄（サムネイル付きの ObjectField）の一辺</summary>
         private const float DecalThumbnailSize = 64f;
@@ -702,11 +661,13 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         {
             // トグルを押したイベントの中で部品の数が変わらないよう、押す前の値で後半を出すか決める
             bool wasEnabled = edit.decalEnabled;
+            // 置き方は編集ごと（新しく ON にする編集はいつもシールで始める）
+            bool sticker = DecalBox.PlacementOf(edit) == DecalPlacement.Sticker;
             bool reset = false;
             bool enabled = WithHelp("Help:Decal", () =>
             {
                 bool value = EditorGUILayout.ToggleLeft(Locales.Tr("Scene:Color:Decal"), wasEnabled);
-                reset = DrawToggleResetButton(wasEnabled, "Scene:Color:DecalResetTooltip");
+                reset = DrawToggleResetButton(wasEnabled, sticker ? "Scene:Color:DecalResetTooltip:Sticker" : "Scene:Color:DecalResetTooltip");
                 return value;
             });
             if (reset)
@@ -715,7 +676,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             }
             else if (enabled != wasEnabled)
             {
-                DecalBox.SetEnabled(component, edit, enabled);
+                DecalBox.SetEnabled(component, edit, enabled, DecalPlacement.Sticker);
                 // ON にしたら画像の箱だけ出す（他の箱と重ならないように。小窓「箱を表示」で一緒に出すこともできる）
                 if (enabled) ToolSession.ChooseBoxes(edit, selection: false, gradient: false, decal: true);
             }
@@ -726,22 +687,15 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             GUILayout.Space(16);
             using (new EditorGUILayout.VerticalScope())
             {
-            // 画像の欄。ラベルの位置に［箱の向きを合わせる］: クリックした所の面の向きに箱を合わせて置き直す（ユーザー要望 2026-10-06。
-            // ON にしたとき・［リセット］の箱は今までどおり正面向き）。向きを決められなければ箱は動かさず案内だけ出す
+            // Scene に出る物で何ができるかを一文で常に出す（？の説明は開かれないことが多いので、操作のしかただけはここに置く）
+            GUILayout.Label(Locales.Tr(sticker ? "Scene:Color:DecalStickerCaption" : "Scene:Color:DecalBoxCaption"), EditorStyles.wordWrappedMiniLabel);
+            // 画像の欄。置き方（箱で貼る）と、箱のときの「向きも面に合わせる」は「▸ 設定」に置く（既定のシールで足りることが多いため）
             Texture2D texture;
-            bool align;
             using (new EditorGUILayout.HorizontalScope())
             {
-                var alignContent = new GUIContent(Locales.Tr("Scene:Color:DecalAlignBox"), Locales.Tr("Scene:Color:DecalAlignBoxTooltip"));
-                align = GUILayout.Button(alignContent, EditorStyles.miniButton, GUILayout.ExpandWidth(false));
                 GUILayout.FlexibleSpace();
                 texture = (Texture2D)EditorGUILayout.ObjectField(edit.decalTexture, typeof(Texture2D), false,
                     GUILayout.Width(DecalThumbnailSize), GUILayout.Height(DecalThumbnailSize));
-            }
-            if (align)
-            {
-                if (DecalBox.AlignToSurface(component, edit)) SceneView.RepaintAll();
-                else ToolSession.ShowTransientNotice("Scene:Color:DecalAlignFailed");
             }
             // 消えた画像（参照切れ）は Unity の == で null と等しいので、None を選び直しても != では変化に見えない。参照が変わったかも見る
             // （触っていなければ ObjectField は渡した物をそのまま返すので、毎フレーム書き込むことはない）
@@ -752,18 +706,38 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             }
             }
 
-            // 画像以外は「詳細設定」に畳む。三角は「画像を入れる」のトグルと同じ列（字下げしない）、中身は 1 段字下げ（既定は閉じる。開閉は Unity を閉じるまで覚える。ユーザー要望 2026-10-04）
-            bool advancedOpen = SessionState.GetBool(DecalAdvancedOpenKey, false);
-            bool advanced = EditorGUILayout.Foldout(advancedOpen, Locales.Tr("Scene:Color:DecalAdvanced"), true);
-            if (advanced != advancedOpen) SessionState.SetBool(DecalAdvancedOpenKey, advanced);
-            // 押したイベントの中で部品の数が変わらないよう、押す前の値で中身を出すか決める（「画像を入れる」と同じ）
-            if (advancedOpen)
+            // 画像以外は「▸ 設定」に畳む。三角は「画像を入れる」のトグルと同じ列（字下げしない）、中身は 1 段字下げ（既定は閉じる）
+            if (DrawSettingsFoldout(DecalSettingsOpenKey, DecalSettingsChanged(edit)))
             {
                 using (new EditorGUILayout.HorizontalScope())
                 {
                     GUILayout.Space(16);
                     using (new EditorGUILayout.VerticalScope())
                     {
+                        // 箱で貼る（置き方。編集ごと）: オンで箱の正面からまっすぐ写す（平行投影）、オフ（既定）でシール（面に沿って貼る）
+                        bool boxMode = WithHelp("Help:DecalPlacement",
+                            () => EditorGUILayout.ToggleLeft(Locales.Tr("Scene:Color:DecalBoxMode"), !sticker));
+                        if (boxMode == sticker)
+                        {
+                            DecalBox.SetPlacement(component, edit, boxMode ? DecalPlacement.Box : DecalPlacement.Sticker);
+                            SceneView.RepaintAll();
+                        }
+                        // 箱のときだけ「向きも面に合わせる」（シールはいつも面に向ける: 面とずれた向きのまま展開すると歪むだけ）。
+                        // 押したイベントの中で部品の数が変わらないよう、押す前の置き方で出すか決める
+                        if (!sticker)
+                        {
+                            using (new EditorGUILayout.HorizontalScope())
+                            {
+                                GUILayout.Space(16);
+                                using (new EditorGUILayout.VerticalScope())
+                                {
+                                    bool follow = WithHelp("Help:DecalFollowSurface",
+                                        () => EditorGUILayout.ToggleLeft(Locales.Tr("Scene:Color:DecalFollowSurface"), ToolSession.DecalDragFollowsSurface));
+                                    if (follow != ToolSession.DecalDragFollowsSurface) ToolSession.DecalDragFollowsSurface = follow;
+                                }
+                            }
+                        }
+
                         // なめらかに貼る（重ね貼り）。lilToon 以外のマテリアルが混ざると重ね貼りできず焼き込みになるので、そのときは無効にして理由を出す
                         bool canOverlay = DecalOverlayMaterial.CanOverlayForUi(component, edit);
                         // 無効にするのはトグルだけ（「？」は押せるようにして、なぜ使えないかを読めるようにする）
@@ -924,11 +898,135 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         private static Color EditingColor(RecolorEdit edit, bool end) => end ? edit.gradientColor : edit.targetColor;
 
         /// <summary>
-        /// はみ出し幅（「範囲」ブロックの最後）。ドラッグ中・数値欄への入力中の変更は Undo 1 回にまとめる。
-        /// 連結（「アバター全体」・島の連結）なら連結の全編集に効かせる
+        /// 色ブロックの「▸ 設定」の中身: 陰影の強調（色 1・色 2 で共通）・各点の色を揃える（種か連結のメンバーが複数のときだけ）・
+        /// 元のグラデーションを打ち消す。連結なら連結の全編集に効かせる
         /// </summary>
-        private static void DrawPadding(ClickRecolor component, RecolorEdit edit)
+        private static void DrawColorSettings(ClickRecolor component, RecolorEdit edit)
         {
+            EditorGUI.BeginChangeCheck();
+            string stretchLabel = Locales.Tr("Scene:Color:ShadingStretch");
+            float previousLabelWidth = EditorGUIUtility.labelWidth;
+            EditorGUIUtility.labelWidth = Mathf.Max(previousLabelWidth, SliderLabelWidth(stretchLabel) + 4f);
+            float shadingStretch = WithHelp("Help:ShadingStretch",
+                () => EditorGUILayout.Slider(stretchLabel, edit.shadingStretch, 0f, 1f));
+            EditorGUIUtility.labelWidth = previousLabelWidth;
+            if (EditorGUI.EndChangeCheck())
+            {
+                BeginDragIfGrabbing("Tocolo: 色の設定を変更");
+                Undo.RecordObject(component, "Tocolo: 色の設定を変更");
+                EditGroups.ForEachInGroup(component, edit, e => e.shadingStretch = shadingStretch);
+                EditorUtility.SetDirty(component);
+            }
+
+            // 種が複数か連結のメンバーが複数のときだけ、種（メンバー）ごとに色を揃えるかを選べる（どちらも 1 つなら効かない）
+            if (ShowsPerSeedStats(component, edit))
+            {
+                bool perSeedStats = WithHelp("Help:PerSeedStats",
+                    () => EditorGUILayout.ToggleLeft(Locales.Tr("Scene:Panel:PerSeedStats"), edit.perSeedStats));
+                if (perSeedStats != edit.perSeedStats)
+                {
+                    Undo.RecordObject(component, "Tocolo: 種ごとに色を揃えるかを変更");
+                    EditGroups.ForEachInGroup(component, edit, e => e.perSeedStats = perSeedStats);
+                    EditorUtility.SetDirty(component);
+                }
+            }
+
+            // 元のグラデーションを打ち消す（実験的）。トグルを押したイベントで部品の数が変わらないよう押す前の値で出し分ける
+            bool wasFlatten = edit.flattenBase;
+            using (new EditorGUI.DisabledScope(!edit.hasTarget))
+            {
+                bool flatten = WithHelp("Help:FlattenBase",
+                    () => EditorGUILayout.ToggleLeft(Locales.Tr("Scene:Color:FlattenBase"), wasFlatten));
+                float flattenStrength = edit.flattenStrength;
+                if (wasFlatten)
+                {
+                    float previousWidth = EditorGUIUtility.labelWidth;
+                    EditorGUIUtility.labelWidth = 105f;
+                    flattenStrength = EditorGUILayout.Slider(Locales.Tr("Scene:Color:FlattenStrength"), edit.flattenStrength, 0f, 1f);
+                    EditorGUIUtility.labelWidth = previousWidth;
+                }
+                if (flatten != wasFlatten || !Mathf.Approximately(flattenStrength, edit.flattenStrength))
+                {
+                    BeginDragIfGrabbing("Tocolo: 元のグラデーションを打ち消す");
+                    Undo.RecordObject(component, "Tocolo: 元のグラデーションを打ち消す");
+                    EditGroups.ForEachInGroup(component, edit, e =>
+                    {
+                        e.flattenBase = flatten;
+                        e.flattenStrength = flattenStrength;
+                    });
+                    EditorUtility.SetDirty(component);
+                }
+            }
+        }
+
+        /// <summary>「各点の色を揃える」を出すか: 種（主種＋Ctrl＋クリックで足した種。共有の種色の編集は追加の種を使わないので 1）か連結のメンバーが複数</summary>
+        private static bool ShowsPerSeedStats(ClickRecolor component, RecolorEdit edit)
+        {
+            int seedCount = 1 + (!edit.hasSeedOklab && edit.extraSeeds != null ? edit.extraSeeds.Count : 0);
+            return seedCount > 1 || EditGroups.Count(component, edit) > 1;
+        }
+
+        /// <summary>色ブロックの「▸ 設定」の中に、既定から変えた物があるか（「各点の色を揃える」は出ているときだけ数える）</summary>
+        private static bool ColorSettingsChanged(ClickRecolor component, RecolorEdit edit)
+        {
+            if (!Mathf.Approximately(edit.shadingStretch, DefaultEdit.shadingStretch)) return true;
+            if (edit.flattenBase != DefaultEdit.flattenBase) return true;
+            return ShowsPerSeedStats(component, edit) && edit.perSeedStats != DefaultEdit.perSeedStats;
+        }
+
+        /// <summary>
+        /// 範囲ブロックの「▸ 設定」の中身: マテリアルをまたいで選ぶ・隠れている範囲も選ぶ（ツール全体。次のクリックに効く）と、
+        /// 現在の編集があれば 箱の中の色を揃える（箱の中）・ゴマ塩除去（同じ色・似た色）・はみ出し幅。連結なら連結の全編集に効かせる
+        /// </summary>
+        private static void DrawRangeSettings(ClickRecolor component, RecolorEdit edit)
+        {
+            // 別のマテリアル（テクスチャ）の島も同じ編集に足せるか（島の連結）。既定 OFF
+            bool cross = WithHelp("Help:CrossTexture",
+                () => EditorGUILayout.ToggleLeft(Locales.Tr("Scene:Panel:CrossTexture"), ToolSession.CrossTextureEnabled));
+            if (cross != ToolSession.CrossTextureEnabled)
+            {
+                ToolSession.CrossTextureEnabled = cross;
+                // 「箱の中」の編集は、ON なら箱に触れる他テクスチャのメンバーを作り、OFF なら外して 1 テクスチャに戻す
+                if (edit != null && edit.mode == SelectionMode.Box)
+                {
+                    Undo.RecordObject(component, "Tocolo: マテリアルをまたいで選ぶ");
+                    SelectionBox.SyncMembers(component, edit);
+                }
+            }
+
+            // 矩形選択で奥に隠れている島も拾うか（UV アイランドモードの矩形選択だけに効く）。既定 OFF
+            bool hidden = WithHelp("Help:SelectHidden",
+                () => EditorGUILayout.ToggleLeft(Locales.Tr("Scene:Panel:SelectHidden"), ToolSession.SelectHiddenEnabled));
+            if (hidden != ToolSession.SelectHiddenEnabled) ToolSession.SelectHiddenEnabled = hidden;
+
+            if (edit == null) return;
+            // モードはこのイベント内で変わらないので、部品の数は Layout と Repaint で揃う
+            if (edit.mode == SelectionMode.Box)
+            {
+                bool perPart = WithHelp("Help:BoxPerPartStats",
+                    () => EditorGUILayout.ToggleLeft(Locales.Tr("Scene:Select:BoxPerPartStats"), edit.boxPerPartStats));
+                if (perPart != edit.boxPerPartStats)
+                {
+                    Undo.RecordObject(component, "Tocolo: パーツごとに色を揃えるかを変更");
+                    EditGroups.ForEachInGroup(component, edit, e => e.boxPerPartStats = perPart);
+                    EditorUtility.SetDirty(component);
+                }
+            }
+            // ゴマ塩除去は色モードだけ（UV アイランドモードは島単位なので不要）
+            if (edit.mode == SelectionMode.Color)
+            {
+                EditorGUI.BeginChangeCheck();
+                int cleanup = WithHelp("Help:Cleanup",
+                    () => EditorGUILayout.IntSlider(Locales.Tr("Scene:Select:Cleanup"), edit.cleanupRadius, 0, 2));
+                if (EditorGUI.EndChangeCheck())
+                {
+                    BeginDragIfGrabbing("Tocolo: 選択の設定を変更");
+                    Undo.RecordObject(component, "Tocolo: 選択の設定を変更");
+                    EditGroups.ForEachInGroup(component, edit, e => e.cleanupRadius = cleanup);
+                    EditorUtility.SetDirty(component);
+                }
+            }
+
             EditorGUI.BeginChangeCheck();
             int padding = WithHelp("Help:Padding",
                 () => EditorGUILayout.IntSlider(Locales.Tr("Scene:Color:Padding"), edit.padding, -5, 32));
@@ -939,6 +1037,42 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 EditGroups.ForEachInGroup(component, edit, e => e.padding = padding);
                 EditorUtility.SetDirty(component);
             }
+        }
+
+        /// <summary>範囲ブロックの「▸ 設定」の中に、既定から変えた物があるか（畳んだままでも効いていることに気付けるように見出しで知らせる）</summary>
+        private static bool RangeSettingsChanged(RecolorEdit edit)
+        {
+            if (ToolSession.CrossTextureEnabled || ToolSession.SelectHiddenEnabled) return true;
+            if (edit == null) return false;
+            if (edit.padding != DefaultEdit.padding) return true;
+            if (edit.mode == SelectionMode.Box && edit.boxPerPartStats != DefaultEdit.boxPerPartStats) return true;
+            return edit.mode == SelectionMode.Color && edit.cleanupRadius != DefaultEdit.cleanupRadius;
+        }
+
+        /// <summary>画像の「▸ 設定」の中に、既定（シール・なめらかに貼る・ノーマルも反映・比率を保つ）から変えた物があるか</summary>
+        private static bool DecalSettingsChanged(RecolorEdit edit)
+        {
+            // 「向きも面に合わせる」は箱で貼るときだけの設定なので、箱で貼る時点で「変更あり」になる
+            if (DecalBox.PlacementOf(edit) != DecalPlacement.Sticker) return true;
+            return edit.decalSmooth != DefaultEdit.decalSmooth
+                || edit.decalNormal != DefaultEdit.decalNormal
+                || edit.decalKeepAspect != DefaultEdit.decalKeepAspect;
+        }
+
+        /// <summary>「変更あり」の比較に使う既定値（フィールドの初期値。新しい編集もこの値で作る）</summary>
+        private static readonly RecolorEdit DefaultEdit = new RecolorEdit();
+
+        /// <summary>
+        /// 各ブロックの末尾の「▸ 設定」の見出し（changed なら「設定（変更あり）」）。押す前の開閉を返す（押したイベントの中で部品の数が変わらないよう、
+        /// 呼び出し側は戻り値で中身を出すか決める）。開閉はプロジェクトごとのユーザー設定（UserSettings）に覚える:
+        /// EditorPrefs だと全プロジェクトで共有になり、SessionState だと Unity を閉じると忘れる
+        /// </summary>
+        private static bool DrawSettingsFoldout(string key, bool changed)
+        {
+            bool open = EditorUserSettings.GetConfigValue(key) == "1";
+            bool next = EditorGUILayout.Foldout(open, Locales.Tr(changed ? "Scene:Panel:SettingsChanged" : "Scene:Panel:Settings"), true);
+            if (next != open) EditorUserSettings.SetConfigValue(key, next ? "1" : "0");
+            return open;
         }
 
         /// <summary>
@@ -962,14 +1096,6 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 // 箱の中: 面のぼかしだけ（箱の位置・大きさは Scene のハンドル）
                 feather = WithHelp("Help:BoxFeather",
                     () => EditorGUILayout.Slider(Locales.Tr("Scene:Select:BoxFeather"), edit.feather, 0f, 1f));
-                bool perPart = WithHelp("Help:BoxPerPartStats",
-                    () => EditorGUILayout.ToggleLeft(Locales.Tr("Scene:Select:BoxPerPartStats"), edit.boxPerPartStats));
-                if (perPart != edit.boxPerPartStats)
-                {
-                    Undo.RecordObject(component, "Tocolo: パーツごとに色を揃えるかを変更");
-                    EditGroups.ForEachInGroup(component, edit, e => e.boxPerPartStats = perPart);
-                    EditorUtility.SetDirty(component);
-                }
             }
             if (colorMode)
             {
@@ -994,10 +1120,6 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                     Locales.Tr("Scene:Select:Scope:WholeAvatar"),
                 }, 2);
             }
-            // ゴマ塩除去は色モードだけ（UV アイランドモードは島単位なので不要。ユーザー判断 2026-09-24）
-            int cleanup = colorMode
-                ? WithHelp("Help:Cleanup", () => EditorGUILayout.IntSlider(Locales.Tr("Scene:Select:Cleanup"), edit.cleanupRadius, 0, 2))
-                : edit.cleanupRadius;
             if (EditorGUI.EndChangeCheck())
             {
                 BeginDragIfGrabbing("Tocolo: 選択の設定を変更");
@@ -1012,7 +1134,6 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 {
                     e.threshold = threshold;
                     e.feather = feather;
-                    e.cleanupRadius = cleanup;
                 });
                 EditorUtility.SetDirty(component);
             }

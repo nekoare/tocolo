@@ -31,7 +31,8 @@ namespace Nekoare.ClickRecolor.Editor.Decal
             if (source == null || !source.isReadable) return null;
             // 判定用と複製元が同じ配列で済むので、mesh.vertices のコピーは 1 回だけ
             var vertices = source.vertices;
-            return BuildCore(source, vertices, vertices, submeshes, meshToBox, flip, boxSize, fit, offset, materialCount, allTriangles, duplicatedSources, include);
+            return BuildCore(source, vertices, submeshes, new PlanarMapping(vertices, meshToBox, flip, boxSize, fit), offset, materialCount, allTriangles,
+                duplicatedSources, include);
         }
 
         /// <summary>
@@ -65,25 +66,37 @@ namespace Nekoare.ClickRecolor.Editor.Decal
             Func<int, int, int, bool> include = null)
         {
             if (source == null || !source.isReadable) return null;
-            return BuildCore(source, source.vertices, judgeVertices, submeshes, judgeToBox, flip, boxSize, fit, offset, materialCount, allTriangles, duplicatedSources, include);
+            if (judgeVertices == null) return null;
+            CheckJudgeLength(source, judgeVertices);
+            return BuildCore(source, source.vertices, submeshes, new PlanarMapping(judgeVertices, judgeToBox, flip, boxSize, fit), offset, materialCount,
+                allTriangles, duplicatedSources, include);
+        }
+
+        /// <summary>
+        /// 割り付け方 mapping（DecalMappings.For。置き方がシールなら面に沿った展開）で作る版。三角形の選び方と UV0 を mapping から取るほかは、
+        /// 平行投影の版と同じ（mapping の頂点は source と同じ並び）
+        /// </summary>
+        internal static Mesh Build(Mesh source, IDecalMapping mapping, IReadOnlyList<int> submeshes, float offset, int materialCount = 0,
+            bool allTriangles = false, List<int> duplicatedSources = null, Func<int, int, int, bool> include = null)
+        {
+            if (source == null || !source.isReadable || mapping == null) return null;
+            return BuildCore(source, source.vertices, submeshes, mapping, offset, materialCount, allTriangles, duplicatedSources, include);
+        }
+
+        private static void CheckJudgeLength(Mesh source, Vector3[] judgeVertices)
+        {
+            if (judgeVertices.Length != source.vertexCount)
+            {
+                throw new ArgumentException($"judgeVertices の数（{judgeVertices.Length}）が元メッシュの頂点数（{source.vertexCount}）と違います", nameof(judgeVertices));
+            }
         }
 
         /// <summary>Build の本体。sourceVertices は source.vertices（呼び出し側で 1 回だけ取る）</summary>
-        private static Mesh BuildCore(Mesh source, Vector3[] sourceVertices, Vector3[] judgeVertices, IReadOnlyList<int> submeshes,
-            Matrix4x4 judgeToBox, bool flip, Vector3 boxSize, Vector2 fit, float offset, int materialCount, bool allTriangles,
-            List<int> duplicatedSourcesOut, Func<int, int, int, bool> include)
+        private static Mesh BuildCore(Mesh source, Vector3[] sourceVertices, IReadOnlyList<int> submeshes, IDecalMapping mapping, float offset,
+            int materialCount, bool allTriangles, List<int> duplicatedSourcesOut, Func<int, int, int, bool> include)
         {
-            if (judgeVertices == null || submeshes == null) return null;
+            if (submeshes == null) return null;
             int n = source.vertexCount;
-            if (judgeVertices.Length != n)
-            {
-                throw new ArgumentException($"judgeVertices の数（{judgeVertices.Length}）が元メッシュの頂点数（{n}）と違います", nameof(judgeVertices));
-            }
-
-            var safeSize = DecalLayerBuilder.SafeSize(boxSize);
-            var half = new Vector3(Mathf.Abs(safeSize.x), Mathf.Abs(safeSize.y), Mathf.Abs(safeSize.z)) * 0.5f;
-            var boxPositions = new Vector3[n];
-            for (int i = 0; i < n; i++) boxPositions[i] = judgeToBox.MultiplyPoint3x4(judgeVertices[i]);
 
             // 三角形を選び、使う頂点を 1 回だけ複製する（三角形ごとに複製するより頂点が少なく、ブレンドシェイプの作り直しも軽い）
             var remap = new int[n];
@@ -100,14 +113,7 @@ namespace Nekoare.ClickRecolor.Editor.Decal
                 {
                     int i0 = triangles[t], i1 = triangles[t + 1], i2 = triangles[t + 2];
                     if (include != null && !include(i0, i1, i2)) continue;
-                    var p0 = boxPositions[i0];
-                    var p1 = boxPositions[i1];
-                    var p2 = boxPositions[i2];
-                    if (!allTriangles)
-                    {
-                        if (!DecalProjection.IsFrontFacing(p0, p1, p2, flip)) continue;
-                        if (!DecalProjection.TriangleTouchesBox(p0, p1, p2, half)) continue;
-                    }
+                    if (!allTriangles && !mapping.Draws(i0, i1, i2)) continue;
                     overlayTriangles.Add(Duplicate(i0, n, remap, duplicatedSources));
                     overlayTriangles.Add(Duplicate(i1, n, remap, duplicatedSources));
                     overlayTriangles.Add(Duplicate(i2, n, remap, duplicatedSources));
@@ -142,10 +148,9 @@ namespace Nekoare.ClickRecolor.Editor.Decal
                 if (tangents != null && tangents.Length == n) mesh.SetTangents(Extend(tangents, duplicatedSources, (s, v) => v));
                 ExtendColors(source, mesh, duplicatedSources);
 
-                // UV0 = 投影 UV（判定に使った位置＝今のポーズの箱のローカルから）。0..1 の外もそのまま
+                // UV0 = 画像の座標（割り付け方から。判定に使った位置＝今のポーズで求めたもの）。0..1 の外もそのまま
                 var uv0 = GetUvs(source, 0);
-                SetUvs(mesh, 0, Math.Max(2, Dimension(source, 0)), n, uv0, duplicatedSources,
-                    s => DecalProjection.ProjectUv(boxPositions[s], safeSize, fit));
+                SetUvs(mesh, 0, Math.Max(2, Dimension(source, 0)), n, uv0, duplicatedSources, s => mapping.Uv(s));
                 // UV1 = 元の UV0（O3 で選択マスク・元の位置を引くため）。元の頂点は元の UV1 のまま（無ければ 0）。
                 // 元マテリアルが UV1 を使う機能（2nd テクスチャの UV1 指定など）は、複製頂点では UV1 が元の UV0 に置き換わるので
                 // 重ね貼りマテリアル側では正しく引けない（DecalOverlayMaterial で UV0 依存のテクスチャを外すのと同じく、見た目の差として受け入れる）

@@ -40,6 +40,8 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
     ///   実機 2026-10-04「追従性が悪すぎる」「回転で見切れる」）。そのため HashEdit はドラッグ中の重ね貼りの編集では箱の値を畳まない（ToolSession.DecalBoxDragIsOverlay）。
     ///   ドラッグ中の近似: 画像は選択範囲で切らない画像全体（色変え・不透明度は掛ける。グラデーションは色 1 側）。離すと箱の値がハッシュに戻り、正確に作り直す。
     ///   元の UV0 が 2 成分でないメッシュでは書き換えず、離すまで始めた位置のまま
+    ///   つかんだときは作り直さず、ふだんの段（箱の周りだけ複製）をそのまま使う。ドラッグ中にその範囲の外へ出たら、1 回だけ範囲で絞らずに作り直す
+    ///   （ToolSession.DecalDragNeedsFullCopy。重いメッシュでは出た瞬間に 1 回止まる）
     /// </summary>
     internal class DecalOverlayPreview : IRenderFilter
     {
@@ -703,6 +705,12 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
             /// 重ね貼りマテリアルを作り直さずにこのノードを使い続ける
             /// </summary>
             public readonly Material[] sourceMaterials;
+            /// <summary>
+            /// 作ったときの sourceMaterials のメインテクスチャ。上流の色変えのプレビューは複製を使い回して結果 RT だけ差し替えるので、
+            /// マテリアルが同じでもメインが変わっていれば作り直す（重ね貼りマテリアルは上流の複製を写して作るので、メイン以外で同じ画像を指す
+            /// プロパティ〔影の色のテクスチャ等〕が古い結果 RT を指したまま残る）
+            /// </summary>
+            private readonly Texture[] _sourceMainTextures;
             /// <summary>前フレームの入力（プロキシのマテリアル）と結果。同じ入力なら配列を作り直さない</summary>
             public Material[] lastInput;
             public Material[] lastResult;
@@ -719,7 +727,12 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
                 this.materials = materials;
                 this.sourceMaterials = sourceMaterials;
                 this.dragUvs = dragUvs;
+                _sourceMainTextures = new Texture[sourceMaterials != null ? sourceMaterials.Length : 0];
+                for (int i = 0; i < _sourceMainTextures.Length; i++) _sourceMainTextures[i] = MainTextureOf(sourceMaterials[i]);
             }
+
+            private static Texture MainTextureOf(Material material) =>
+                material != null && material.HasProperty("_MainTex") ? material.GetTexture("_MainTex") : null;
 
             /// <summary>proxy の複製元のスロットが、materials を作ったときと同じマテリアルか（上流が作り直されていないか）</summary>
             public bool HasSameSources(Renderer proxy)
@@ -730,6 +743,7 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
                     int slot = sources[i].firstSlot;
                     var current = slot >= 0 && slot < proxyMaterials.Length ? proxyMaterials[slot] : null;
                     if (current == null || current != sourceMaterials[i]) return false;
+                    if (i < _sourceMainTextures.Length && MainTextureOf(current) != _sourceMainTextures[i]) return false;
                 }
                 return true;
             }
@@ -737,7 +751,8 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
 
         /// <summary>
         /// ドラッグ中に作った表示用メッシュの投影 UV と描く三角形を、編集の箱が変わったフレームだけ書き換える（メッシュは作り直さない。
-        /// DecalOverlayAssembler.UpdateSegment）。箱の値（位置・回転・大きさ・比率・画像）を段ごとに覚えておき、変わった段だけ計算する
+        /// DecalOverlayAssembler.UpdateSegment）。箱の値（位置・回転・大きさ・比率・画像）を段ごとに覚えておき、変わった段だけ計算する。
+        /// 段が複製した範囲の外へ出たら作り直しを頼む（ToolSession.RequestDecalDragFullCopy。ドラッグ中はハッシュに箱の値が無く、頼まないと離すまで見切れる）
         /// </summary>
         private sealed class DragUvs
         {
@@ -765,6 +780,8 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
                 {
                     int state = StateOf(_segments[i].edit);
                     if (state == _lastState[i]) continue;
+                    // 複製した範囲の外へ出たら、外の三角形は描けないので作り直しを頼む（このフレームは範囲の中だけ描く）
+                    if (!DecalOverlayAssembler.CoversBox(_segments[i], _segments[i].edit)) SceneTool.ToolSession.RequestDecalDragFullCopy();
                     if (_uvs == null)
                     {
                         // UV0 が 2 成分のメッシュだけ書き換える（成分数が違うと SetUVs で頂点の形式ごと変わってしまう）
@@ -801,6 +818,7 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
                     h = h * 31 + edit.decalBoxRotation.GetHashCode();
                     h = h * 31 + edit.decalBoxSize.GetHashCode();
                     h = h * 31 + (edit.decalKeepAspect ? 1 : 0);
+                    h = h * 31 + (edit.decalSticker ? 1 : 0);
                     h = h * 31 + (edit.decalTexture != null ? edit.decalTexture.GetInstanceID() : 0);
                     return h;
                 }

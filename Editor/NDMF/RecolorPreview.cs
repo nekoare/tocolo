@@ -24,7 +24,7 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
     {
         /// <summary>ハイライトする編集の id（連結なら全メンバー・edits の並び順）。無ければ null</summary>
         public readonly string[] editIds;
-        /// <summary>ハイライトを出すか（ツール有効・［範囲を表示］ON・編集あり）</summary>
+        /// <summary>ハイライトを出すか（ツール有効・小窓「表示切替」の［選択範囲］ON・編集あり）</summary>
         public readonly bool enabled;
 
         /// <summary>編集 1 件だけをハイライトする状態（editId が null なら編集なし）</summary>
@@ -237,14 +237,14 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
             var entries = new List<PreviewTextureCache.Entry>();
             // 結果 RT を描き直す単位（元テクスチャのハンドルは Entry へ渡すまでここが持つ）
             var pendings = new List<PendingTexture>();
-            var clones = new List<Material>();
+            var leases = new List<PreviewMaterialCache.Lease>();
             // ハイライトを掛けた RT（ノード所有。キャッシュしない）
             var owned = new List<RenderTexture>();
             bool handedOver = false;
             try
             {
                 var data = group.GetData<GroupData>();
-                // ハイライトの状態の変化（編集の切り替え・［範囲を表示］・ツールの終了）でもやり直す。
+                // ハイライトの状態の変化（編集の切り替え・小窓「表示切替」の［選択範囲］・ツールの終了）でもやり直す。
                 // 色未設定の編集もハイライト中はプレビューの対象にするので、計画を作る前に取る
                 var highlight = context.Observe(Highlight);
                 var plans = BuildPlans(data, context, highlight, out var order);
@@ -388,12 +388,12 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
 
                 // マテリアルの差し替え配列（Renderer ごと。OnFrame でアロケーションしないよう先に作る）
                 var overrides = hairSlots != null
-                    ? ReplaceHairSlots(pairs, hairSlots, results, clones)
-                    : ReplaceMainSlots(pairs, results, clones);
+                    ? ReplaceHairSlots(pairs, hairSlots, results, leases)
+                    : ReplaceMainSlots(pairs, results, leases);
                 if (overrides.Count == 0) return Task.FromResult<IRenderFilterNode>(new EmptyNode());
 
                 handedOver = true;
-                return Task.FromResult<IRenderFilterNode>(new Node(overrides, clones, entries, owned));
+                return Task.FromResult<IRenderFilterNode>(new Node(overrides, leases, entries, owned));
             }
             catch (Exception ex)
             {
@@ -404,10 +404,8 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
             {
                 if (!handedOver)
                 {
-                    foreach (var clone in clones)
-                    {
-                        if (clone != null) Object.DestroyImmediate(clone);
-                    }
+                    // 作りかけのノードを捨てる（表示中の旧ノードと共有している複製は、旧ノードの結果 RT に戻る）
+                    foreach (var lease in leases) PreviewMaterialCache.Release(lease);
                     foreach (var entry in entries) PreviewTextureCache.Release(entry);
                     foreach (var rt in owned) RecolorPipeline.DestroyWorkTexture(rt);
                 }
@@ -485,7 +483,7 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
 
         /// <summary>本体: proxy のメインが計画のテクスチャ（参照の一致）のスロットを、結果 RT を束縛した複製に差し替える</summary>
         private static Dictionary<Renderer, Material[]> ReplaceMainSlots(
-            List<(Renderer original, Renderer proxy)> pairs, Dictionary<TextureUnit, RenderTexture> results, List<Material> clones)
+            List<(Renderer original, Renderer proxy)> pairs, Dictionary<TextureUnit, RenderTexture> results, List<PreviewMaterialCache.Lease> leases)
         {
             var cloneOf = new Dictionary<Material, Material>();
             var overrides = new Dictionary<Renderer, Material[]>();
@@ -502,9 +500,10 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
 
                     if (!cloneOf.TryGetValue(material, out var clone))
                     {
-                        clone = CloneWithResult(material, info.propertyName, info.texture, rt);
+                        var lease = PreviewMaterialCache.Acquire(material, info.propertyName, info.texture, rt, CloneSuffix);
+                        leases.Add(lease);
+                        clone = lease.Material;
                         cloneOf.Add(material, clone);
-                        clones.Add(clone);
                     }
                     replaced ??= (Material[])materials.Clone();
                     replaced[i] = clone;
@@ -519,7 +518,7 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
             List<(Renderer original, Renderer proxy)> pairs,
             Dictionary<Renderer, List<HairSlot>> hairSlots,
             Dictionary<TextureUnit, RenderTexture> results,
-            List<Material> clones)
+            List<PreviewMaterialCache.Lease> leases)
         {
             var cloneOf = new Dictionary<(Material, TextureUnit), Material>();
             var overrides = new Dictionary<Renderer, Material[]>();
@@ -537,9 +536,10 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
                     if (!cloneOf.TryGetValue((slot.current, unit), out var clone))
                     {
                         var replacedTexture = slot.baseTexture != null ? slot.baseTexture : slot.source;
-                        clone = CloneWithResult(slot.current, slot.propertyName, replacedTexture, rt);
+                        var lease = PreviewMaterialCache.Acquire(slot.current, slot.propertyName, replacedTexture, rt, CloneSuffix);
+                        leases.Add(lease);
+                        clone = lease.Material;
                         cloneOf.Add((slot.current, unit), clone);
-                        clones.Add(clone);
                     }
                     replaced ??= (Material[])materials.Clone();
                     replaced[slot.slot] = clone;
@@ -549,21 +549,8 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
             return overrides;
         }
 
-        /// <summary>material の複製（保存しない）。メインと、同じ replacedTexture を参照する他のプロパティに rt を束縛する</summary>
-        private static Material CloneWithResult(Material material, string propertyName, Texture replacedTexture, RenderTexture rt)
-        {
-            var clone = MaterialCloner.Clone(material, " (ClickRecolor)");
-            clone.hideFlags = HideFlags.HideAndDontSave;
-            // Tiling/Offset は複製で引き継がれる。結果 RT は Linear（シェーダーは線形値として読む）
-            clone.SetTexture(propertyName, rt);
-            // 同じテクスチャを参照する他のプロパティも差し替える（ビルド・書き出しと同じ）。
-            // Poiyomi のロック済みマテリアルで _MainTex を改名してアニメートにすると、シェーダーは _MainTex_<名前> を読むため
-            foreach (var name in clone.GetTexturePropertyNames())
-            {
-                if (name != propertyName && clone.GetTexture(name) == replacedTexture) clone.SetTexture(name, rt);
-            }
-            return clone;
-        }
+        /// <summary>プレビューの複製の名前に付ける印</summary>
+        private const string CloneSuffix = " (ClickRecolor)";
 
         // ── テクスチャごとの計画 ──
 
@@ -946,6 +933,8 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
             {
                 if (edit == null || !edit.decalEnabled) return h;
                 h = h * 31 + (edit.decalKeepAspect ? 1 : 0);
+                // 置き方で割り付け方（平行投影／面に沿った展開）が変わる。シールから箱へは箱の値を変えずに切り替わるので、これが無いと作り直されない
+                h = h * 31 + (edit.decalSticker ? 1 : 0);
                 // 重ね貼りで表示している編集は、ドラッグ中は箱の値を畳まない（DecalOverlayPreview がメッシュを作り直さず投影 UV だけ書き換えて追従させる。
                 // 毎フレーム作り直すと追従しない。実機 2026-10-04）。焼き込みの編集はドラッグ中も箱の値で層を作り直す
                 if (!(SceneTool.ToolSession.IsDecalBoxDraggingFor(edit) && SceneTool.ToolSession.DecalBoxDragIsOverlay))
@@ -954,6 +943,8 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
                     h = h * 31 + edit.decalBoxRotation.GetHashCode();
                     h = h * 31 + edit.decalBoxSize.GetHashCode();
                 }
+                // 箱の値の代わりに、複製した範囲の外へ出たかを入れる（出たら 1 回だけ範囲で絞らずに作り直させる）
+                else h = h * 31 + (SceneTool.ToolSession.DecalDragNeedsFullCopy ? 1 : 0);
                 // ドラッグ中は層を低解像度で作るので、離した瞬間にフル解像度で作り直せるようドラッグ状態も含める
                 h = h * 31 + (SceneTool.ToolSession.IsDecalBoxDraggingFor(edit) ? 1 : 0);
                 return h;
@@ -1116,7 +1107,8 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
         private sealed class Node : IRenderFilterNode, IDisposable
         {
             private readonly Dictionary<Renderer, Material[]> _overrides;
-            private readonly List<Material> _clones;
+            /// <summary>借りているマテリアルの複製（PreviewMaterialCache。新旧のノードで共有する）</summary>
+            private readonly List<PreviewMaterialCache.Lease> _leases;
             private readonly List<PreviewTextureCache.Entry> _entries;
             /// <summary>ハイライトを掛けた RT（このノードの所有）</summary>
             private readonly List<RenderTexture> _owned;
@@ -1126,12 +1118,12 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
 
             public Node(
                 Dictionary<Renderer, Material[]> overrides,
-                List<Material> clones,
+                List<PreviewMaterialCache.Lease> leases,
                 List<PreviewTextureCache.Entry> entries,
                 List<RenderTexture> owned)
             {
                 _overrides = overrides;
-                _clones = clones;
+                _leases = leases;
                 _entries = entries;
                 _owned = owned;
             }
@@ -1146,11 +1138,8 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
             {
                 if (_disposed) return;
                 _disposed = true;
-                foreach (var clone in _clones)
-                {
-                    if (clone != null) Object.DestroyImmediate(clone);
-                }
-                _clones.Clear();
+                foreach (var lease in _leases) PreviewMaterialCache.Release(lease);
+                _leases.Clear();
                 foreach (var entry in _entries) PreviewTextureCache.Release(entry);
                 _entries.Clear();
                 foreach (var rt in _owned) RecolorPipeline.DestroyWorkTexture(rt);

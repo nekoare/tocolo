@@ -83,7 +83,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         // Ctrl＋押下中の状態（クリックか矩形かは離したときに決まる）。ドメインリロードで消えてよい
         private bool _ctrlPressPending;
         /// <summary>
-        /// Ctrl＋押下で掴んだマウスの部品の番号（0 = 掴んでいない）。離しを取りこぼしたり、ツールのインスタンスが替わって押下中の印が消えたりして
+        /// 押下（Ctrl＋押下・画像の上の押下）で掴んだマウスの部品の番号（0 = 掴んでいない）。離しを取りこぼしたり、ツールのインスタンスが替わって押下中の印が消えたりして
         /// 掴んだまま残ると、Scene の左右クリックが効かなくなる（ユーザー報告 2026-10-06）。残っていたら OnToolGUI で放す
         /// </summary>
         private static int s_capturedControl;
@@ -95,6 +95,17 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         private bool _ctrlPressShift;
         private Vector2 _rectStart;
         private Vector2 _rectEnd;
+
+        // 選んでいる編集の画像の上での押下中の状態（RectDragThreshold 以上動かせば画像を表面に沿って動かし、動かさずに離せばふつうのクリック）。
+        // 掴んだマウスの番号は Ctrl＋押下と同じ s_capturedControl で持つ。ドメインリロードで消えてよい
+        private bool _imagePressPending;
+        private Vector2 _imagePressStart;
+        /// <summary>掴んだ点（ワールド）。画像の上の当たりか、シールの枠の面とレイの交点</summary>
+        private Vector3 _imagePressGrabWorld;
+        /// <summary>シールの枠の中を押したか（動かさずに離しても、枠の向こうに見えている物をクリックしたことにはしない）</summary>
+        private bool _imagePressFromFrame;
+        /// <summary>画像を動かしている途中なら、その 1 回分（動かし始める前は null）</summary>
+        private DecalSurfaceDrag _imageDrag;
 
         private static GUIContent s_icon;
 
@@ -172,7 +183,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             ToolPanelOverlay.FinishDrag();
             s_boxDrag.End();
             // Ctrl＋ドラッグの途中なら矩形を捨てる（掴んだマウスも放す）
-            EndCtrlPress();
+            EndPress();
             // 色を決めないまま終了した編集は残さない（プレビューにもビルドにも効かない空の編集になるため）
             DiscardPendingEdit();
             // 選択範囲のハイライトを消す（ビルドには元々乗らないが、ツール外のプレビューにも出さない）
@@ -185,36 +196,40 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             ToolSession.LastPickColor = null;
             ToolSession.UnreadableRenderer = null;
             ToolSession.BoxChoiceEditId = null;
+            // シールの面探しに読み戻した選択マスクを手放す
+            StickerSurface.Clear();
             ToolSession.HoverPick = null;
             // クリック用に取っておいた元テクスチャのデコード結果を手放す（プレビューが使っている分は残る）
             SourceTextureLoader.TrimIdle();
             SceneView.RepaintAll();
         }
 
-        /// <summary>Ctrl＋押下を終える（掴んだマウスを放し、押下中の印を下ろす）</summary>
-        private void EndCtrlPress()
+        /// <summary>押下（Ctrl＋押下・画像の上の押下）を終える（掴んだマウスを放し、押下中の印を下ろす）</summary>
+        private void EndPress()
         {
             if (s_capturedControl != 0 && GUIUtility.hotControl == s_capturedControl) GUIUtility.hotControl = 0;
             s_capturedControl = 0;
             _ctrlPressPending = false;
             _rectActive = false;
+            _imagePressPending = false;
+            _imageDrag = null;
         }
 
         /// <summary>
-        /// Ctrl＋押下で掴んだマウスが残っていたら放す: 押下中の印が無いのに掴んだまま（ツールのインスタンスが替わった等）、
-        /// 離しを取りこぼしたまま次の押下が来た、ほかで放された・取られた。どれも押下（クリック・矩形）は行わずに捨てる
+        /// 押下（Ctrl＋押下・画像の上の押下）で掴んだマウスが残っていたら放す: 押下中の印が無いのに掴んだまま（ツールのインスタンスが替わった等）、
+        /// 離しを取りこぼしたまま次の押下が来た、ほかで放された・取られた。どれも押下（クリック・矩形・画像の移動の続き）は行わずに捨てる
         /// </summary>
         private void ReleaseStaleCapture(Event e)
         {
             if (s_capturedControl == 0) return;
             string reason = null;
             if (GUIUtility.hotControl != s_capturedControl) reason = "ほかで放された";
-            else if (!_ctrlPressPending) reason = "押下中の印が無いのに掴んだまま";
+            else if (!_ctrlPressPending && !_imagePressPending) reason = "押下中の印が無いのに掴んだまま";
             else if (e.type == EventType.MouseDown) reason = "離しを取りこぼしたまま次の押下";
             if (reason == null) return;
             // ほかで放されたのは異常ではない（ツールの切り替え等）ので記録しない
             if (GUIUtility.hotControl == s_capturedControl) Debug.Log($"[Tocolo][調査] 掴んだままのマウスを放しました（{reason}）"); // 診断用（2026-10-06。Scene のクリックが効かなくなる件の再発・報告の切り分けに残す。原因が確定したら消す）
-            EndCtrlPress();
+            EndPress();
         }
 
         public override void OnToolGUI(EditorWindow window)
@@ -228,11 +243,12 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             int controlId = GUIUtility.GetControlID(s_controlHint, FocusType.Passive);
             // 掴んだまま残ったマウスを放す（Scene の左右クリックが効かなくなるのを防ぐ）
             ReleaseStaleCapture(e);
-            // Ctrl＋押下中の Esc は矩形（とクリック）だけ中止する（ツールは終了しない）
-            if (_ctrlPressPending && e.type == EventType.KeyDown && e.keyCode == KeyCode.Escape)
+            // 押下中の Esc は押下（矩形・クリック・画像の移動）だけ中止する（ツールは終了しない）。画像を動かしていたら掴む前の位置に戻す
+            if ((_ctrlPressPending || _imagePressPending) && e.type == EventType.KeyDown && e.keyCode == KeyCode.Escape)
             {
                 e.Use();
-                EndCtrlPress();
+                RestoreImageDragStart();
+                EndPress();
                 sceneView.Repaint();
                 return;
             }
@@ -312,8 +328,8 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             if (!ToolSession.TryGetActiveRoot(out var root))
             {
                 ToolSession.HoverPick = null;
-                // Ctrl＋押下中に対象が消えた（破棄など）: 押下を捨てて hotControl を返す
-                if (_ctrlPressPending) EndCtrlPress();
+                // 押下中に対象が消えた（破棄など）: 押下を捨てて hotControl を返す
+                if (_ctrlPressPending || _imagePressPending) EndPress();
                 // 対象未設定: 左クリックがモデルに当たったら、そのルートを対象にしてそのままクリック位置を表示する。
                 // 外れたらクリックは消費しない（ドラッグ等はそのまま）。案内とアバターのボタンは ToolPanelOverlay が出す
                 if (e.type == EventType.MouseDown && e.button == 0 && !e.alt && TryResolveTargetByClick(e.mousePosition, out root))
@@ -362,9 +378,62 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                     s_capturedControl = controlId;
                     return;
                 }
+                // 選んでいる編集の画像の上の押下: RectDragThreshold 以上動かせば画像を表面に沿って動かし、動かさなければ離したときにふつうのクリック。
+                // シールの枠は手前の物に隠れないよう前面に描くので、枠の中なら手前の髪などに当たっていてもシールを掴む（画面で見えている形と判定をそろえる）。
+                // Shift＋クリック（常に新しい編集）は従来どおりすぐ処理する
+                if (!e.shift)
+                {
+                    bool fromFrame = TryHitCurrentStickerFrame(root, e.mousePosition, out var grabWorld);
+                    bool onImage = false;
+                    if (!fromFrame && TryHitCurrentDecalImage(root, e.mousePosition, out var imageHit))
+                    {
+                        grabWorld = imageHit.worldPosition;
+                        onImage = true;
+                    }
+                    if (fromFrame || onImage)
+                    {
+                        _imagePressPending = true;
+                        _imagePressStart = e.mousePosition;
+                        _imagePressGrabWorld = grabWorld;
+                        _imagePressFromFrame = fromFrame;
+                        _imageDrag = null;
+                        GUIUtility.hotControl = controlId;
+                        s_capturedControl = controlId;
+                        return;
+                    }
+                }
                 Pick(root, e.mousePosition, forceNew: e.shift, toggleSeed: false);
                 sceneView.Repaint();
                 return;
+            }
+
+            if (_imagePressPending)
+            {
+                // 押したときに掴んだ番号で受ける（Ctrl＋押下と同じ）
+                int pressId = s_capturedControl != 0 ? s_capturedControl : controlId;
+                var type = e.GetTypeForControl(pressId);
+                if (type == EventType.MouseDrag && GUIUtility.hotControl == pressId)
+                {
+                    e.Use();
+                    if (_imageDrag == null && (e.mousePosition - _imagePressStart).magnitude >= RectDragThreshold) BeginImageDrag(root);
+                    if (_imageDrag != null) MoveImage(root, e.mousePosition);
+                    sceneView.Repaint();
+                    return;
+                }
+                // 離し: 先に他の部品が使った（Used）離しも rawType で拾う
+                if ((type == EventType.MouseUp || e.rawType == EventType.MouseUp) && e.button == 0)
+                {
+                    if (GUIUtility.hotControl == pressId) e.Use();
+                    bool moved = _imageDrag != null;
+                    bool fromFrame = _imagePressFromFrame;
+                    var start = _imagePressStart;
+                    // 掴んだマウスを放すと、次のイベントで DrawDecalBox がドラッグの終わり（フル解像度での作り直し）と Undo のまとめを締める
+                    EndPress();
+                    // 動かさずに離した: 画像の上ならふつうのクリック（その編集を選び直す）。シールの枠の中なら、枠の向こうの物は選ばずシールを選んだまま
+                    if (!moved && !fromFrame) Pick(root, start, forceNew: false, toggleSeed: false);
+                    sceneView.Repaint();
+                    return;
+                }
             }
 
             if (_ctrlPressPending)
@@ -386,7 +455,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 {
                     if (GUIUtility.hotControl == pressId) e.Use();
                     bool rect = _rectActive;
-                    EndCtrlPress();
+                    EndPress();
                     if (rect) SelectIslandsInRect(root, sceneView, RectFromPoints(_rectStart, e.mousePosition), _rectStart);
                     else Pick(root, _rectStart, forceNew: _ctrlPressShift, toggleSeed: true);
                     sceneView.Repaint();
@@ -467,7 +536,8 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         }
 
         /// <summary>
-        /// 現在の編集が「画像を入れる」ON なら、Scene に画像の箱（対象ルートのローカル座標）を出す: 移動・回転・拡縮のハンドルと各面のつまみ、
+        /// 現在の編集が「画像を入れる」ON なら、編集の置き方（RecolorEdit.decalSticker）に応じて Scene に画像の箱（対象ルートのローカル座標）の操作部品を出す:
+        /// シールは面の上の枠と四隅・輪のつまみ（DrawStickerFrame / DrawStickerHandles）、箱は移動・回転・拡縮のハンドルと各面のつまみ、
         /// ワイヤーの箱、+Z 面（投影する側）に画像を半透明で描く（DrawGradientBox と同じ流れ）。
         /// ハンドルの操作は Undo 1 回にまとめ（s_boxDrag はグラデーションと共用。同時に 2 つの箱を掴むことはない）、連結なら連結の全編集に同じ箱を入れる
         /// </summary>
@@ -504,10 +574,22 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 Quaternion rotation = Quaternion.Normalize(edit.decalBoxRotation);
                 Vector3 size = edit.decalBoxSize;
 
+                // 置き方がシールなら面の上の枠と四隅・輪のつまみ、箱なら箱とギズモ・面のつまみ（同時には出さない）
+                bool sticker = DecalBox.PlacementOf(edit) == DecalPlacement.Sticker;
+                // シールの枠・つまみは箱の中心ではなく、中心を通る奥行きの線上の選択範囲の一番手前の面に出す（中心は面の上にあるとは限らない）
+                // ドラッグ中は動かしている側が中心を面の上に保つので、描くたびに面を探し直さない
+                var stickerCenter = sticker && !ToolSession.IsDecalBoxDraggingFor(edit) && StickerSurface.TryFindUnderCenter(component, edit, out var onSurface)
+                    ? onSurface : position;
+                // 枠はつまみより先に描く（つまみが枠の線に隠れないように）
+                if (sticker && e.type == EventType.Repaint) DrawStickerFrame(stickerCenter, rotation, size, edit.decalTexture, edit.decalKeepAspect);
                 EditorGUI.BeginChangeCheck();
-                DrawBoxWithFaceHandles(ref position, ref rotation, ref size, s_decalBoxHandle, ref s_decalDragging, ref s_decalDragOrigin, DecalBoxColor);
+                if (sticker) DrawStickerHandles(stickerCenter, ref rotation, ref size, edit.decalTexture, edit.decalKeepAspect, ref s_decalDragging);
+                else DrawBoxWithFaceHandles(ref position, ref rotation, ref size, s_decalBoxHandle, ref s_decalDragging, ref s_decalDragOrigin, DecalBoxColor);
                 if (EditorGUI.EndChangeCheck())
                 {
+                    // シールのつまみを触ったら箱の中心を面の上の点へ移す（同じ Undo。以後は大きさを変えても面が奥行きの真ん中に残る）。
+                    // 中心は奥行きの線に沿って動くだけなので、画像の写る位置は変わらない
+                    if (sticker) position = stickerCenter;
                     if (GUIUtility.hotControl != 0)
                     {
                         if (!s_boxDrag.IsActive) s_boxDrag.Begin("Tocolo: 画像の箱を変更");
@@ -528,8 +610,86 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                     EditorUtility.SetDirty(component);
                 }
 
-                if (e.type == EventType.Repaint) DrawDecalBoxShape(position, rotation, size, edit.decalTexture, edit.decalKeepAspect);
+                if (!sticker && e.type == EventType.Repaint) DrawDecalBoxShape(position, rotation, size, edit.decalTexture, edit.decalKeepAspect);
             }
+        }
+
+        /// <summary>シールの四隅のつまみの大きさ（GetHandleSize に対する割合）</summary>
+        private const float StickerKnobScale = 0.15f;
+        /// <summary>シールの回転の輪の半径（画像の対角線の半分に対する倍率。四隅のつまみの外を通す）</summary>
+        private const float StickerRingScale = 1.15f;
+
+        /// <summary>
+        /// 画像の縦横の半分（箱の縦横から比率を保つ縮みを除いた大きさ）
+        /// </summary>
+        private static Vector2 StickerHalfExtent(Vector3 size, Texture2D image, bool keepAspect)
+        {
+            var fit = DecalLayerBuilder.FitScale(image, size, keepAspect);
+            return new Vector2(Mathf.Abs(size.x) / fit.x, Mathf.Abs(size.y) / fit.y) * 0.5f;
+        }
+
+        /// <summary>
+        /// シールの枠（画像の外形）を面の上の点 position（StickerSurface.TryFindUnderCenter）を中心に描く。Handles.matrix（ルートのローカル）の中で、Repaint のときだけ呼ぶ。
+        /// 手前の物（髪など）に隠れても位置が分かるよう、深度を見ずに描く
+        /// </summary>
+        private static void DrawStickerFrame(Vector3 position, Quaternion rotation, Vector3 size, Texture2D image, bool keepAspect)
+        {
+            var half = StickerHalfExtent(size, image, keepAspect);
+            var previousZTest = Handles.zTest;
+            Handles.zTest = UnityEngine.Rendering.CompareFunction.Always;
+            try
+            {
+                using (new Handles.DrawingScope(DecalBoxColor, Handles.matrix * Matrix4x4.TRS(position, rotation, Vector3.one)))
+                {
+                    var corners = new[]
+                    {
+                        new Vector3(-half.x, -half.y, 0f), new Vector3(half.x, -half.y, 0f),
+                        new Vector3(half.x, half.y, 0f), new Vector3(-half.x, half.y, 0f), new Vector3(-half.x, -half.y, 0f),
+                    };
+                    Handles.DrawAAPolyLine(3f, corners);
+                }
+            }
+            finally
+            {
+                Handles.zTest = previousZTest;
+            }
+        }
+
+        /// <summary>
+        /// シールの四隅のつまみ（大きさ。中心から対角線の向きにだけ動かし、箱を縦横・奥行きとも同じ割合で拡縮する＝比率と反転を保つ）と、
+        /// まわりの輪（面内の回転。箱の +Z のまわり）を、面の上の点 position を中心に描く。Handles.matrix（ルートのローカル）の中で、EditorGUI.BeginChangeCheck の内側で呼ぶ。
+        /// 四隅は画像の面の上だけで動く 2 軸のスライダーにする（3D の矢印では面に沿った方向に動かしにくいため）。
+        /// 輪は画面でのマウスの角度で回す StickerRing（標準の輪は回りすぎ・半周で逆回転する）
+        /// </summary>
+        private static void DrawStickerHandles(Vector3 position, ref Quaternion rotation, ref Vector3 size, Texture2D image, bool keepAspect, ref bool dragging)
+        {
+            var half = StickerHalfExtent(size, image, keepAspect);
+            var previousZTest = Handles.zTest;
+            Handles.zTest = UnityEngine.Rendering.CompareFunction.Always;
+            try
+            {
+                using (new Handles.DrawingScope(DecalBoxColor, Handles.matrix * Matrix4x4.TRS(position, rotation, Vector3.one)))
+                {
+                    for (int i = 0; i < 4; i++)
+                    {
+                        var corner = new Vector3((i & 1) == 0 ? -half.x : half.x, (i & 2) == 0 ? -half.y : half.y, 0f);
+                        if (corner.sqrMagnitude < 1e-12f) continue;
+                        float knob = HandleUtility.GetHandleSize(corner) * StickerKnobScale;
+                        var moved = Handles.Slider2D(corner, Vector3.forward, Vector3.right, Vector3.up, knob, DrawSelectionBoxKnob, Vector2.zero);
+                        if (moved == corner) continue;
+                        // 掴んだ点を対角線に写した位置まで隅が来る割合（スライダーは掴んだ時点からの位置を返すので、毎フレーム今の隅と比べてよい）
+                        size = DecalBox.ScaleSticker(size, Vector3.Dot(moved, corner) / corner.sqrMagnitude);
+                    }
+                }
+
+                float radius = half.magnitude * StickerRingScale;
+                if (radius > 1e-6f) StickerRing.Do(position, rotation * Vector3.forward, radius, ref rotation, DecalBoxColor);
+            }
+            finally
+            {
+                Handles.zTest = previousZTest;
+            }
+            if (GUI.changed && GUIUtility.hotControl != 0) dragging = true;
         }
 
         /// <summary>画像の箱の +Z 面に描く画像の不透明度（下のモデルが透けて見え、貼られる位置が分かる程度。0.6 から半分に: ユーザー要望 2026-10-04）</summary>
@@ -1112,7 +1272,9 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 // 見本色はクリック時に 1 回だけ取る（Repaint ごとに GetPixel しない）
                 ToolSession.LastPickColor = SampleSwatchColor(hit);
                 // lilToon の 2nd／3rd が上に重なっているか（色が変わって見えにくい場所の案内。ユーザー判断 2026-10-01）
-                ToolSession.LayerNotice = LilToonLayerOverlap.Check(hit.material, hit.uv0, hit.uv);
+                var layerNotice = LilToonLayerOverlap.Check(hit.material, hit.uv0, hit.uv);
+                layerNotice.material = hit.material;
+                ToolSession.LayerNotice = layerNotice;
                 ToolSession.LayerNoticeEditId = null;
                 // TexTransTool の効果はプレビューでこの色変えの上に乗らない（アップロード時は乗る）ので案内する
                 ToolSession.TexTransToolNotice = TexTransToolDetector.HasActive(root);
@@ -1150,6 +1312,102 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 // テクスチャの無いマテリアルにだけ当たった（素通りした先に何も無い）ときは、無反応にせず理由を出す
                 if (_pickBlockedByTextureless || _picker.LastSkippedTextureless) ToolSession.ShowTransientNotice("Scene:Panel:NoTextureMaterial");
             }
+        }
+
+        /// <summary>
+        /// mousePosition が、選んでいる編集（連結ならそのメンバー）の画像の上か。範囲の再クリックで画像入りの編集を選ぶときと同じ判定
+        /// （FindEditContaining: 範囲の中で、画像の不透明な所）にして、つかめる所と選び直せる所を揃える
+        /// </summary>
+        private bool TryHitCurrentDecalImage(GameObject root, Vector2 mousePosition, out PickHit hit)
+        {
+            hit = default;
+            var component = root.GetComponent<ClickRecolor>();
+            var edit = component != null ? component.FindEdit(ToolSession.CurrentEditId) : null;
+            if (edit == null || !edit.enabled || !edit.HasDecal) return false;
+            if (_picker == null) _picker = new ScenePicker(); // ドメインリロード直後の保険
+            CollectPickRenderers(root);
+            CollectVisibleRenderers(mousePosition, root, _visibleRenderers);
+            if (!TryPickVisible(_visibleRenderers, HandleUtility.GUIPointToWorldRay(mousePosition), out hit)) return false;
+            var found = FindEditContaining(component, hit);
+            if (found == null || !found.HasDecal) return false;
+            return found == edit || (!string.IsNullOrEmpty(edit.groupId) && found.groupId == edit.groupId);
+        }
+
+        /// <summary>
+        /// mousePosition のレイが、選んでいる編集のシールの枠（Scene に出している面の上の枠。小窓で隠しているときは無し）の中を通るか。
+        /// 通るなら枠の面との交点（ワールド）を grabWorld に入れる
+        /// </summary>
+        private static bool TryHitCurrentStickerFrame(GameObject root, Vector2 mousePosition, out Vector3 grabWorld)
+        {
+            grabWorld = default;
+            var component = root.GetComponent<ClickRecolor>();
+            var edit = component != null ? component.FindEdit(ToolSession.CurrentEditId) : null;
+            if (edit == null || !edit.enabled || !edit.HasDecal || !edit.decalSticker || !ToolSession.ShowsDecalBox(edit)) return false;
+            // 枠を描いている点と同じ（DrawDecalBox）
+            var center = StickerSurface.TryFindUnderCenter(component, edit, out var onSurface) ? onSurface : edit.decalBoxPosition;
+            var half = StickerHalfExtent(edit.decalBoxSize, edit.decalTexture, edit.decalKeepAspect);
+            var ray = HandleUtility.GUIPointToWorldRay(mousePosition);
+            var toRoot = component.transform.worldToLocalMatrix;
+            if (!DecalBox.TryHitStickerFrame(toRoot.MultiplyPoint3x4(ray.origin), toRoot.MultiplyVector(ray.direction), center,
+                    Quaternion.Normalize(edit.decalBoxRotation), half, out var point))
+            {
+                return false;
+            }
+            grabWorld = component.transform.localToWorldMatrix.MultiplyPoint3x4(point);
+            return true;
+        }
+
+        /// <summary>画像を動かし始める（押下で決めた _imagePressGrabWorld を掴んだ点にする）。選んでいる編集が画像入りでなくなっていたら押下を捨てる</summary>
+        private void BeginImageDrag(GameObject root)
+        {
+            var component = root.GetComponent<ClickRecolor>();
+            var edit = component != null ? component.FindEdit(ToolSession.CurrentEditId) : null;
+            if (edit == null || !edit.HasDecal)
+            {
+                EndPress();
+                return;
+            }
+            CollectPickRenderers(root);
+            _imageDrag = DecalSurfaceDrag.Begin(component, edit, _imagePressGrabWorld, _renderers);
+            // 押す前のホバーの丸は、動かしている間は古い位置のままになるので消す
+            ToolSession.HoverPick = null;
+            s_boxDrag.Begin("Tocolo: 画像を動かす");
+            // 箱のギズモのドラッグと同じ表示にする（焼き込みは低解像度、重ね貼りは UV の書き換えで追従。離したら作り直す）
+            ToolSession.BeginDecalBoxDrag(edit, Decal.DecalOverlayMaterial.UseOverlay(component, edit));
+        }
+
+        /// <summary>カーソルの下の面へ画像を動かす（連結なら全メンバーに同じ箱）。範囲の外・何にも当たらないときは動かさない</summary>
+        private void MoveImage(GameObject root, Vector2 mousePosition)
+        {
+            var component = root.GetComponent<ClickRecolor>();
+            var edit = component != null ? component.FindEdit(_imageDrag.EditId) : null;
+            if (edit == null) return;
+            if (!_picker.TryPick(HandleUtility.GUIPointToWorldRay(mousePosition), _imageDrag.Renderers, null, out var hit)) return;
+            if (!_imageDrag.TryMove(component, edit, hit, out var position, out var rotation)) return;
+            Undo.RecordObject(component, "Tocolo: 画像を動かす");
+            EditGroups.ForEachInGroup(component, edit, m =>
+            {
+                m.decalBoxPosition = position;
+                m.decalBoxRotation = rotation;
+            });
+            EditorUtility.SetDirty(component);
+        }
+
+        /// <summary>画像を動かしている途中なら、箱を掴む前の位置に戻す（Esc。同じ Undo のまとめに入る）</summary>
+        private void RestoreImageDragStart()
+        {
+            if (_imageDrag == null || !ToolSession.TryGetActiveRoot(out var root)) return;
+            var component = root.GetComponent<ClickRecolor>();
+            var edit = component != null ? component.FindEdit(_imageDrag.EditId) : null;
+            if (edit == null) return;
+            var drag = _imageDrag;
+            Undo.RecordObject(component, "Tocolo: 画像を動かす");
+            EditGroups.ForEachInGroup(component, edit, m =>
+            {
+                m.decalBoxPosition = drag.StartPosition;
+                m.decalBoxRotation = drag.StartRotation;
+            });
+            EditorUtility.SetDirty(component);
         }
 
         private const int CrosshairSize = 32;
@@ -1343,7 +1601,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         /// クリック・ホバー・矩形選択で当てる Renderer か: Hierarchy 上で有効・enabled・MeshRenderer / SMR で、
         /// Hierarchy の目のマーク（Scene ビューの表示切り替え）で隠されていないもの。そのとき Scene に見えているものだけを選ぶ（ユーザー要望 2026-09-25）
         /// </summary>
-        private static bool IsPickable(Renderer r)
+        internal static bool IsPickable(Renderer r)
         {
             return r != null && r.gameObject.activeInHierarchy && r.enabled && RendererMeshAccess.IsSupported(r)
                 && !SceneVisibilityManager.instance.IsHidden(r.gameObject);
@@ -1648,23 +1906,108 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         private const float DecalImageAlphaThreshold = 0.5f;
 
         /// <summary>
-        /// hit が画像入りの編集 edit の画像の上か: 箱の中で、箱の正面（+Z）を向いた面で、投影した画像の位置の不透明度が DecalImageAlphaThreshold 以上。
+        /// hit が画像入りの編集 edit の画像の上か: 箱の中で、箱の正面（+Z）を向いた面で、画像の長方形の中。置き方が箱なら、さらに投影した画像の位置の
+        /// 不透明度が DecalImageAlphaThreshold 以上（シールは枠の中ならどこでも）。
         /// root は箱の座標の基準（編集を持つコンポーネントの Transform）。画像を CPU で読めなければ（形式など）画像の長方形の中なら画像の上とみなす
         /// </summary>
         internal static bool IsOnDecalImage(Transform root, RecolorEdit edit, in PickHit hit)
         {
             if (root == null || edit == null || !edit.HasDecal) return false;
+            // シールは面に沿った展開で割り付けている（重ね貼りも焼き込みも）ので、当たった所の展開の座標で見る（枠の中ならどこでも画像の上）
+            if (edit.decalSticker)
+            {
+                return Decal.DecalMappings.TryImageUvAt(edit, root, hit, out var stickerUv)
+                    && stickerUv.x >= 0f && stickerUv.x <= 1f && stickerUv.y >= 0f && stickerUv.y <= 1f;
+            }
             var worldToBox = BoxMaskBuilder.RootToBox(edit.decalBoxPosition, edit.decalBoxRotation) * root.worldToLocalMatrix;
             var p = worldToBox.MultiplyPoint3x4(hit.worldPosition);
             var safeSize = DecalLayerBuilder.SafeSize(edit.decalBoxSize);
             var half = new Vector3(Mathf.Abs(safeSize.x), Mathf.Abs(safeSize.y), Mathf.Abs(safeSize.z)) * 0.5f;
-            if (Mathf.Abs(p.x) > half.x || Mathf.Abs(p.y) > half.y || Mathf.Abs(p.z) > half.z) return false;
+            if (Mathf.Abs(p.x) > half.x || Mathf.Abs(p.y) > half.y) return false;
+            // 奥行きは、焼き込みでは点ごとに箱で切るので点で見る。重ね貼り（なめらかに貼る）は箱にかかった三角形を丸ごと描き、
+            // 奥行きの外にはみ出した所にも画像が見えるので、点ではなく当たった三角形が箱にかかるかで見る（見えている画像をクリックして選べるように）
+            if (Mathf.Abs(p.z) > half.z)
+            {
+                var component = root.GetComponent<ClickRecolor>();
+                if (component == null || !Decal.DecalOverlayMaterial.UseOverlayForUi(component, edit) || !HitTriangleTouchesBox(worldToBox, hit, half))
+                {
+                    return false;
+                }
+            }
             // 箱の正面を向いた面にだけ貼られる（DecalProjection.IsFrontFacing）。hit の法線はカメラ側を向けてあるので、見えている面の向き
             if (worldToBox.MultiplyVector(hit.worldNormal).z <= 0f) return false;
             var uv = Decal.DecalProjection.ProjectUv(p, safeSize, DecalLayerBuilder.FitScale(edit.decalTexture, edit.decalBoxSize, edit.decalKeepAspect));
             if (uv.x < 0f || uv.x > 1f || uv.y < 0f || uv.y > 1f) return false;
-            var color = SampleSwatchColor(edit.decalTexture, uv);
-            return !color.HasValue || color.Value.a >= DecalImageAlphaThreshold;
+            // シールは枠（画像の外形）の中ならどこでも画像の上にする（枠で見えている形と判定をそろえる。透明な所に色変えを作るなら Shift＋クリック）
+            if (edit.decalSticker) return true;
+            // 箱は透明な所を画像の外にする（一面に貼ったロゴのすき間で、下の色を変えられるように）
+            var alpha = SampleDecalAlpha(edit.decalTexture, uv);
+            return !alpha.HasValue || alpha.Value >= DecalImageAlphaThreshold;
+        }
+
+        /// <summary>
+        /// 画像の不透明度を読む大きさ（長辺）。見本色と同じ 256 で読むと、細い線や文字が縮小でぼけて、線の上でも透明と判定されていた
+        /// </summary>
+        private const int DecalHitSampleSize = 1024;
+        /// <summary>
+        /// 細い線や縁の少し外でも掴めるように太らせて見る幅（長辺を DecalHitSampleSize にしたときの画素）。
+        /// 読んだ画像の画素で数えない: 小さい画像は縮めずに元の大きさで読むので、8px の画像なら幅の半分まで太り、透明な所も画像の上になる
+        /// </summary>
+        private const int DecalHitDilate = 4;
+        /// <summary>太らせて見る点の間隔（DecalHitDilate と同じ単位）。DecalHitDilate より粗くすると、点の間に 1px の線が落ちて取りこぼす</summary>
+        private const int DecalHitStep = 2;
+
+        /// <summary>画像 image の uv のあたりの不透明度（まわり DecalHitDilate 画素を DecalHitStep 画素おきに見た最大）。CPU で読めなければ null</summary>
+        private static float? SampleDecalAlpha(Texture2D image, Vector2 uv)
+        {
+            if (image == null) return null;
+            using (var source = SourceTextureLoader.Acquire(image, DecalHitSampleSize))
+            {
+                if (source == null || !source.IsValid) return null;
+                var readable = source.Texture;
+                if (!source.IsDirectRead
+                    && (!readable.isReadable || UnityEngine.Experimental.Rendering.GraphicsFormatUtility.IsCrunchFormat(readable.format)))
+                {
+                    return null;
+                }
+                // 長辺を DecalHitSampleSize にしたときの 1 画素を uv にする（縦横の画素の大きさはそろえる）
+                float longSide = Mathf.Max(readable.width, readable.height, 1);
+                float stepU = DecalHitStep * longSide / (DecalHitSampleSize * (float)Mathf.Max(readable.width, 1));
+                float stepV = DecalHitStep * longSide / (DecalHitSampleSize * (float)Mathf.Max(readable.height, 1));
+                const int reach = DecalHitDilate / DecalHitStep;
+                float best = 0f;
+                for (int dy = -reach; dy <= reach; dy++)
+                {
+                    for (int dx = -reach; dx <= reach; dx++)
+                    {
+                        // 端で反対側の画素を拾わないよう 0..1 に丸める（画像の繰り返し設定に関係なく）
+                        var at = new Vector2(Mathf.Clamp01(uv.x + dx * stepU), Mathf.Clamp01(uv.y + dy * stepV));
+                        best = Mathf.Max(best, readable.GetPixelBilinear(at.x, at.y).a);
+                    }
+                }
+                return best;
+            }
+        }
+
+        /// <summary>hit の三角形（今のポーズで焼いた頂点）が、worldToBox で写した箱（中心原点・半分の大きさ half）と交わるか（DecalProjection.TriangleTouchesBox）</summary>
+        private static bool HitTriangleTouchesBox(Matrix4x4 worldToBox, in PickHit hit, Vector3 half)
+        {
+            if (hit.renderer == null || !MeshRaycaster.TryGetMeshData(hit.renderer, out var mesh, out var localToWorld, out bool owns) || mesh == null) return false;
+            try
+            {
+                if (!mesh.isReadable || hit.subMeshIndex < 0 || hit.subMeshIndex >= mesh.subMeshCount) return false;
+                var indices = mesh.GetTriangles(hit.subMeshIndex);
+                int i = hit.triangleIndex * 3;
+                if (i < 0 || i + 2 >= indices.Length) return false;
+                var vertices = mesh.vertices;
+                var toBox = worldToBox * localToWorld;
+                return Decal.DecalProjection.TriangleTouchesBox(
+                    toBox.MultiplyPoint3x4(vertices[indices[i]]), toBox.MultiplyPoint3x4(vertices[indices[i + 1]]), toBox.MultiplyPoint3x4(vertices[indices[i + 2]]), half);
+            }
+            finally
+            {
+                if (owns) Object.DestroyImmediate(mesh);
+            }
         }
 
         /// <summary>root 配下の、プレビューが対象にする Renderer（MeshRenderer / SkinnedMeshRenderer、Hierarchy 上で有効なもの）</summary>
@@ -1686,7 +2029,10 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         /// 部分矩形の ReadPixels は DirectX で y の原点が全体読みと逆になる（実機で確認）ので使わず、
         /// CopyTexture で 1 画素を 1×1 の RT に写してから全体を読む（SeedColorSampler と同じ流儀）
         /// </summary>
-        private static bool IsSelectedAt(RenderTexture mask, Vector2 uv)
+        private static bool IsSelectedAt(RenderTexture mask, Vector2 uv) => MaskValueAt(mask, uv) > 127;
+
+        /// <summary>マスク（R8）の uv の画素の値（0〜255）。読み方は IsSelectedAt の説明のとおり</summary>
+        private static byte MaskValueAt(RenderTexture mask, Vector2 uv)
         {
             int x = Mathf.Clamp(Mathf.FloorToInt(uv.x * mask.width), 0, mask.width - 1);
             int y = Mathf.Clamp(Mathf.FloorToInt(uv.y * mask.height), 0, mask.height - 1);
@@ -1695,7 +2041,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             {
                 // CopyTexture が使えない環境は全体を読む（遅いが向きは正しい）
                 var all = Nekoare.ClickRecolor.Editor.Masks.FloodFill.ReadR8(mask);
-                return all[y * mask.width + x] > 127;
+                return all[y * mask.width + x];
             }
 
             var desc = new RenderTextureDescriptor(1, 1, mask.format, 0)
@@ -1711,7 +2057,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 Graphics.CopyTexture(mask, 0, 0, x, y, 1, 1, region, 0, 0, 0, 0);
                 RenderTexture.active = region;
                 texel.ReadPixels(new Rect(0, 0, 1, 1), 0, 0, false);
-                return texel.GetRawTextureData()[0] > 127;
+                return texel.GetRawTextureData()[0];
             }
             finally
             {
@@ -1885,8 +2231,8 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                     // 案内は初回限定ではなく、表示のたびに右下へ置く
                     if (displayed) PlaceHintAtBottomRight(view, hint);
                 }
-                // 除外リストはボタンで開くので、ツールの終了時に閉じるだけ（小窓「箱を表示」は SyncDisplayed が開く）
-                if (!displayed && view.TryGetOverlay(ExcludeListOverlay.Id, out Overlay exclude)) exclude.displayed = false;
+                // 除外リスト・編集一覧はボタンで開くので、ツールの終了時に閉じるだけ（小窓「表示切替」は SyncDisplayed が開く）
+                if (!displayed) PanelSideOverlay.CloseAll(view);
                 if (!displayed && view.TryGetOverlay(BoxToggleOverlay.Id, out Overlay boxes)) boxes.displayed = false;
             }
         }

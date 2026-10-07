@@ -320,7 +320,6 @@ namespace Nekoare.ClickRecolor.Editor.Inspector
             var nameProp = element.FindPropertyRelative(nameof(RecolorEdit.name));
             var targetColorProp = element.FindPropertyRelative(nameof(RecolorEdit.targetColor));
             var hasTargetProp = element.FindPropertyRelative(nameof(RecolorEdit.hasTarget));
-            var modeProp = element.FindPropertyRelative(nameof(RecolorEdit.mode));
             var idProp = element.FindPropertyRelative(nameof(RecolorEdit.id));
 
             const float gap = 4f;
@@ -363,38 +362,14 @@ namespace Nekoare.ClickRecolor.Editor.Inspector
                 }
             }
 
-            // クリックしたパーツが見つからない編集（連結ならどれか 1 つでも）は、名前の前に警告の印を出す（ユーザー要望 2026-09-29）
-            // テクスチャがアバター内のどのマテリアルにも使われていない編集（マテリアル差し替え・テクスチャ削除）も同じ印で知らせる。
-            // こちらは元に戻せば効くので、「見つからない編集を削除」の対象にはしない（ユーザー判断 2026-10-03）
-            string warnTooltip = null;
-            if (RowHasMissingSeed(index, groupIndices)) warnTooltip = Locales.Tr("Inspector:Edit:MissingTooltip");
-            else
-            {
-                var unused = RowUnusedTexture(index, groupIndices, out bool textureDeleted);
-                if (textureDeleted) warnTooltip = Locales.Tr("Inspector:Edit:TextureMissingTooltip");
-                else if (unused != null) warnTooltip = Locales.Tr("Inspector:Edit:TextureUnusedTooltip", unused.name);
-                // 画像が消えた編集も同じ印で知らせる。画像を入れ直せば効くので「見つからない編集を削除」の対象にはしない
-                else if (RowHasMissingDecal(index, groupIndices)) warnTooltip = Locales.Tr("Inspector:Edit:DecalMissingTooltip");
-            }
+            // クリックしたパーツが見つからない・テクスチャが使われていない・画像が消えた編集（連結ならどれか 1 つでも）は、名前の前に警告の印を出す
+            string warnTooltip = EditRowInfo.WarningTooltip(RowMembers(index, groupIndices), _usedTextures);
             if (warnTooltip != null)
             {
                 const float iconWidth = 18f;
                 var iconRect = new Rect(nameRect.x, y, iconWidth, line);
                 nameRect.xMin += iconWidth;
-                // アイコンを GUI.Label に渡すと描かれないことがあった（実機 2026-09-29）ので、テクスチャを直接描く。
-                // 取れなければ橙の「⚠」を文字で出す
-                var texture = WarnIcon;
-                var square = new Rect(iconRect.x + 1f, iconRect.y + (line - 16f) * 0.5f, 16f, 16f);
-                if (texture != null) GUI.DrawTexture(square, texture, ScaleMode.ScaleToFit);
-                else
-                {
-                    var previous = GUI.contentColor;
-                    GUI.contentColor = new Color(1f, 0.6f, 0.1f);
-                    GUI.Label(iconRect, "\u26A0", EditorStyles.boldLabel);
-                    GUI.contentColor = previous;
-                }
-                // ツールチップ用（文字は空）
-                GUI.Label(iconRect, new GUIContent(string.Empty, warnTooltip));
+                EditRowInfo.DrawWarnIcon(iconRect, warnTooltip);
             }
 
             EditorGUI.BeginChangeCheck();
@@ -424,14 +399,7 @@ namespace Nekoare.ClickRecolor.Editor.Inspector
                 GUI.Label(swatchRect, new GUIContent(string.Empty, Locales.Tr("Inspector:Edit:NoTarget")));
             }
 
-            string modeLabel = (SelectionMode)modeProp.intValue switch
-            {
-                SelectionMode.Color => Locales.Tr("Inspector:Edit:Mode:Color"),
-                SelectionMode.Box => Locales.Tr("Inspector:Edit:Mode:Box"),
-                _ => Locales.Tr("Inspector:Edit:Mode:Island"),
-            };
-            // 「画像を入れる」ON の編集は、範囲の色でなく画像を貼る編集なので、範囲の種類の代わりに「画像」と出す（ユーザー要望 2026-10-04）
-            if (element.FindPropertyRelative(nameof(RecolorEdit.decalEnabled)).boolValue) modeLabel = Locales.Tr("Inspector:Edit:Decal");
+            string modeLabel = EditRowInfo.ModeLabel(GetEdit(index));
             EditorGUI.LabelField(modeRect, modeLabel);
 
             // 開始ボタンと同じ条件で無効化する（Project の Prefab アセット／Play 中）
@@ -443,75 +411,19 @@ namespace Nekoare.ClickRecolor.Editor.Inspector
             }
         }
 
-        /// <summary>警告アイコン（Unity の組み込みアイコン。ダークスキンは d_ 付き）。見つからなければ null</summary>
-        private static Texture WarnIcon
-        {
-            get
-            {
-                if (s_warnIcon != null) return s_warnIcon;
-                foreach (var name in EditorGUIUtility.isProSkin
-                             ? new[] { "d_console.warnicon.sm", "console.warnicon.sm", "d_console.warnicon", "console.warnicon" }
-                             : new[] { "console.warnicon.sm", "console.warnicon" })
-                {
-                    s_warnIcon = EditorGUIUtility.FindTexture(name);
-                    if (s_warnIcon != null) break;
-                }
-                return s_warnIcon;
-            }
-        }
-
-        private static Texture s_warnIcon;
-
         /// <summary>この描画でのアバター内のメインテクスチャ（OnInspectorGUI の最初に取り直す）</summary>
         private HashSet<Texture2D> _usedTextures;
 
-        /// <summary>
-        /// 行 index（連結なら groupIndices の全編集）で、アバター内のどのマテリアルも使っていないテクスチャ（最初の 1 つ）。
-        /// テクスチャ自体が無い（削除された）編集があれば textureDeleted = true。どちらも無ければ null
-        /// </summary>
-        private Texture2D RowUnusedTexture(int index, List<int> groupIndices, out bool textureDeleted)
+        /// <summary>行 index の編集（連結なら groupIndices の全編集）</summary>
+        private IEnumerable<RecolorEdit> RowMembers(int index, List<int> groupIndices)
         {
-            textureDeleted = false;
-            if (_usedTextures == null) return null;
-            IEnumerable<int> indices = groupIndices ?? (IEnumerable<int>)new[] { index };
-            foreach (int i in indices)
+            if (groupIndices == null)
             {
-                var edit = GetEdit(i);
-                if (edit == null || !edit.IsKept) continue;
-                if (edit.sourceTexture == null)
-                {
-                    textureDeleted = true;
-                    return null;
-                }
-                if (!_usedTextures.Contains(edit.sourceTexture)) return edit.sourceTexture;
+                yield return GetEdit(index);
+                yield break;
             }
-            return null;
+            foreach (int i in groupIndices) yield return GetEdit(i);
         }
-
-        /// <summary>行 index（連結なら groupIndices の全編集）に、クリックしたパーツが見つからない編集があるか</summary>
-        private bool RowHasMissingSeed(int index, List<int> groupIndices)
-        {
-            if (groupIndices == null) return Pipeline.RecolorPipeline.IsSeedMissing(GetEdit(index));
-            foreach (int i in groupIndices)
-            {
-                if (Pipeline.RecolorPipeline.IsSeedMissing(GetEdit(i))) return true;
-            }
-            return false;
-        }
-
-        /// <summary>行 index（連結なら groupIndices の全編集）に、「画像を入れる」ON で画像が削除された編集があるか</summary>
-        private bool RowHasMissingDecal(int index, List<int> groupIndices)
-        {
-            if (groupIndices == null) return IsDecalMissing(GetEdit(index));
-            foreach (int i in groupIndices)
-            {
-                if (IsDecalMissing(GetEdit(i))) return true;
-            }
-            return false;
-        }
-
-        private static bool IsDecalMissing(RecolorEdit edit) =>
-            edit != null && edit.HasMissingDecal;
 
         /// <summary>
         /// 標準の削除に加え、消した編集がパネルで選ばれていれば選択を外す。

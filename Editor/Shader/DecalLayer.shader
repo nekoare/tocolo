@@ -5,13 +5,16 @@
 // 三角形の外の塗り残しは (0,0,0,0)）。
 // ARGBHalf の RT に書く前提。乗算済みで重ねるのは、UV が重なっても α が 1 を超えず正しい over 合成になるようにするため。
 // DecalLayerBuilder.Build の最後に縁埋め（CSDilate）→ CSFinalize（DecalDilate.compute）で割り戻し、層はストレート α で返す。
-// 裏面カリングは UV 空間では判定できないので、ここでは行わない（DecalLayerBuilder が表の三角形だけを渡す）
+// 裏面カリングは UV 空間では判定できないので、ここでは行わない（DecalLayerBuilder が表の三角形だけを渡す）。
+// _UseImageUv が 1 なら（置き方がシール）、箱からは投影せず、頂点ごとに C# で求めた面に沿った展開の画像の座標（TEXCOORD1。比率の縮みも済み）を使い、
+// 箱の奥行きでも切らない（描く三角形は DecalLayerBuilder が展開の届いた所だけに絞る）
 Shader "Hidden/ClickRecolor/DecalLayer"
 {
     Properties
     {
         _MainTex ("Decal", 2D) = "white" {}
         _UvScaleOffset ("UV Scale (xy) / Offset (zw)", Vector) = (1, 1, 0, 0)
+        _UseImageUv ("Use Image UV", Float) = 0
     }
     SubShader
     {
@@ -39,6 +42,7 @@ Shader "Hidden/ClickRecolor/DecalLayer"
             float3 _BoxSize;            // 箱の大きさ（符号付き。負なら反転。各成分の絶対値は C# 側で 1e-5 以上にしてある）
             float2 _FitScale;           // 比率を保つための拡大（(1,1) なら引き伸ばし）
             float4 _UvScaleOffset;
+            float _UseImageUv;
 
             // 描いた画素の α の下限（DecalDilate.compute の CoverageFloor と揃えること）
             static const float CoverageFloor = 1.0 / 1024.0;
@@ -47,12 +51,14 @@ Shader "Hidden/ClickRecolor/DecalLayer"
             {
                 float4 vertex : POSITION;
                 float2 uv : TEXCOORD0;
+                float2 imageUv : TEXCOORD1;
             };
 
             struct v2f
             {
                 float4 pos : SV_POSITION;
                 float3 box : TEXCOORD0;
+                float2 imageUv : TEXCOORD1;
             };
 
             v2f vert(appdata v)
@@ -65,6 +71,7 @@ Shader "Hidden/ClickRecolor/DecalLayer"
                 #endif
                 float3 local = mul(_RootWorldToLocal, mul(unity_ObjectToWorld, float4(v.vertex.xyz, 1.0))).xyz;
                 o.box = mul(_RootToBox, float4(local, 1.0)).xyz;
+                o.imageUv = v.imageUv;
                 return o;
             }
 
@@ -74,11 +81,12 @@ Shader "Hidden/ClickRecolor/DecalLayer"
                 float3 size = sign(_BoxSize) * max(abs(_BoxSize), 1e-5);
                 float2 uv = float2(0.5 - i.box.x / size.x, i.box.y / size.y + 0.5);
                 uv = (uv - 0.5) * _FitScale + 0.5;
+                if (_UseImageUv > 0.5) uv = i.imageUv;
                 // 箱の外・比率で余った所は clip せず「描いた印」（色なし・α = CoverageFloor、画像の透明な部分と同じ）を書く。
                 // clip すると未描画（α = 0）になり、(a) 縁埋め（CSDilate）が箱の縁の画像を外へ 2 テクセル広げて太らせ、
                 // (b) スーパーサンプリングで縮めた箱の縁の中間 α の外側を、縁埋めが近傍の不透明な色で埋め直して階段に戻してしまう。
                 // 印は CSFinalize で 0 に落ちる。未描画のまま残るのは三角形の外（チャートの縁の塗り残し）だけになる
-                bool inBox = all(abs(i.box) <= halfSize);
+                bool inBox = _UseImageUv > 0.5 || all(abs(i.box) <= halfSize);
                 bool inImage = all(uv >= 0.0) && all(uv <= 1.0);
                 if (!(inBox && inImage)) return float4(0.0, 0.0, 0.0, CoverageFloor);
                 // 画像が sRGB 資産なら sampler が線形に戻す（Linear 色空間前提）。RT は線形（sRGB フラグ無し）なのでそのまま書く

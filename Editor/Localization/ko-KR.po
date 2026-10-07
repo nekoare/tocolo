@@ -219,6 +219,30 @@ msgstr "제외 목록"
 msgid "Scene:Panel:ExcludeListCount"
 msgstr "제외 목록 ({0})"
 
+msgid "Scene:Panel:Settings"
+msgstr "설정"
+
+msgid "Scene:Panel:SettingsChanged"
+msgstr "설정 (변경됨)"
+
+msgid "Scene:Box:SelectionRange"
+msgstr "선택 범위"
+
+msgid "Scene:Panel:EditList"
+msgstr "편집 목록"
+
+msgid "Scene:Panel:EditListCount"
+msgstr "편집 목록 ({0})"
+
+msgid "Scene:EditList:Caption"
+msgstr "누르면 그 편집을 선택해요"
+
+msgid "Scene:EditList:Empty"
+msgstr "아직 편집이 없어요"
+
+msgid "Scene:EditList:Unnamed"
+msgstr "이름 없음"
+
 msgid "Scene:Exclude:DropHere"
 msgstr "Hierarchy에서 GameObject를 여기에 드롭(선택하지 않을 파츠로 등록, Renderer 단위)"
 
@@ -294,8 +318,8 @@ msgstr "원하는 색과 달라져요. lilToon의 색조 보정(HSVG) 또는 그
 msgid "Scene:Panel:MainColorTint"
 msgstr "원하는 색과 달라져요. 머티리얼 색(Color)이 흰색이 아니라서 곱해져요."
 
-msgid "Scene:Panel:ShowRange"
-msgstr "범위 표시"
+msgid "Scene:Panel:OpenMaterial"
+msgstr "머티리얼 열기"
 
 msgid "Scene:Panel:UseSelection"
 msgstr "선택 중: {0}"
@@ -335,6 +359,9 @@ msgstr "Ctrl+드래그로 범위 내 파츠 일괄 추가"
 
 msgid "Scene:Panel:RectHint:Select"
 msgstr "Ctrl+드래그로 범위 내 파츠 일괄 선택"
+
+msgid "Scene:Panel:DecalDragHint"
+msgstr "이미지를 드래그하여 표면을 따라 이동"
 
 msgid "Scene:Panel:PerSeedStats"
 msgstr "각 점의 색 맞추기"
@@ -454,7 +481,10 @@ msgid "Scene:Color:GradientResetTooltip"
 msgstr "색 2와 박스를 켠 직후의 상태로 되돌려요"
 
 msgid "Scene:Color:DecalResetTooltip"
-msgstr "박스를 범위를 감싸는 위치에 다시 놓아요(이미지와 상세 설정은 그대로)"
+msgstr "박스를 범위를 감싸는 위치에 다시 놓아요(이미지와 설정은 그대로)"
+
+msgid "Scene:Color:DecalResetTooltip:Sticker"
+msgstr "처음 클릭한 곳에 면 방향, 기본 크기로 다시 놓아요(이미지와 설정은 그대로)"
 
 msgid "Scene:Box:Gradient"
 msgstr "그라데이션"
@@ -469,16 +499,25 @@ msgid "Scene:Color:Decal"
 msgstr "이미지 넣기"
 
 msgid "Help:Decal"
-msgstr "켜면 Scene에 박스가 나타나고, 박스의 정면(이미지가 그려진 면)에서 이미지를 표면에 붙여요. 이 편집의 선택 범위 안에만 붙어요. 켜져 있는 동안 색·음영·불투명도·그라데이션 설정은 범위가 아니라 이미지에 적용돼요. 박스 표시는 패널 옆의 작은 창에서 바꿀 수 있어요. '박스 방향 맞추기'로 클릭한 곳의 면 방향에 박스를 맞출 수 있어요."
+msgstr "켜면 이 편집의 선택 범위 안에 이미지를 붙여요. 설정의 '박스로 붙이기'를 켜면 박스에서 똑바로 비춰 붙이는 방식이 돼요. 켜져 있는 동안 색·음영·불투명도·그라데이션 설정은 범위가 아니라 이미지에 적용돼요. Scene에서 이미지를 드래그하면 표면을 따라 옮길 수 있어요(스티커는 면을 향한 채로 움직여요). 핸들 표시는 패널 옆의 작은 창에서 바꿀 수 있어요."
 
-msgid "Scene:Color:DecalAlignBox"
-msgstr "박스 방향 맞추기"
+msgid "Scene:Color:DecalStickerCaption"
+msgstr "클릭한 곳에 스티커처럼 붙여요. 이미지를 드래그해 옮기고, 네 모서리로 크기, 링으로 회전을 바꿀 수 있어요."
 
-msgid "Scene:Color:DecalAlignBoxTooltip"
-msgstr "클릭한 곳의 면 방향으로 박스를 맞춰요(크기는 그대로, 박스 중심을 면 위로 옮겨요)"
+msgid "Scene:Color:DecalBoxMode"
+msgstr "박스로 붙이기"
 
-msgid "Scene:Color:DecalAlignFailed"
-msgstr "면의 방향을 정하지 못했어요. 범위가 너무 작거나 평평한 면이 아니에요"
+msgid "Help:DecalPlacement"
+msgstr "켜면 스티커처럼 면을 따라 붙이는 대신, 박스 정면에서 똑바로 비춰 붙여요(평행 투영). 박스의 기즈모와 면 핸들로 깊이·가로세로 크기·반전·방향을 세밀하게 정할 수 있어요. 넥타이 전체처럼 범위 가득 붙이거나, 떨어진 파츠에 걸쳐 붙이고 싶을 때 써요. 편집마다 기억해요(새로 이미지를 넣는 편집은 꺼진 상태로 시작해요). 끄면 이미지 크기는 그대로 두고, 중심을 면 위로 옮겨 면을 향하게 해요. 이미지를 다시 선택할 때는 꺼져 있으면 테두리 안 어디든, 켜져 있으면 이미지의 투명하지 않은 곳을 클릭해요. 패널 옆 작은 창의 [이미지]로 핸들을 보이거나 숨길 수 있어요."
+
+msgid "Scene:Color:DecalBoxCaption"
+msgstr "청록색 박스 안의 면에 박스 정면에서 이미지를 똑바로 비춰 붙여요."
+
+msgid "Scene:Color:DecalFollowSurface"
+msgstr "방향도 면에 맞추기"
+
+msgid "Help:DecalFollowSurface"
+msgstr "켜면 이미지를 드래그할 때 박스 방향도 커서 아래 면에 맞춰요. 끄면 비추는 방향은 그대로 두고 위치만 옮겨요(정면에서 비춘 채로 미끄러뜨리고 싶을 때). 박스로 붙일 때만 쓰는 설정이에요."
 
 msgid "Scene:Color:DecalSmooth"
 msgstr "매끄럽게 붙이기(lilToon·Poiyomi)"
@@ -500,9 +539,6 @@ msgstr "비율 유지"
 
 msgid "Help:DecalKeepAspect"
 msgstr "켜면 이미지 비율을 유지해 박스에 맞춰요. 끄면 박스의 XY에 맞게 늘려요."
-
-msgid "Scene:Color:DecalAdvanced"
-msgstr "고급 설정"
 
 msgid "Scene:Color:GradientPreview"
 msgstr "색 1 → 색 2"

@@ -169,6 +169,39 @@ namespace Nekoare.ClickRecolor.Tests
         }
 
         [Test]
+        public void 範囲の外へ出た印はそのドラッグの間だけ立ち_同じドラッグの呼び直しでは消えない()
+        {
+            var edit = RecolorEdit.CreateNew();
+            ToolSession.RequestDecalDragFullCopy();
+            Assert.That(ToolSession.DecalDragNeedsFullCopy, Is.False, "ドラッグしていなければ立たない");
+
+            ToolSession.BeginDecalBoxDrag(edit, overlay: true);
+            ToolSession.RequestDecalDragFullCopy();
+            ToolSession.BeginDecalBoxDrag(edit, overlay: true);
+            Assert.That(ToolSession.DecalDragNeedsFullCopy, Is.True, "同じドラッグの呼び直しでは消えない");
+
+            ToolSession.EndDecalBoxDrag();
+            Assert.That(ToolSession.DecalDragNeedsFullCopy, Is.False);
+            ToolSession.BeginDecalBoxDrag(edit, overlay: true);
+            Assert.That(ToolSession.DecalDragNeedsFullCopy, Is.False, "次のドラッグは立っていない状態で始まる");
+        }
+
+        [Test]
+        public void 重ね貼りのドラッグ中は箱を動かしても置き方のハッシュは変わらず_範囲の外へ出た印で変わる()
+        {
+            var edit = RecolorEdit.CreateNew();
+            edit.decalEnabled = true;
+            ToolSession.BeginDecalBoxDrag(edit, overlay: true);
+            int before = Nekoare.ClickRecolor.Editor.NDMF.RecolorPreview.HashEditPlacement(17, edit);
+
+            edit.decalBoxPosition += Vector3.right;
+            Assert.That(Nekoare.ClickRecolor.Editor.NDMF.RecolorPreview.HashEditPlacement(17, edit), Is.EqualTo(before));
+
+            ToolSession.RequestDecalDragFullCopy();
+            Assert.That(Nekoare.ClickRecolor.Editor.NDMF.RecolorPreview.HashEditPlacement(17, edit), Is.Not.EqualTo(before));
+        }
+
+        [Test]
         public void Clear_で_DecalBoxDragging_が_false_になる()
         {
             ToolSession.BeginDecalBoxDrag(new RecolorEdit());

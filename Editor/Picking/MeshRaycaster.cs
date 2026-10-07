@@ -151,7 +151,7 @@ namespace Nekoare.ClickRecolor.Editor.Picking
                     Vector2 uv1 = uvs[triangles[i + 1]];
                     Vector2 uv2 = uvs[triangles[i + 2]];
 
-                    Vector3 normal = Vector3.Cross(v1 - v0, v2 - v0).normalized;
+                    Vector3 normal = UnitNormal(v0, v1, v2);
                     if (Vector3.Dot(normal, ray.direction) > 0f) normal = -normal;
 
                     results.Add(new RaycastHit
@@ -205,7 +205,7 @@ namespace Nekoare.ClickRecolor.Editor.Picking
                     Vector2 uv1 = uvs[triangles[i + 1]];
                     Vector2 uv2 = uvs[triangles[i + 2]];
 
-                    Vector3 normal = Vector3.Cross(v1 - v0, v2 - v0).normalized;
+                    Vector3 normal = UnitNormal(v0, v1, v2);
                     if (Vector3.Dot(normal, ray.direction) > 0f) normal = -normal; // レイ側を向ける
 
                     bestDistance = distance;
@@ -228,6 +228,18 @@ namespace Nekoare.ClickRecolor.Editor.Picking
         }
 
         /// <summary>Möller–Trumbore（両面判定）。u, v は v1, v2 のバリセントリック係数。</summary>
+        /// <summary>
+        /// 三角形（v0, v1, v2）の単位法線（Cross(v1 - v0, v2 - v0) の向き。面積 0 ならゼロ）。
+        /// Vector3.normalized は長さが 1e-5 未満だとゼロを返すので、外積（面積の 2 倍）をそのまま正規化すると、
+        /// 顔の目元のような面積が数 mm² の三角形で向きが消える。長さで割って求める
+        /// </summary>
+        public static Vector3 UnitNormal(Vector3 v0, Vector3 v1, Vector3 v2)
+        {
+            var n = Vector3.Cross(v1 - v0, v2 - v0);
+            float length = n.magnitude;
+            return length > 0f ? n / length : Vector3.zero;
+        }
+
         public static bool IntersectTriangle(Ray ray, Vector3 v0, Vector3 v1, Vector3 v2,
             out float distance, out float u, out float v)
         {
