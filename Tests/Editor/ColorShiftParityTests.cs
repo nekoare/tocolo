@@ -327,6 +327,43 @@ namespace Nekoare.ClickRecolor.Tests
         }
 
         [Test]
+        public void 真っ黒の画素も目標の色になり_GPU_と_CPU_が一致する()
+        {
+            // RGB がちょうど 0 の画素は Oklab の a・b もちょうど 0 になる（色相の atan2(0, 0) は GPU で NaN になりうる）。
+            // 選択が真っ黒だけのとき（L の p05 = p95 = 0、加算オフセットのみ）を通す
+            var src = new Color[Size * Size];
+            for (int i = 0; i < src.Length; i++) src[i] = new Color(0f, 0f, 0f, 1f);
+            var mask = new byte[Size * Size];
+            for (int i = 0; i < mask.Length; i++) mask[i] = 255;
+            var srcTex = MakeSource(src);
+            var maskTex = MakeMask(mask);
+
+            foreach (var target in Targets)
+            {
+                var p = Params(target, 0f, 0f);
+                var gpu = RunGpu(srcTex, maskTex, p);
+                for (int i = 0; i < gpu.Length; i++)
+                {
+                    bool finite = IsFinite(gpu[i].r) && IsFinite(gpu[i].g) && IsFinite(gpu[i].b);
+                    Assert.That(finite, Is.True, $"目標{target} 画素{i}のGPU出力 = ({gpu[i].r}, {gpu[i].g}, {gpu[i].b})");
+                }
+                AssertParity(src, mask, gpu, p);
+            }
+
+            // 色相を残さなければ、真っ黒は目標の色そのものになる（赤で確認）
+            var red = Targets[0];
+            var plain = Params(red, 0f, 0f);
+            plain.hueRetain = 0f;
+            var result = RunGpu(srcTex, maskTex, plain)[0];
+            Color resultSrgb = OklabConverter.LinearToSRGB(new Vector3(result.r, result.g, result.b));
+            Assert.That(resultSrgb.r, Is.EqualTo(red.r).Within(SrgbTolerance), "赤のR");
+            Assert.That(resultSrgb.g, Is.EqualTo(red.g).Within(SrgbTolerance), "赤のG");
+            Assert.That(resultSrgb.b, Is.EqualTo(red.b).Within(SrgbTolerance), "赤のB");
+        }
+
+        private static bool IsFinite(float v) => !float.IsNaN(v) && !float.IsInfinity(v);
+
+        [Test]
         public void アルファは変えない()
         {
             var src = RandomLinearPixels(4);

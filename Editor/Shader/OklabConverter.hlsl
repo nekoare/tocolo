@@ -78,9 +78,12 @@ float3 OklabToLinearRGB(float3 lab)
 }
 
 // Oklab <-> OKLCh （h はラジアン）
+// 彩度 0（RGB がちょうど 0 の黒など）では atan2(0, 0) が GPU で NaN になり、色変えの結果が最後の saturate で 0（黒のまま）になる。
+// 色相は 0 に決める（CPU の Mathf.Atan2(0, 0) と同じ値）
 float3 OklabToOklch(float3 lab)
 {
-    return float3(lab.x, sqrt(lab.y * lab.y + lab.z * lab.z), atan2(lab.z, lab.y));
+    float c = sqrt(lab.y * lab.y + lab.z * lab.z);
+    return float3(lab.x, c, c > 0.0 ? atan2(lab.z, lab.y) : 0.0);
 }
 
 float3 OklchToOklab(float3 lch)
