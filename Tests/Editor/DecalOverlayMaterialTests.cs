@@ -192,6 +192,31 @@ namespace Nekoare.ClickRecolor.Tests
         }
 
         [Test]
+        public void 名前にlilToonが無くても_lilToonから作ったカスタムシェーダーなら同じ判定にする()
+        {
+            Assert.That(DecalOverlayMaterial.IsLilToonShaderName("Hidden/Custom/OpaqueOutline", true), Is.True);
+            Assert.That(DecalOverlayMaterial.IsLilToonShaderName("Hidden/Custom/Cutout", true), Is.True);
+            Assert.That(DecalOverlayMaterial.IsLilToonShaderName("Hidden/Custom/OpaqueOutline", false), Is.False, "lilToon から作ったと分からなければ対象外のまま");
+            Assert.That(DecalOverlayMaterial.IsLilToonShaderName("Hidden/Custom/Gem", true), Is.False);
+            Assert.That(DecalOverlayMaterial.IsLilToonShaderName("Hidden/Custom/Refraction", true), Is.False);
+            Assert.That(DecalOverlayMaterial.IsLilToonShaderName("Hidden/Locked/Custom/abc123", true), Is.False, "ロック済みは対象外のまま");
+
+            Assert.That(DecalOverlayMaterial.IsLilToonShaderName("Custom/[Optional] FakeShadow", true), Is.False);
+            Assert.That(DecalOverlayMaterial.IsIgnorableLilToonAuxiliaryShaderName("Custom/[Optional] FakeShadow", true), Is.True);
+            Assert.That(DecalOverlayMaterial.IsIgnorableLilToonAuxiliaryShaderName("Custom/[Optional] FakeShadow", false), Is.False);
+            Assert.That(DecalOverlayMaterial.IsIgnorableLilToonAuxiliaryShaderName("Hidden/Custom/OpaqueOutline", true), Is.False);
+        }
+
+        [Test]
+        public void lilToonから作ったシェーダーかはlilToonのバージョンのプロパティで見分ける()
+        {
+            var shader = FindLilToonOrIgnore();
+            Assert.That(DecalOverlayMaterial.HasLilToonVersion(shader), Is.True);
+            Assert.That(DecalOverlayMaterial.HasLilToonVersion(Shader.Find("Standard")), Is.False);
+            Assert.That(DecalOverlayMaterial.HasLilToonVersion(null), Is.False);
+        }
+
+        [Test]
         public void lilToon_のマテリアルを透過の重ね貼り用に複製する()
         {
             var shader = FindLilToonOrIgnore();
@@ -303,6 +328,41 @@ namespace Nekoare.ClickRecolor.Tests
             Assert.That(clone.GetFloat("_TransparentMode"), Is.EqualTo(2f), "Multi は _TransparentMode で透過を決める");
             Assert.That(clone.renderQueue, Is.GreaterThanOrEqualTo(2450));
             Assert.That(original.GetFloat("_TransparentMode"), Is.EqualTo(0f), "元は変わらない");
+        }
+
+        [Test]
+        public void カスタムシェーダーのInspectorが透過版の参照を差し替えたままでも_lilToonの透過版で作る()
+        {
+            var shader = FindLilToonOrIgnore();
+            if (!DecalOverlayMaterial.IsApiAvailable) Assert.Ignore("lilToon の API が見つからない環境です");
+            var transparentField = FindLilToonType("lilToon.lilShaderManager")?.GetField("ltst",
+                System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public);
+            if (transparentField == null) Assert.Ignore("この lilToon には lilShaderManager.ltst がありません");
+
+            // カスタムシェーダーの Inspector を開いた後と同じく、透過版の参照が lilToon 以外の名前のシェーダーを指している
+            var saved = transparentField.GetValue(null);
+            transparentField.SetValue(null, Shader.Find("Standard"));
+            try
+            {
+                var clone = DecalOverlayMaterial.Create(Track(new Material(shader)), Track(new Texture2D(8, 8)));
+                Assert.That(clone, Is.Not.Null);
+                Track(clone);
+                Assert.That(clone.shader.name, Is.EqualTo("Hidden/lilToonTransparent"));
+            }
+            finally
+            {
+                transparentField.SetValue(null, saved);
+            }
+        }
+
+        private static System.Type FindLilToonType(string fullName)
+        {
+            foreach (var assembly in System.AppDomain.CurrentDomain.GetAssemblies())
+            {
+                var type = assembly.GetType(fullName, false);
+                if (type != null) return type;
+            }
+            return null;
         }
 
         [Test]

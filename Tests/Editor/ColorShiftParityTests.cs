@@ -364,6 +364,36 @@ namespace Nekoare.ClickRecolor.Tests
         private static bool IsFinite(float v) => !float.IsNaN(v) && !float.IsInfinity(v);
 
         [Test]
+        public void 灰色の画素は色相を残しても目標の色相になり_GPU_と_CPU_が一致する()
+        {
+            // 灰色・白・黒の色相は丸め誤差で決まるでたらめな向き（ちょうど灰色なら 0）なので、色相を残すと明るさごとに
+            // 色相が跳ぶ色ムラになる。彩度の無い画素は色相を残さず目標の色相にそろえる
+            var src = new Color[Size * Size];
+            for (int i = 0; i < src.Length; i++)
+            {
+                Vector3 lin = OklabConverter.SRGBToLinear(new Color(0.2f + 0.7f * i / (src.Length - 1), 0f, 0f));
+                src[i] = new Color(lin.x, lin.x, lin.x, 1f);
+            }
+            var mask = new byte[Size * Size];
+            for (int i = 0; i < mask.Length; i++) mask[i] = 255;
+
+            var red = Targets[0];
+            var p = Params(red, 0.25f, 0.85f);
+            p.hueRetain = 0.5f;
+            float targetHue = OklabConverter.SRGBToOklch(red).z;
+
+            var gpu = RunGpu(MakeSource(src), MakeMask(mask), p);
+            AssertParity(src, mask, gpu, p);
+            for (int i = 0; i < src.Length; i++)
+            {
+                Color cpu = ColorShiftCpu.ShiftLinear(src[i], 1f, p);
+                float hue = OklabConverter.SRGBToOklch(OklabConverter.LinearToSRGB(new Vector3(cpu.r, cpu.g, cpu.b))).z;
+                float distance = Mathf.Abs(OklabConverter.WrapHueRadians(hue - targetHue));
+                Assert.That(distance, Is.LessThan(0.06f), $"画素{i}の色相 {hue:F3}（目標 {targetHue:F3}）");
+            }
+        }
+
+        [Test]
         public void アルファは変えない()
         {
             var src = RandomLinearPixels(4);

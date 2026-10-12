@@ -181,13 +181,26 @@ namespace Nekoare.ClickRecolor.Editor.Colors
             // C: 目標の彩度へ寄せる（chromaToTarget = 0 なら元のまま）
             float newC = Mathf.Max(0f, LerpUnclamped(lch.y, targetC, p.chromaToTarget));
 
-            // h: 目標色相に統一。hueRetain > 0 なら代表色相からの差を一部残す
+            // h: 目標色相に統一。hueRetain > 0 なら代表色相からの差を一部残す（残す量は元の彩度で弱める。HueRetainWeight）
             float newH = OklabConverter.WrapHueRadians(
-                targetH + OklabConverter.WrapHueRadians(lch.z - p.hDominant) * p.hueRetain);
+                targetH + OklabConverter.WrapHueRadians(lch.z - p.hDominant) * p.hueRetain * HueRetainWeight(lch.y));
 
             // ガマット外は L と h を保って C だけ縮める。戻り値は sRGB なので線形に戻す
             Color srgb = OklabConverter.OklchToSRGBGamutMapped(new Vector3(newL, newC, newH));
             return OklabConverter.SRGBToLinear(srgb);
+        }
+
+        /// <summary>この彩度（Oklab の C）以上の画素は、代表色相からの差をそのまま残す。それ未満は 0 へ滑らかに弱める</summary>
+        private const float HueRetainChromaRange = 0.02f;
+
+        /// <summary>
+        /// 色相を残す量の、元の彩度による重み（0〜1。ColorShift.compute の HueRetainWeight と同じ式）。
+        /// 灰色・白・黒の色相は丸め誤差で決まるでたらめな向きで、C は目標の彩度へ寄せられるので、残すと明るさごとに色相が跳ぶ色ムラになる
+        /// </summary>
+        private static float HueRetainWeight(float chroma)
+        {
+            float t = Mathf.Clamp01(chroma / HueRetainChromaRange);
+            return t * t * (3f - 2f * t);
         }
 
         /// <summary>

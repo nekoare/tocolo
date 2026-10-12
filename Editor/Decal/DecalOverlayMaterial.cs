@@ -64,7 +64,7 @@ namespace Nekoare.ClickRecolor.Editor.Decal
         /// <summary>重ね貼りの対象にできる lilToon のマテリアルか（IsLilToonShaderName）</summary>
         internal static bool IsLilToon(Material m)
         {
-            return m != null && m.shader != null && IsLilToonShaderName(m.shader.name);
+            return m != null && m.shader != null && IsLilToonShaderName(m.shader.name, HasLilToonVersion(m.shader));
         }
 
         /// <summary>
@@ -73,32 +73,43 @@ namespace Nekoare.ClickRecolor.Editor.Decal
         /// </summary>
         internal static bool IsIgnorableLilToonAuxiliary(Material m)
         {
-            return m != null && m.shader != null && IsIgnorableLilToonAuxiliaryShaderName(m.shader.name);
+            return m != null && m.shader != null && IsIgnorableLilToonAuxiliaryShaderName(m.shader.name, HasLilToonVersion(m.shader));
+        }
+
+        /// <summary>
+        /// lilToon から作ったシェーダーか（lilToon 自身がマテリアルを見分けるのと同じく _lilToonVersion の有無で見る）。
+        /// 名前だけでは見分けられない: lilToon のカスタムシェーダーは名前を自由に付けられ、lilToon を含まないものがある
+        /// </summary>
+        internal static bool HasLilToonVersion(Shader shader)
+        {
+            return shader != null && shader.FindPropertyIndex("_lilToonVersion") >= 0;
         }
 
         /// <summary>
         /// シェーダー名で、重ね貼りの対象にできる lilToon かを判定する。テストでシェーダーを作らずに確かめるため名前で受ける。
+        /// hasLilToonVersion（HasLilToonVersion）なら名前に lilToon が無いカスタムシェーダーも lilToon として扱う。
         /// ロック済み・Gem・Refraction は透過版にすると見た目が別物になる（Gem/Refraction は専用パス）ので除く。
         /// FakeShadow・Overlay・FurOnly も対象にはしない（IsIgnorableLilToonAuxiliaryShaderName で無視する）。Fur は透過版で本体の見た目が保てるので対象
         /// </summary>
-        internal static bool IsLilToonShaderName(string shaderName)
+        internal static bool IsLilToonShaderName(string shaderName, bool hasLilToonVersion = false)
         {
-            if (!IsUnlockedLilToonShaderName(shaderName)) return false;
+            if (!IsUnlockedLilToonShaderName(shaderName, hasLilToonVersion)) return false;
             if (ContainsAfterLastSeparator(shaderName, "Gem")) return false;
             if (ContainsAfterLastSeparator(shaderName, "Refraction")) return false;
             return !IsAuxiliaryName(shaderName);
         }
 
-        internal static bool IsIgnorableLilToonAuxiliaryShaderName(string shaderName)
+        internal static bool IsIgnorableLilToonAuxiliaryShaderName(string shaderName, bool hasLilToonVersion = false)
         {
-            return IsUnlockedLilToonShaderName(shaderName) && IsAuxiliaryName(shaderName);
+            return IsUnlockedLilToonShaderName(shaderName, hasLilToonVersion) && IsAuxiliaryName(shaderName);
         }
 
-        private static bool IsUnlockedLilToonShaderName(string shaderName)
+        private static bool IsUnlockedLilToonShaderName(string shaderName, bool hasLilToonVersion)
         {
             if (string.IsNullOrEmpty(shaderName)) return false;
+            // ロック済み版は元のプロパティ（_lilToonVersion を含みうる）を残したまま中身が固定されるので、プロパティより先に名前で除く
             if (shaderName.StartsWith(LockedPrefix, StringComparison.Ordinal)) return false;
-            return shaderName.Contains("lilToon");
+            return hasLilToonVersion || shaderName.Contains("lilToon");
         }
 
         /// <summary>lilShaderUtils.IsFakeShadowShaderName / IsOverlayShaderName と同じ判定＋ファーだけを描く FurOnly（本体は別マテリアル）</summary>
@@ -116,6 +127,8 @@ namespace Nekoare.ClickRecolor.Editor.Decal
         private static object _transparentNormal;
         /// <summary>lilMaterialUtils.SetupMultiMaterial(Material)（Multi の keyword を付け直す）。無くても単体の lilToon は扱える</summary>
         private static MethodInfo _setupMultiMethod;
+        /// <summary>lilShaderManager.InitializeShaders()（透過化 API が使うシェーダー参照を lilToon の既定に戻す）。無ければ戻さずに呼ぶ</summary>
+        private static MethodInfo _initializeShadersMethod;
 
         /// <summary>lilToon の透過化 API がリフレクションで見つかるか（キャッシュ。ドメインリロードで作り直される）</summary>
         internal static bool IsApiAvailable
@@ -166,6 +179,8 @@ namespace Nekoare.ClickRecolor.Editor.Decal
                 _transparentNormal = Enum.Parse(transparentModeType, TransparentModeNormal);
                 _setupMultiMethod = utils?.GetMethod("SetupMultiMaterial", BindingFlags.Static | BindingFlags.Public,
                     null, new[] { typeof(Material) }, null);
+                _initializeShadersMethod = FindType("lilToon.lilShaderManager")?.GetMethod("InitializeShaders",
+                    BindingFlags.Static | BindingFlags.Public, null, Type.EmptyTypes, null);
                 _setupMethod = setup;
             }
             catch (Exception e)
@@ -382,6 +397,11 @@ namespace Nekoare.ClickRecolor.Editor.Decal
                 // そこで Setup は使い捨ての複製（scratch）に掛け、その結果を複製し直したものを使う（使うマテリアルは Undo に一度も記録されない）。
                 // scratch の記録は確定させて消してから破棄する（消し損ねても、破棄した物の記録は Undo で何もしない）
                 scratch = clone;
+                // 透過化 API は lilShaderManager の静的なシェーダー参照（ltst 等）で切り替える。lilToon のカスタムシェーダーの Inspector は
+                // 描画のたびにそれを自分のシェーダーへ差し替え、通常の lilToon の Inspector を描くまで戻さないので、そのままだと
+                // 最後に開いたカスタムシェーダーの透過版になる（名前に lilToon が無ければ下の判定で弾かれて画像が出ない）。
+                // 呼んだ後に差し替え前へ戻すことはしない: Inspector は描画のたびに既定へ戻してから差し替え直すので、開いている Inspector は困らない
+                _initializeShadersMethod?.Invoke(null, null);
                 _setupMethod.Invoke(null, new[]
                 {
                     scratch, _renderingTransparent, _transparentNormal,

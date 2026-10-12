@@ -88,6 +88,16 @@ float3 ApplyGamma(float3 lin, float gamma)
     return pow(abs(lin), max(gamma, 0.01));
 }
 
+// この彩度（Oklab の C）以上の画素は、代表色相からの差をそのまま残す。それ未満は 0 へ滑らかに弱める
+static const float HueRetainChromaRange = 0.02;
+
+// 色相を残す量の、元の彩度による重み（0〜1）。ColorShiftCpu.HueRetainWeight（CPU）と同じ式
+float HueRetainWeight(float chroma)
+{
+    float t = saturate(chroma / HueRetainChromaRange);
+    return t * t * (3.0 - 2.0 * t);
+}
+
 // 線形 RGB を目標色 targetLch（OKLCh）へ寄せた線形 RGB を返す（マスクを掛ける前の値）。darkEndRatio は暗部の明るさ
 float3 ShiftToTargetLinear(float3 lin, float3 targetLch, float darkEndRatio, float lp05, float lp95)
 {
@@ -114,8 +124,9 @@ float3 ShiftToTargetLinear(float3 lin, float3 targetLch, float darkEndRatio, flo
     float newC = max(0.0, lerp(lch.y, targetC, _ChromaToTarget));
 
     // h: 目標色相に統一。hueRetain > 0 なら代表色相からの差を一部残す。
-    //    無彩色の画素に h_t を与えても C' が小さければ色として見えないので分岐は設けない
-    float newH = WrapHueRadians(targetH + WrapHueRadians(lch.z - _HDominant) * _HueRetain);
+    //    残す量は元の彩度で滑らかに弱める（HueRetainWeight）: 灰色・白・黒の色相は丸め誤差で決まるでたらめな向きで、
+    //    C は目標の彩度へ寄せられるので、残すと明るさごとに色相が跳ぶ色ムラになる（GPU と CPU でも向きが違う）
+    float newH = WrapHueRadians(targetH + WrapHueRadians(lch.z - _HDominant) * _HueRetain * HueRetainWeight(lch.y));
 
     // ガマット外は L と h を保って C だけ縮める。戻り値は sRGB なので線形に戻す
     return SRGBToLinear(OklchToSRGBGamutMapped(float3(newL, newC, newH)));
