@@ -198,6 +198,21 @@ msgstr "選択範囲だけ切り抜く（2nd）"
 msgid "Inspector:Export:Failed"
 msgstr "書き出せませんでした"
 
+msgid "Inspector:Export:ResultDone"
+msgstr "「{0}」を書き出しました（{1}）\n{2}"
+
+msgid "Inspector:Export:ResultFailed"
+msgstr "「{0}」を書き出せませんでした（{1}）"
+
+msgid "Inspector:Export:ResultSummary"
+msgstr "{0}件中{1}件を書き出しました"
+
+msgid "Inspector:Export:Ping"
+msgstr "Projectで表示"
+
+msgid "Inspector:Export:ResultClose"
+msgstr "閉じる"
+
 msgid "Inspector:Export:SkipConfirm"
 msgstr "次のマテリアルには反映されません（編集は無効になります）:\n{0}\n続けますか？"
 
@@ -386,6 +401,9 @@ msgstr "「アバター全体」の編集にはパーツを追加できません
 
 msgid "Scene:Panel:RectColorModeNotice"
 msgstr "エリア選択はパーツモードで使えます"
+
+msgid "Scene:Panel:CtrlBoxNotice"
+msgstr "箱の中ではCtrl＋クリックは使えません（範囲は箱で決まります）"
 
 msgid "Scene:Panel:NoPick"
 msgstr "色を変えたいところをクリックしてください"

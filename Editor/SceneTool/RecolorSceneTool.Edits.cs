@@ -165,6 +165,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
 
         /// <summary>
         /// Ctrl＋クリック: 現在の編集 edit に hit の島（種）を足すか、既に含まれていれば外す。
+        /// edit が「箱の中」なら何もしない（一時メッセージ CtrlBoxNotice）。
         /// edit が「アバター全体」の連結なら何もしない（一時メッセージを出す。別のテクスチャなら CtrlOtherTexture、同じなら CtrlGroupNotice）。
         /// hit のテクスチャが edit と違うときは、edit の連結にそのテクスチャのメンバーがあればそのメンバーに対して足す／外す。
         /// 無ければ hit を主種にしてメンバーを作り、島の連結に足す（EditGroups.LinkSeedBased。元の色は seedColor）。
@@ -178,6 +179,13 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         internal static SeedToggleResult ResolveSeedToggle(ClickRecolor component, RecolorEdit edit, in PickHit hit, Color? seedColor = null)
         {
             if (component == null || edit == null) return SeedToggleResult.None;
+            // 「箱の中」は範囲を箱だけで決め、種を使わない。足しても見た目は変わらず、影響範囲を切り替えた途端に効き出すので足さない
+            // （別のテクスチャのメンバーも作らない: 箱に触れていなければ次に箱を離したときに黙って消える）。エリア選択と同じく案内だけ出す
+            if (edit.mode == SelectionMode.Box)
+            {
+                ToolSession.ShowTransientNotice("Scene:Panel:CtrlBoxNotice");
+                return SeedToggleResult.None;
+            }
             var texture = hit.hasMainTexture ? hit.mainTexture.texture : null;
             if (texture == null) return SeedToggleResult.None;
             bool wholeAvatar = EditGroups.IsWholeAvatarGroup(edit);
@@ -585,6 +593,28 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         /// 色モードの範囲は最後にパネルで選んだ範囲（ToolSession.ColorScopePreference。既定はつながった範囲）。
         /// 「アバター全体」になったときの連結（EditGroups.Link）は呼び出し側で行う
         /// </summary>
+        /// <summary>「同じ色」「似た色」のしきい値（ApplyPreset が入れる値。PresetOf はこの間で見分ける）</summary>
+        private const float SameColorThreshold = 0.08f;
+        private const float SimilarColorThreshold = 0.30f;
+
+        /// <summary>
+        /// edit の影響範囲に当たるプリセット（ApplyPreset の逆）。色モードはしきい値で「同じ色」「似た色」を見分けられないことがあるので
+        /// （スライダーで変えられる）、current がどちらかの色のプリセットならそのまま、違えばしきい値の近い方にする
+        /// </summary>
+        internal static RangePreset PresetOf(RecolorEdit edit, RangePreset current)
+        {
+            switch (edit.mode)
+            {
+                case SelectionMode.Box:
+                    return RangePreset.Box;
+                case SelectionMode.Color:
+                    if (current == RangePreset.SameColor || current == RangePreset.SimilarColor) return current;
+                    return edit.threshold <= (SameColorThreshold + SimilarColorThreshold) * 0.5f ? RangePreset.SameColor : RangePreset.SimilarColor;
+                default:
+                    return RangePreset.Island;
+            }
+        }
+
         internal static void ApplyPreset(RecolorEdit edit, RangePreset preset)
         {
             // モードを選び直したら「テクスチャの残りを選択」で広げた範囲は戻す（範囲を選び直す意思とみなす）
@@ -593,13 +623,13 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             {
                 case RangePreset.SameColor:
                     edit.mode = SelectionMode.Color;
-                    edit.threshold = 0.08f;
+                    edit.threshold = SameColorThreshold;
                     edit.feather = 0.05f;
                     edit.scope = ToolSession.ColorScopePreference;
                     break;
                 case RangePreset.SimilarColor:
                     edit.mode = SelectionMode.Color;
-                    edit.threshold = 0.30f;
+                    edit.threshold = SimilarColorThreshold;
                     edit.feather = 0.15f;
                     edit.scope = ToolSession.ColorScopePreference;
                     break;

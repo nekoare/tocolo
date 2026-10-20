@@ -108,7 +108,9 @@ float3 ShiftToTargetLinear(float3 lin, float3 targetLch, float darkEndRatio, flo
     float targetH = targetLch.z;
 
     // L: 選択内の [p05, p95] を [L_t × darkEndRatio, L_t] へ線形リマップ。
-    //    分布が狭い（range < 0.20）ときは傾き 1 の加算オフセットへ滑らかに切り替える（微小な陰影を増幅しない）。
+    //    分布が狭い（range < 0.20）ときは傾き 1 の加算オフセットと幅に比例した重みで混ぜる。リマップ側の傾きは幅に反比例するので、
+    //    幅が 0 に近づいても傾きは 1 に戻らず 1 + 目標L(1 − 暗部)/0.20 に近づく（元の細かい陰影は強まる）。
+    //    重みを 2 乗すれば 1 に近づくが、見比べると好みの差の範囲で、変えると既存の編集の見た目が変わるので採らない（CHM と同じ式）。
     //    陰影の強調（_ShadingStretch）はリマップ側の重みの下限（1 なら幅に関係なく目標範囲いっぱいへ広げる）
     const float RangeThreshold = 0.20;
     float range = lp95 - lp05;

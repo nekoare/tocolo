@@ -198,6 +198,21 @@ msgstr "선택 범위만 잘라내기(2nd)"
 msgid "Inspector:Export:Failed"
 msgstr "내보내지 못했어요"
 
+msgid "Inspector:Export:ResultDone"
+msgstr "'{0}'을(를) 내보냈어요({1})\n{2}"
+
+msgid "Inspector:Export:ResultFailed"
+msgstr "'{0}'을(를) 내보내지 못했어요({1})"
+
+msgid "Inspector:Export:ResultSummary"
+msgstr "{0}개 중 {1}개를 내보냈어요"
+
+msgid "Inspector:Export:Ping"
+msgstr "Project에서 보기"
+
+msgid "Inspector:Export:ResultClose"
+msgstr "닫기"
+
 msgid "Inspector:Export:SkipConfirm"
 msgstr "다음 머티리얼에는 반영되지 않아요(편집은 비활성화돼요):\n{0}\n계속할까요?"
 
@@ -386,6 +401,9 @@ msgstr "'아바타 전체' 편집에는 파츠를 추가할 수 없어요"
 
 msgid "Scene:Panel:RectColorModeNotice"
 msgstr "영역 선택은 파츠 모드에서 사용할 수 있어요"
+
+msgid "Scene:Panel:CtrlBoxNotice"
+msgstr "박스 안에서는 Ctrl+클릭을 쓸 수 없어요(범위는 박스로 정해져요)"
 
 msgid "Scene:Panel:NoPick"
 msgstr "색을 바꾸고 싶은 곳을 클릭해 주세요"

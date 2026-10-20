@@ -198,6 +198,21 @@ msgstr "Crop to the selection (2nd)"
 msgid "Inspector:Export:Failed"
 msgstr "Export failed"
 
+msgid "Inspector:Export:ResultDone"
+msgstr "Exported {0} ({1})\n{2}"
+
+msgid "Inspector:Export:ResultFailed"
+msgstr "Could not export {0} ({1})"
+
+msgid "Inspector:Export:ResultSummary"
+msgstr "Exported {1} of {0}"
+
+msgid "Inspector:Export:Ping"
+msgstr "Show in Project"
+
+msgid "Inspector:Export:ResultClose"
+msgstr "Close"
+
 msgid "Inspector:Export:SkipConfirm"
 msgstr "The recoloring will no longer show on these materials (the edits will be turned off):\n{0}\nContinue?"
 
@@ -386,6 +401,9 @@ msgstr "Parts can't be added to a whole-avatar edit"
 
 msgid "Scene:Panel:RectColorModeNotice"
 msgstr "Box selection works in part mode"
+
+msgid "Scene:Panel:CtrlBoxNotice"
+msgstr "Ctrl+click is not available in Inside box mode (the box decides the range)"
 
 msgid "Scene:Panel:NoPick"
 msgstr "Click the part you want to recolor"

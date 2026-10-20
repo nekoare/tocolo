@@ -19,19 +19,11 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         /// <summary>直近の Repaint での表示幅（倍率込み）。0 なら未測定（基準幅 Width を使う）</summary>
         internal static float LastContentWidth;
 
-        /// <summary>対象 root に現在の編集（選択点）があるか</summary>
-        private static bool HasCurrentEdit(GameObject root)
+        /// <summary>対象 root の現在の編集（選択点）。無ければ null</summary>
+        private static RecolorEdit CurrentEdit(GameObject root)
         {
             var component = root != null ? root.GetComponent<ClickRecolor>() : null;
-            return component != null && component.FindEdit(ToolSession.CurrentEditId) != null;
-        }
-
-        /// <summary>対象 root の現在の編集が画像入り（HasDecal）か</summary>
-        private static bool CurrentEditHasDecal(GameObject root)
-        {
-            var component = root != null ? root.GetComponent<ClickRecolor>() : null;
-            var edit = component != null ? component.FindEdit(ToolSession.CurrentEditId) : null;
-            return edit != null && edit.HasDecal;
+            return component != null ? component.FindEdit(ToolSession.CurrentEditId) : null;
         }
 
         /// <summary>ToolPanelOverlay と同じく、保存レイアウトの復元より後にツールの状態へ合わせる</summary>
@@ -75,20 +67,27 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 }
                 bool hasRoot = ToolSession.TryGetActiveRoot(out var root);
                 // 現在の編集（選択点）があるかで文言を変える: 無ければ「選択」、1 点でもあれば「追加」（ユーザー要望 2026-09-26）
-                bool hasEdit = hasRoot && HasCurrentEdit(root);
+                var edit = hasRoot ? CurrentEdit(root) : null;
+                bool hasEdit = edit != null;
+                // Ctrl で足す相手は現在の編集なので、そのモードで案内を出し分ける（無ければ次に作る編集のモード。影響範囲のボタンは後者）
+                var mode = hasEdit ? edit.mode : ToolSession.Mode;
                 // 編集済みの範囲の再クリックはその編集を選ぶので、新しく作る方法を案内する
                 GUILayout.Label(Locales.Tr("Scene:Panel:ShiftHint"), EditorStyles.miniLabel);
-                // Shift の行と Ctrl の行の間を 1 行空ける（ユーザー要望 2026-09-26）
-                EditorGUILayout.Space(EditorGUIUtility.singleLineHeight * 0.8f);
-                // 現在の編集にパーツを足す／外す方法
-                GUILayout.Label(Locales.Tr(hasEdit ? "Scene:Panel:CtrlHint" : "Scene:Panel:CtrlHint:Select"), EditorStyles.miniLabel);
+                // 「箱の中」は範囲を箱で決めるので、Ctrl＋クリック・矩形でパーツを足せない（RecolorSceneTool.ResolveSeedToggle が断る）
+                if (mode != SelectionMode.Box)
+                {
+                    // Shift の行と Ctrl の行の間を 1 行空ける（ユーザー要望 2026-09-26）
+                    EditorGUILayout.Space(EditorGUIUtility.singleLineHeight * 0.8f);
+                    // 現在の編集にパーツを足す／外す方法
+                    GUILayout.Label(Locales.Tr(hasEdit ? "Scene:Panel:CtrlHint" : "Scene:Panel:CtrlHint:Select"), EditorStyles.miniLabel);
+                }
                 // 矩形でまとめて足す方法（矩形選択はパーツモード専用なので、そのときだけ案内する）
-                if (ToolSession.Mode == SelectionMode.Island)
+                if (mode == SelectionMode.Island)
                 {
                     GUILayout.Label(Locales.Tr(hasEdit ? "Scene:Panel:RectHint" : "Scene:Panel:RectHint:Select"), EditorStyles.miniLabel);
                 }
                 // 画像入りの編集を選んでいる間は、画像をつかんで動かせることを案内する
-                if (hasRoot && CurrentEditHasDecal(root)) GUILayout.Label(Locales.Tr("Scene:Panel:DecalDragHint"), EditorStyles.miniLabel);
+                if (hasEdit && edit.HasDecal) GUILayout.Label(Locales.Tr("Scene:Panel:DecalDragHint"), EditorStyles.miniLabel);
                 EditorGUILayout.Space(4);
                 // 対象の表示・切り替え・候補のボタンは ToolPanelOverlay（「範囲」の上）に置く（ユーザー要望 2026-09-26）
                 // 終了はボタンでも Esc でもできる

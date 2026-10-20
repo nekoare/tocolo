@@ -282,6 +282,8 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         /// <summary>「各点の色を揃える」を出すか: 種（主種＋Ctrl＋クリックで足した種。共有の種色の編集は追加の種を使わないので 1）か連結のメンバーが複数</summary>
         private static bool ShowsPerSeedStats(ClickRecolor component, RecolorEdit edit)
         {
+            // 「箱の中」は種を使わない（揃えるのは「箱の中の色を揃える」の方）
+            if (edit.mode == SelectionMode.Box) return false;
             int seedCount = 1 + (!edit.hasSeedOklab && edit.extraSeeds != null ? edit.extraSeeds.Count : 0);
             return seedCount > 1 || EditGroups.Count(component, edit) > 1;
         }

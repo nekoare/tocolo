@@ -23,6 +23,12 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 HelpMark.Draw("Help:Mode");
             }
             DrawModeHelpIfOpen();
+            // 現在の編集があれば、光らせるボタン（＝次に作る編集のモード）をその編集に合わせる。選び直した編集とずれていると、
+            // 下の設定の行・操作の案内（今の編集のモード）と食い違い、光っていない今のモードのボタンを押すと選び直しになって
+            // 「テクスチャの残りを選択」で広げた範囲が外れる。選ぶ経路（クリック・一覧・Undo）ごとではなく、ここで毎回合わせる
+            var modeComponent = root.GetComponent<ClickRecolor>();
+            var currentEdit = modeComponent != null ? modeComponent.FindEdit(ToolSession.CurrentEditId) : null;
+            if (currentEdit != null) ToolSession.Preset = RecolorSceneTool.PresetOf(currentEdit, ToolSession.Preset);
             // ボタンの並びは パーツ・箱の中・同じ色・似た色（「箱の中」はパーツの右。ユーザー要望 2026-09-29）。enum の値とは別
             int current = System.Array.IndexOf(ModeButtonOrder, ToolSession.Preset);
             if (current < 0) current = 0;

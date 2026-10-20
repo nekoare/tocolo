@@ -551,6 +551,20 @@ namespace Nekoare.ClickRecolor.Tests
         }
 
         [Test]
+        public void 箱の中の編集ではCtrlクリックしても種を足さない()
+        {
+            var (component, renderer, texture) = MakeChartAvatar();
+            var edit = RecolorSceneTool.CreateEditFromHit(component, MakeChartHit(renderer, texture, 0, ChartPx(20, 10)), null);
+            edit.mode = SelectionMode.Box;
+
+            var result = RecolorSceneTool.ResolveSeedToggle(component, edit, MakeChartHit(renderer, texture, 2, ChartPx(46, 32)));
+
+            Assert.That(result, Is.EqualTo(SeedToggleResult.None));
+            Assert.That(edit.extraSeeds, Is.Empty, "範囲は箱で決まるので、効かない種をためない");
+            Assert.That(component.edits.Count, Is.EqualTo(1));
+        }
+
+        [Test]
         public void 追加した島を再度Ctrlクリックすると外れる()
         {
             var (component, renderer, texture) = MakeChartAvatar();

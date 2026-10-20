@@ -167,7 +167,7 @@ namespace Nekoare.ClickRecolor.Editor.Colors
             float targetH = targetLch.z;
 
             // L: 選択内の [p05, p95] を [L_t × darkEndRatio, L_t] へ線形リマップ。
-            //    分布が狭い（range < 0.20）ときは傾き 1 の加算オフセットへ滑らかに切り替える（微小な陰影を増幅しない）。
+            //    分布が狭い（range < 0.20）ときは傾き 1 の加算オフセットと幅に比例した重みで混ぜる（傾きは 1 に戻らない。理由は compute と同じ）。
             //    陰影の強調（shadingStretch）はリマップ側の重みの下限（1 なら幅に関係なく目標範囲いっぱいへ広げる）
             float range = p.lP95 - p.lP05;
             float mid = (p.lP05 + p.lP95) * 0.5f;
