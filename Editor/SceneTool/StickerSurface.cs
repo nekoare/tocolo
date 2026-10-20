@@ -22,7 +22,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
 
         private static ScenePicker s_picker;
 
-        /// <summary>(メンバーの id, テクスチャ) → 選択マスク（R8 を読み戻したもの）と、読んだときの編集の形（RecolorPreview.HashEditShape）</summary>
+        /// <summary>(メンバーの id, テクスチャ) → 選択マスク（R8 を読み戻したもの）と、読んだときの編集の形（EditHash.Shape）</summary>
         private static readonly Dictionary<(string, Texture2D), (int shape, byte[] bytes, int width, int height)> s_masks =
             new Dictionary<(string, Texture2D), (int, byte[], int, int)>();
         /// <summary>s_masks を持っている編集の id（別の編集に移ったら捨てる。マスクは大きいので 1 つの編集の分だけ持つ）</summary>
@@ -33,9 +33,11 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         private static bool s_lastFound;
         private static Vector3 s_lastPoint;
 
-        /// <summary>持っているマスクと結果を捨てる（ツールの終了時）</summary>
+        /// <summary>持っているマスクと結果、レイ判定用に焼いたメッシュを捨てる（ツールの終了時）</summary>
         internal static void Clear()
         {
+            s_picker?.Dispose();
+            s_picker = null;
             s_masks.Clear();
             s_maskEditId = null;
             s_lastKey = 0;
@@ -52,8 +54,8 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             int key;
             unchecked
             {
-                key = RecolorPreview.HashEditPlacement(RecolorPreview.HashEditShape(17, edit), edit) * 31 + component.GetInstanceID();
-                foreach (var member in EditGroups.Members(component, edit)) key = key * 31 + RecolorPreview.HashEditShape(17, member);
+                key = EditHash.Placement(EditHash.Shape(17, edit), edit) * 31 + component.GetInstanceID();
+                foreach (var member in EditGroups.Members(component, edit)) key = key * 31 + EditHash.Shape(17, member);
             }
             if (key == s_lastKey)
             {
@@ -138,7 +140,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         }
 
         /// <summary>
-        /// member（edit の連結のメンバー）の texture の選択範囲に uv が入っているか。マスクは edit ごとに持ち、範囲（HashEditShape）が変わったら読み直す
+        /// member（edit の連結のメンバー）の texture の選択範囲に uv が入っているか。マスクは edit ごとに持ち、範囲（EditHash.Shape）が変わったら読み直す
         /// </summary>
         internal static bool IsSelected(ClickRecolor component, RecolorEdit edit, RecolorEdit member, Texture2D texture, Vector2 uv)
         {
@@ -148,7 +150,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 s_masks.Clear();
                 s_maskEditId = edit.id;
             }
-            int shape = RecolorPreview.HashEditShape(17, member);
+            int shape = EditHash.Shape(17, member);
             var key = (member.id, texture);
             if (!s_masks.TryGetValue(key, out var mask) || mask.shape != shape)
             {

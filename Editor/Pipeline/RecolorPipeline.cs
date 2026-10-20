@@ -237,8 +237,11 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
             var seeds = CollectSeeds(edit, seedMesh);
             // 追加の種のメッシュの形が変わったら別の鍵にする（主種のメッシュは usersHash に入っている）
             int foldedHash = FoldExtraSeedMeshes(usersHash, seeds);
+            // 箱のドラッグ中は軽く作る（パーツごとの統計・スーパーサンプリングを掛けない）。書き出し・ビルドは常に仕上がりの品質で作るので、
+            // ドラッグ中の印が残っていても見ない
+            bool boxDragging = BoxDragState.Selection.IsFor(edit) && !fromExport;
             // 「箱の中」は箱と位置マップ（姿勢・除外リスト）で範囲が決まるので鍵に畳み込む
-            if (edit.mode == SelectionMode.Box) foldedHash = FoldBox(foldedHash, edit, sourceAsset, context);
+            if (edit.mode == SelectionMode.Box) foldedHash = FoldBox(foldedHash, edit, sourceAsset, context, boxDragging);
             // 「元のグラデーションを打ち消す」は帯の統計を部分に持つので、向きと位置（姿勢）を鍵に畳み込む
             if (edit.flattenBase) foldedHash = FoldFlatten(foldedHash, edit, sourceAsset, context);
             // 「画像を入れる」の画像と箱は選択マスクの鍵に入れない（層は DecalLayerCache に別に持つ。箱を動かしても選択マスクを作り直さない）
@@ -276,11 +279,11 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
                 {
                     // 箱の中: 種は使わない（クリック位置はテクスチャの特定と「元の色」のためだけ）。
                     // 「パーツごとに色を揃える」なら箱マスクをパーツ（チャート）ごとに分けて、パーツ複数選択と同じく部分ごとの統計にする
-                    mask = BuildBoxMask(edit, sourceAsset, source, context, coverage);
+                    mask = BuildBoxMask(edit, sourceAsset, source, context, coverage, boxDragging);
                     if (mask == null) return null;
                     // パーツごとの統計は重いので、箱のドラッグ中は掛けない（離したときに掛ける。ユーザー要望 2026-09-29）
                     // 画像入りなら統計は画像から取るので、パーツごとにも分けない（種ごとの部分と同じ理由）
-                    if (edit.boxPerPartStats && !edit.HasDecal && !SceneTool.ToolSession.BoxDragging)
+                    if (edit.boxPerPartStats && !edit.HasDecal && !boxDragging)
                     {
                         var partMasks = SplitBoxMaskByChart(mask, users, source, coverage, edit);
                         if (partMasks.Count > 1)
@@ -399,7 +402,7 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
         /// <summary>
         /// 画像入り（HasDecal）の編集なら、デカール層とその統計（層 ∩ 選択マスク）を DecalLayerCache から取り（無ければ作り）、
         /// 部分を「合成マスク 1 つ＋層の統計」にした Job を返す（MaskCache の部分の一覧は書き換えない）。画像なしなら job のまま。
-        /// 層の大きさは選択マスク（＝作業 RT）と同じ。画像の箱のドラッグ中（ToolSession.DecalBoxDragging）は長辺 DecalLayerCache.DragMaxSize 以下に縮める
+        /// 層の大きさは選択マスク（＝作業 RT）と同じ。画像の箱のドラッグ中（BoxDragState.Decal.IsActive）は長辺 DecalLayerCache.DragMaxSize 以下に縮める
         /// （層は正規化座標で引くので小さくても合成できる。離したら鍵が変わってフル解像度で作り直す）。
         /// 層が作れなければ decal は null のまま（その編集は IsActive で素通し）
         /// </summary>
@@ -417,7 +420,7 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
             var mask = job.mask;
             int width = mask.width, height = mask.height;
             // 書き出し・ビルドはドラッグ中のフラグが立っていても低解像度の層を焼かない（FoldDecal の鍵も同じ条件）
-            bool dragging = SceneTool.ToolSession.IsDecalBoxDraggingFor(edit) && !fromExport;
+            bool dragging = BoxDragState.Decal.IsFor(edit) && !fromExport;
             if (dragging) ScaleToFit(mask.width, mask.height, DecalLayerCache.DragMaxSize, out width, out height);
 
             // 統計は層 ∩ 選択マスクから取るので、選択が変われば層の統計も変わる: 選択マスクの鍵も畳み込む
@@ -723,7 +726,7 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
         }
 
         /// <summary>「箱の中」の鍵: 箱の位置・回転・大きさ・ぼかしと、位置マップの中身を決める値（姿勢・除外後の Renderer）</summary>
-        private static int FoldBox(int hash, RecolorEdit edit, Texture2D sourceAsset, MaskContext context)
+        private static int FoldBox(int hash, RecolorEdit edit, Texture2D sourceAsset, MaskContext context, bool dragging)
         {
             unchecked
             {
@@ -731,8 +734,8 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
                 h = h * 31 + edit.boxPosition.GetHashCode();
                 h = h * 31 + edit.boxRotation.GetHashCode();
                 h = h * 31 + edit.boxSize.GetHashCode();
-                h = h * 31 + (edit.boxPerPartStats && !SceneTool.ToolSession.BoxDragging ? 1 : 0);
-                h = h * 31 + (SceneTool.ToolSession.BoxDragging ? 1 : 0); // ドラッグ中は等倍描画なので別の鍵
+                h = h * 31 + (edit.boxPerPartStats && !dragging ? 1 : 0);
+                h = h * 31 + (dragging ? 1 : 0); // ドラッグ中は等倍描画なので別の鍵
                 h = h * 31 + (context != null ? PositionMap.ContextHash(context.root, context.RenderersWithoutExcluded(), sourceAsset) : 0);
                 return h;
             }
@@ -744,7 +747,7 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
         /// 文脈が無い・描くスロットが無い・シェーダーが無ければ null
         /// </summary>
         private static RenderTexture BuildBoxMask(
-            RecolorEdit edit, Texture2D sourceAsset, RenderTexture source, MaskContext context, RenderTexture coverage)
+            RecolorEdit edit, Texture2D sourceAsset, RenderTexture source, MaskContext context, RenderTexture coverage, bool dragging)
         {
             if (context == null || context.root == null) return null;
             var renderers = context.RenderersWithoutExcluded();
@@ -754,7 +757,7 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
             // スーパーサンプリングは箱のドラッグ中は掛けず、離したときに掛ける（「箱の中の色を揃える」と同じ。ユーザー要望 2026-09-29）
             var mask = BoxMaskBuilder.Build(
                 context.root, slots, source.width, source.height, edit.boxPosition, edit.boxRotation, edit.boxSize, edit.feather,
-                supersample: !SceneTool.ToolSession.BoxDragging);
+                supersample: !dragging);
             if (mask == null) return null;
             if (coverage != null)
             {
@@ -788,7 +791,7 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
                 h = h * 31 + edit.decalBoxSize.GetHashCode();
                 h = h * 31 + (context != null ? PositionMap.ContextHash(context.root, context.RenderersWithoutExcluded(), sourceAsset) : 0);
                 // ドラッグ中は低解像度の層なので別の鍵（書き出しは低解像度にしないので畳まない。WithDecalLayer と同じ条件）
-                h = h * 31 + (SceneTool.ToolSession.IsDecalBoxDraggingFor(edit) && !fromExport ? 1 : 0);
+                h = h * 31 + (BoxDragState.Decal.IsFor(edit) && !fromExport ? 1 : 0);
                 return h;
             }
         }

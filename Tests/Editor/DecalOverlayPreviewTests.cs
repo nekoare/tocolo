@@ -4,6 +4,7 @@ using Nekoare.ClickRecolor.Editor.NDMF;
 using NUnit.Framework;
 using UnityEngine;
 using Object = UnityEngine.Object;
+using Nekoare.ClickRecolor.Editor.Pipeline;
 
 namespace Nekoare.ClickRecolor.Tests
 {
@@ -555,12 +556,12 @@ namespace Nekoare.ClickRecolor.Tests
         public void 編集のハッシュは形と見た目のどちらを変えても変わる()
         {
             var edit = MakeDecalEdit();
-            int h = RecolorPreview.HashEdit(17, edit);
+            int h = EditHash.All(17, edit);
             edit.targetColor = Color.blue;
-            int colored = RecolorPreview.HashEdit(17, edit);
+            int colored = EditHash.All(17, edit);
             Assert.That(colored, Is.Not.EqualTo(h), "色（見た目）");
             edit.decalBoxPosition = new Vector3(0.1f, 0f, 0f);
-            Assert.That(RecolorPreview.HashEdit(17, edit), Is.Not.EqualTo(colored), "画像の箱（形）");
+            Assert.That(EditHash.All(17, edit), Is.Not.EqualTo(colored), "画像の箱（形）");
         }
     }
 }

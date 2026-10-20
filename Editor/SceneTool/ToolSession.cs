@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Nekoare.ClickRecolor.Editor.NDMF;
 using Nekoare.ClickRecolor.Editor.Picking;
+using Nekoare.ClickRecolor.Editor.Pipeline;
 using UnityEditor;
 using UnityEngine;
 
@@ -42,74 +43,6 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             RangePreset.Box => SelectionMode.Box,
             _ => SelectionMode.Color,
         };
-
-        /// <summary>
-        /// 選択の箱をドラッグ中か。「箱の中の色を揃える」（パーツごとの統計）は重いので、ドラッグ中は掛けず離したときに掛ける
-        /// （RecolorPipeline が見る。プレビューのハッシュにも入れて、離した瞬間に作り直す）
-        /// </summary>
-        public static bool BoxDragging { get; set; }
-
-        /// <summary>
-        /// 画像の箱をドラッグ中か。ドラッグ中は、その箱の編集（IsDecalBoxDraggingFor）だけ画像の層を低解像度で作り、離したときにフル解像度で作り直す
-        /// （RecolorPipeline が見る。プレビューのハッシュにも入れて、離した瞬間に作り直す）。BeginDecalBoxDrag / EndDecalBoxDrag で変える
-        /// </summary>
-        public static bool DecalBoxDragging { get; private set; }
-
-        /// <summary>ドラッグ中の箱の編集の id と連結の id（連結は同じ箱を共有するので、連結の全メンバーをドラッグ中とみなす）</summary>
-        private static string s_decalDragEditId;
-        private static string s_decalDragGroupId;
-
-        /// <summary>
-        /// edit の画像の箱のドラッグを始めた（同じドラッグ中に何度呼んでもよい）。overlay はその編集が重ね貼りで表示されているか
-        /// （ドラッグ中の作り直しの要否に使う。ドラッグの始めに 1 回だけ判定して覚える）
-        /// </summary>
-        public static void BeginDecalBoxDrag(RecolorEdit edit, bool overlay = false)
-        {
-            // 同じドラッグ中の呼び直しでは下ろさない（下ろすと作り直しの合図が毎フレーム消える）
-            if (!DecalBoxDragging || s_decalDragEditId != edit?.id) DecalDragNeedsFullCopy = false;
-            DecalBoxDragging = edit != null;
-            s_decalDragEditId = edit?.id;
-            s_decalDragGroupId = edit != null && !string.IsNullOrEmpty(edit.groupId) ? edit.groupId : null;
-            DecalBoxDragIsOverlay = overlay;
-        }
-
-        /// <summary>
-        /// ドラッグ中の箱の編集が重ね貼りで表示されているか。重ね貼りなら色変えのプレビュー（RecolorPreview）はドラッグ中に作り直さない
-        /// （重ね貼りは表示用メッシュの UV の書き換えで追従する。焼き込みは箱の値で層を作り直す必要がある）
-        /// </summary>
-        public static bool DecalBoxDragIsOverlay { get; private set; }
-
-        /// <summary>
-        /// ドラッグ中の重ね貼りが、作ったときに複製した範囲の外へ出た（DecalOverlayPreview が立てる）。ドラッグ中は箱の値をプレビューのハッシュに入れないので、
-        /// 代わりにこれを入れて 1 回だけ作り直させる（ドラッグ中に作り直した段は範囲で絞らないので、その後は立たない）
-        /// </summary>
-        public static bool DecalDragNeedsFullCopy { get; private set; }
-
-        public static void RequestDecalDragFullCopy()
-        {
-            if (DecalBoxDragging) DecalDragNeedsFullCopy = true;
-        }
-
-        /// <summary>画像の箱のドラッグを終えた</summary>
-        public static void EndDecalBoxDrag()
-        {
-            DecalBoxDragging = false;
-            DecalBoxDragIsOverlay = false;
-            DecalDragNeedsFullCopy = false;
-            s_decalDragEditId = null;
-            s_decalDragGroupId = null;
-        }
-
-        /// <summary>
-        /// edit の画像の箱がドラッグ中か（ドラッグ中の編集そのものか、同じ連結のメンバー）。
-        /// 関係ない画像入りの編集まで低解像度で作り直さないよう、ドラッグ中の印は編集ごとに見る（レビュー指摘 2026-10-04）
-        /// </summary>
-        public static bool IsDecalBoxDraggingFor(RecolorEdit edit)
-        {
-            if (!DecalBoxDragging || edit == null) return false;
-            if (edit.id == s_decalDragEditId) return true;
-            return s_decalDragGroupId != null && edit.groupId == s_decalDragGroupId;
-        }
 
         /// <summary>
         /// Scene に出す箱を選んだ編集の id（小窓「箱を表示」のボタン。ユーザー要望 2026-10-05）。コンポーネントには保存せず、
@@ -393,7 +326,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             LastPickColor = null;
             UnreadableRenderer = null;
             BoxChoiceEditId = null;
-            EndDecalBoxDrag();
+            BoxDragState.EndAll();
             LayerNotice = default;
             LayerNoticeEditId = null;
             TexTransToolNotice = false;

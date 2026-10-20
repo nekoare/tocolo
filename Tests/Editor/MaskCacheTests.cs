@@ -101,6 +101,36 @@ namespace Nekoare.ClickRecolor.Tests
         }
 
         [Test]
+        public void 現在の編集でも設定を変えた古いマスクは捨て_他の編集のマスクを追い出さない()
+        {
+            // しきい値のスライダーを動かすと、値ごとに鍵の違うマスクができる
+            var current = NewEdit();
+            var currentKeys = new List<MaskCache.Key>();
+            for (int i = 0; i < 20; i++)
+            {
+                current.threshold = 0.01f * (i + 1);
+                var key = KeyOf(current);
+                currentKeys.Add(key);
+                AddDummy(key);
+            }
+            var others = new List<MaskCache.Key>();
+            for (int i = 0; i < 4; i++)
+            {
+                var key = KeyOf(NewEdit());
+                others.Add(key);
+                AddDummy(key);
+            }
+            ToolSession.CurrentEditId = current.id;
+
+            MaskCache.Trim();
+
+            Assert.That(MaskCache.Count, Is.EqualTo(MaskCache.Capacity));
+            foreach (var key in others) Assert.That(Has(key), Is.True, "他の編集のマスクは追い出さない");
+            for (int i = 20 - MaskCache.PinnedPerEdit; i < 20; i++) Assert.That(Has(currentKeys[i]), Is.True, "最近の値のマスクは残す");
+            Assert.That(Has(currentKeys[0]), Is.False, "古い値のマスクは捨てる");
+        }
+
+        [Test]
         public void RemoveExportMasks_は書き出し由来だけ捨てる()
         {
             var edit = NewEdit();

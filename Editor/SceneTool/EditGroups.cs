@@ -179,8 +179,6 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             member.seedSubmesh = submesh;
             member.seedTriangle = triangle;
             member.seedUv = uv;
-            // CopyForTexture は「アバター全体」用に作ったので写していない設定も揃える
-            member.perSeedStats = anchor.perSeedStats;
             // 0.5.0 までの「テクスチャ全体」の印は写さない（写すと、足したメンバーがクリックしたパーツでなくテクスチャ全体を選ぶ）
             member.wholeTexture = false;
             if (seedColor.HasValue)
@@ -285,6 +283,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             member.feather = anchor.feather;
             member.cleanupRadius = anchor.cleanupRadius;
             member.padding = anchor.padding;
+            member.perSeedStats = anchor.perSeedStats;
             member.targetColor = anchor.targetColor;
             member.hasTarget = anchor.hasTarget;
             member.confirmed = anchor.confirmed;

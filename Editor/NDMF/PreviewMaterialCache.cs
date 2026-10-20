@@ -6,23 +6,27 @@ using Object = UnityEngine.Object;
 namespace Nekoare.ClickRecolor.Editor.NDMF
 {
     /// <summary>
-    /// 色変えのプレビューのマテリアルの複製（参照カウント付き）。鍵は (元マテリアル, その中身の CRC, 差し替えるプロパティ, 差し替える元のテクスチャ)。
+    /// 色変えのプレビューのマテリアルの複製（参照カウント付き）。鍵は (借りる側, 元マテリアル, その中身の CRC, 差し替えるプロパティ, 差し替える元のテクスチャ)。
     /// ノードを作り直すたびに複製し直さない: Unity は複製の中身の表を最初に触ったときに作り、Poiyomi では 1 個約 8ms かかる
     /// （画像の箱のドラッグ中は動かすたびにノードを作り直すので、これが一番重かった）。
     /// 同じ鍵の複製を新旧のノードで共有し、結果 RT だけ差し込み直す。複製はいつも、借りているノードのうち一番新しいものの結果 RT を指す
-    /// （新しいノードを表示に使わずに捨てても、表示中の旧ノードの結果 RT に戻る）。誰も借りていない複製はその場で破棄する
+    /// （新しいノードを表示に使わずに捨てても、表示中の旧ノードの結果 RT に戻る）。誰も借りていない複製はその場で破棄する。
+    /// 借りる側（アバターとプレビューの担当）が違えば同じ元マテリアルでも別の複製にする: 1 つの複製は 1 つの結果 RT しか指せないので、
+    /// 同じマテリアルを使うアバターを 2 体並べて別の色にすると、両方が最後に作ったほうの色で表示される
     /// </summary>
     internal static class PreviewMaterialCache
     {
         internal readonly struct Key : IEquatable<Key>
         {
+            private readonly int _owner;
             private readonly int _materialId;
             private readonly int _materialCrc;
             private readonly string _propertyName;
             private readonly int _textureId;
 
-            internal Key(Material material, string propertyName, Texture replacedTexture)
+            internal Key(int owner, Material material, string propertyName, Texture replacedTexture)
             {
+                _owner = owner;
                 _materialId = material.GetInstanceID();
                 // 元マテリアルを編集したら別の複製にする（変更回数は Undo で戻したときに増えないことがあるので、中身で見る）
                 _materialCrc = material.ComputeCRC();
@@ -31,7 +35,7 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
             }
 
             public bool Equals(Key other) =>
-                _materialId == other._materialId && _materialCrc == other._materialCrc
+                _owner == other._owner && _materialId == other._materialId && _materialCrc == other._materialCrc
                 && _propertyName == other._propertyName && _textureId == other._textureId;
 
             public override bool Equals(object obj) => obj is Key other && Equals(other);
@@ -40,7 +44,8 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
             {
                 unchecked
                 {
-                    int h = _materialId;
+                    int h = _owner;
+                    h = h * 397 ^ _materialId;
                     h = h * 397 ^ _materialCrc;
                     h = h * 397 ^ (_propertyName != null ? _propertyName.GetHashCode() : 0);
                     h = h * 397 ^ _textureId;
@@ -83,15 +88,27 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
             public Material Material => entry.clone;
         }
 
+        /// <summary>借りる側の識別: アバターと担当（本体・髪用。担当ごとに差し込む結果 RT が違う）</summary>
+        internal static int OwnerOf(GameObject avatar, int scope)
+        {
+            unchecked
+            {
+                return (avatar != null ? avatar.GetInstanceID() : 0) * 31 + scope;
+            }
+        }
+
         private static readonly Dictionary<Key, Entry> s_entries = new Dictionary<Key, Entry>();
 
         /// <summary>今持っている複製の数（テスト用）</summary>
         internal static int Count => s_entries.Count;
 
-        /// <summary>material の複製（保存しない）を借りる。メインの propertyName と、同じ replacedTexture を参照する他のプロパティに rt を差し込む</summary>
-        internal static Lease Acquire(Material material, string propertyName, Texture replacedTexture, RenderTexture rt, string nameSuffix)
+        /// <summary>
+        /// material の複製（保存しない）を借りる。メインの propertyName と、同じ replacedTexture を参照する他のプロパティに rt を差し込む。
+        /// owner は借りる側の識別（同じ owner の新旧のノードだけが複製を共有する。OwnerOf で作る）
+        /// </summary>
+        internal static Lease Acquire(int owner, Material material, string propertyName, Texture replacedTexture, RenderTexture rt, string nameSuffix)
         {
-            var key = new Key(material, propertyName, replacedTexture);
+            var key = new Key(owner, material, propertyName, replacedTexture);
             if (!s_entries.TryGetValue(key, out var entry) || entry.clone == null)
             {
                 var clone = MaterialCloner.Clone(material, nameSuffix);

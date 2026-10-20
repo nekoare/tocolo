@@ -39,9 +39,9 @@ namespace Nekoare.ClickRecolor.Tests
 
         private RenderTexture MakeRt() => Track(new RenderTexture(4, 4, 0));
 
-        private PreviewMaterialCache.Lease Acquire(Material material, Texture2D texture, RenderTexture rt)
+        private PreviewMaterialCache.Lease Acquire(Material material, Texture2D texture, RenderTexture rt, int owner = 0)
         {
-            var lease = PreviewMaterialCache.Acquire(material, "_MainTex", texture, rt, " (test)");
+            var lease = PreviewMaterialCache.Acquire(owner, material, "_MainTex", texture, rt, " (test)");
             _leases.Add(lease);
             return lease;
         }
@@ -58,6 +58,21 @@ namespace Nekoare.ClickRecolor.Tests
             Assert.That(second.Material, Is.SameAs(first.Material));
             Assert.That(second.Material.GetTexture("_MainTex"), Is.SameAs(rt));
             Assert.That(material.GetTexture("_MainTex"), Is.SameAs(texture), "元のマテリアルは変えない");
+        }
+
+        [Test]
+        public void 別のアバターは同じ元マテリアルでも別の複製で_それぞれの結果の画像を指す()
+        {
+            var (material, texture) = MakeMaterial();
+            var rtA = MakeRt();
+            var rtB = MakeRt();
+
+            var a = Acquire(material, texture, rtA, owner: 1);
+            var b = Acquire(material, texture, rtB, owner: 2);
+
+            Assert.That(b.Material, Is.Not.SameAs(a.Material));
+            Assert.That(a.Material.GetTexture("_MainTex"), Is.SameAs(rtA), "後から借りたアバターの色に変わらない");
+            Assert.That(b.Material.GetTexture("_MainTex"), Is.SameAs(rtB));
         }
 
         [Test]

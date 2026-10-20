@@ -350,7 +350,7 @@ namespace Nekoare.ClickRecolor.Tests
             s.edit.hasTarget = true;
             s.edit.targetColor = Color.blue;
 
-            ToolSession.BeginDecalBoxDrag(s.edit);
+            BoxDragState.BeginDecal(s.edit);
             var dragging = Prepare(s, width);
             Assert.That(dragging?.decal, Is.Not.Null);
             Assert.That(dragging.mask.width, Is.EqualTo(width), "前提: 選択マスクは作業解像度のまま");
@@ -359,7 +359,7 @@ namespace Nekoare.ClickRecolor.Tests
             var c = RunAndRead(s, dragging, width)[height / 2 * width + width / 2];
             Assert.That(c.b, Is.GreaterThan(c.r), "低解像度の層でも画像が新しい色（青）へ寄って貼られる");
 
-            ToolSession.EndDecalBoxDrag();
+            BoxDragState.EndDecal();
             var released = Prepare(s, width);
             Assert.That(released?.decal, Is.Not.Null);
             Assert.That(released.decal.width, Is.EqualTo(width), "離したらフル解像度");
@@ -375,14 +375,14 @@ namespace Nekoare.ClickRecolor.Tests
             var other = new RecolorEdit { name = "other" };
             try
             {
-                ToolSession.BeginDecalBoxDrag(other);
+                BoxDragState.BeginDecal(other);
                 var job = Prepare(s, width);
                 Assert.That(job?.decal, Is.Not.Null);
                 Assert.That(job.decal.width, Is.EqualTo(width));
             }
             finally
             {
-                ToolSession.EndDecalBoxDrag();
+                BoxDragState.EndDecal();
             }
         }
 

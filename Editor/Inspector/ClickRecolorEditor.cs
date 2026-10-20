@@ -464,12 +464,7 @@ namespace Nekoare.ClickRecolor.Editor.Inspector
                 if (component.FindEdit(id) != null)
                 {
                     RecolorSceneTool.Activate(component.gameObject);
-                    // Scene での再クリックと同じく、別の編集に切り替えるときは色未設定の仮の編集を捨てる
-                    if (ToolSession.CurrentEditId != id)
-                    {
-                        RecolorSceneTool.DiscardPendingEdit();
-                        ToolSession.CurrentEditId = id;
-                    }
+                    RecolorSceneTool.SelectEdit(id);
                     SceneView.RepaintAll();
                 }
                 GUIUtility.ExitGUI();

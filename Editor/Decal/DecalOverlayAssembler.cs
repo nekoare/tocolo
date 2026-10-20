@@ -173,7 +173,7 @@ namespace Nekoare.ClickRecolor.Editor.Decal
             public RenderTexture bump2ndMask;
             /// <summary>image をドラッグ中の形（画像全体）で作ったか</summary>
             public bool dragging;
-            /// <summary>image に最後に掛けた見た目（RecolorPreview.HashEditLook）と置き方（HashEditPlacement）。同じならやり直さない</summary>
+            /// <summary>image に最後に掛けた見た目（EditHash.Look）と置き方（EditHash.Placement）。同じならやり直さない</summary>
             public int lookHash;
             public int placementHash;
         }
@@ -427,7 +427,7 @@ namespace Nekoare.ClickRecolor.Editor.Decal
                     {
                         editId = edit.id, texture = texture, root = root, maskSize = maskSize, maxSize = maxSize, applyNormal = applyNormal,
                         maskBytes = maskBytes, maskWidth = mask.width, maskHeight = mask.height, dragging = dragging,
-                        lookHash = NDMF.RecolorPreview.HashEditLook(17, edit), placementHash = NDMF.RecolorPreview.HashEditPlacement(17, edit),
+                        lookHash = EditHash.Look(17, edit), placementHash = EditHash.Placement(17, edit),
                     };
                 }
                 foreach (var step in steps)
@@ -577,6 +577,9 @@ namespace Nekoare.ClickRecolor.Editor.Decal
                     try
                     {
                         if (step.segment.judgeVertices == null || geometry.judgeVertices.Length != step.segment.judgeVertices.Length) return false;
+                        // 展開の面のつながりは頂点の位置を持つので、ポーズ・表情で頂点が動いたら作り直させる
+                        // （古い位置で展開して新しい位置で判定すると、シールの画像がずれたり欠けたりする）
+                        if (!SamePositions(step.segment.judgeVertices, geometry.judgeVertices)) step.segment.unfoldGraph = null;
                         step.segment.judgeVertices = geometry.judgeVertices;
                         step.segment.judgeLocalToWorld = geometry.judgeLocalToWorld;
                         if (!ApplySegment(display, step.segment, uvs, triangles)) return false;
@@ -636,6 +639,16 @@ namespace Nekoare.ClickRecolor.Editor.Decal
                     bump2ndMask = null;
                 }
             }
+        }
+
+        private static bool SamePositions(Vector3[] a, Vector3[] b)
+        {
+            if (a.Length != b.Length) return false;
+            for (int i = 0; i < a.Length; i++)
+            {
+                if (a[i] != b[i]) return false;
+            }
+            return true;
         }
 
         /// <summary>

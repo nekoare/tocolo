@@ -238,8 +238,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             {
                 if (member != null && member.id == ToolSession.CurrentEditId) return;
             }
-            RecolorSceneTool.DiscardPendingEdit();
-            ToolSession.CurrentEditId = edit.id;
+            RecolorSceneTool.SelectEdit(edit.id);
             SceneView.RepaintAll();
         }
     }

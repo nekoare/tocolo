@@ -200,6 +200,82 @@ namespace Nekoare.ClickRecolor.Tests
             Assert.That(RecolorPipeline.PrepareJob(edit, texture, Size, users), Is.Null, "文脈が無ければ箱モードは作れない");
         }
     
+        /// <summary>離れた 2 つの四角形（別の UV チャート）。左は x −0.5..−0.1・u 0..0.4、右は x 0.1..0.5・u 0.6..1</summary>
+        private Mesh MakeTwoQuads()
+        {
+            var mesh = Track(new Mesh());
+            mesh.vertices = new[]
+            {
+                new Vector3(-0.5f, -0.5f, 0f), new Vector3(-0.1f, -0.5f, 0f), new Vector3(-0.5f, 0.5f, 0f), new Vector3(-0.1f, 0.5f, 0f),
+                new Vector3(0.1f, -0.5f, 0f), new Vector3(0.5f, -0.5f, 0f), new Vector3(0.1f, 0.5f, 0f), new Vector3(0.5f, 0.5f, 0f),
+            };
+            mesh.uv = new[]
+            {
+                new Vector2(0f, 0f), new Vector2(0.4f, 0f), new Vector2(0f, 1f), new Vector2(0.4f, 1f),
+                new Vector2(0.6f, 0f), new Vector2(1f, 0f), new Vector2(0.6f, 1f), new Vector2(1f, 1f),
+            };
+            mesh.triangles = new[] { 0, 2, 1, 2, 3, 1, 4, 6, 5, 6, 7, 5 };
+            return mesh;
+        }
+
+        private static RecolorEdit AddPerPartBoxEdit(ClickRecolor component, Texture2D texture, Renderer renderer)
+        {
+            var edit = RecolorEdit.CreateNew();
+            edit.sourceTexture = texture;
+            edit.seedRenderer = renderer;
+            edit.mode = SelectionMode.Box;
+            edit.boxPosition = Vector3.zero;
+            edit.boxSize = new Vector3(2f, 2f, 2f);
+            edit.boxPerPartStats = true;
+            edit.hasTarget = true;
+            component.AddEdit(edit);
+            return edit;
+        }
+
+        [Test]
+        public void 箱をドラッグ中の編集だけパーツごとに分けず_書き出しとほかの編集は分ける()
+        {
+            var texture = Track(new Texture2D(32, 32));
+            var (component, renderer) = MakeScene(texture);
+            renderer.GetComponent<MeshFilter>().sharedMesh = MakeTwoQuads();
+            var dragged = AddPerPartBoxEdit(component, texture, renderer);
+            var other = AddPerPartBoxEdit(component, texture, renderer);
+            var renderers = new List<Renderer> { renderer };
+            var users = RecolorPreview.CollectUsers(renderers, texture);
+            var context = MaskContext.For(component, renderers);
+            int PartsOf(RecolorEdit edit, bool fromExport) =>
+                RecolorPipeline.PrepareJob(edit, texture, Size, users, fromExport, context)?.parts?.Count ?? -1;
+
+            Assert.That(PartsOf(dragged, false), Is.EqualTo(2), "ドラッグしていなければ 2 つのパーツに分ける");
+
+            BoxDragState.Selection.Begin(dragged);
+            Assert.That(PartsOf(dragged, false), Is.EqualTo(1), "ドラッグ中のプレビューは分けない（軽く作る）");
+            Assert.That(PartsOf(dragged, true), Is.EqualTo(2), "書き出し・ビルドはドラッグ中の印が残っていても仕上がりの品質で作る");
+            Assert.That(PartsOf(other, false), Is.EqualTo(2), "ドラッグしていない編集は分ける");
+
+            BoxDragState.Selection.End();
+            Assert.That(PartsOf(dragged, false), Is.EqualTo(2), "離したら分ける");
+        }
+
+        [Test]
+        public void 箱のドラッグ中の印は連結のメンバーにも効き_Clearで下りる()
+        {
+            var edit = RecolorEdit.CreateNew();
+            edit.groupId = "g";
+            var member = RecolorEdit.CreateNew();
+            member.groupId = "g";
+            var unrelated = RecolorEdit.CreateNew();
+
+            BoxDragState.Selection.Begin(edit);
+            Assert.That(BoxDragState.Selection.IsFor(edit), Is.True);
+            Assert.That(BoxDragState.Selection.IsFor(member), Is.True, "連結は同じ箱を共有する");
+            Assert.That(BoxDragState.Selection.IsFor(unrelated), Is.False);
+
+            ToolSession.Clear();
+            Assert.That(BoxDragState.Selection.IsActive, Is.False);
+            Assert.That(BoxDragState.Selection.IsFor(edit), Is.False);
+        }
+
         private static Texture2D MakeTextureAsset(string path)
         {
             var texture = new Texture2D(4, 4);

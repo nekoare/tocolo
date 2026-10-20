@@ -22,8 +22,8 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
     /// 上流（RecolorPreview）が作り直されただけ（色スライダー等）なら Refresh で表示用メッシュと画像を引き継ぎ、マテリアルだけ作り直す
     /// （顔メッシュのブレンドシェイプ複製を毎回走らせないため）。Refresh の updatedAspects は上流が Create されるたびに Everything になるので使わず、
     /// プロキシのメッシュが元の sharedMesh のままか（上流が本当にメッシュを差し替えていないか）で引き継げるかを決める。
-    /// 重ね貼りの編集の色・グラデーションだけ変わったとき（編集の「見た目」RecolorPreview.HashEditLook）も Refresh で引き継ぎ、
-    /// 画像の下地（DecalImageBase）から色の段だけ掛け直す。表示用メッシュ・選択マスクの読み戻し・投影は「形」（HashEditShape）が変わったときだけ作り直す
+    /// 重ね貼りの編集の色・グラデーションだけ変わったとき（編集の「見た目」EditHash.Look）も Refresh で引き継ぎ、
+    /// 画像の下地（DecalImageBase）から色の段だけ掛け直す。表示用メッシュ・選択マスクの読み戻し・投影は「形」（EditHash.Shape）が変わったときだけ作り直す
     /// （ユーザー要望 2026-10-06「画像を入れるの色変更・グラデーションが重い」）。
     ///
     /// 既知の制限:
@@ -35,13 +35,13 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
     ///   多い（余分なマテリアルで最後のサブメッシュを重ね描きする）Renderer は、表示用メッシュで最後のサブメッシュを複製して数を揃えてから貼る
     /// - 1 つの Renderer で対象テクスチャを使うスロットが複数あり Tiling/Offset が違うとき、画像の選択マスクは最初のスロットの Tiling/Offset で引く
     ///   （DecalOverlayMesh.Build はスロットを 1 つのサブメッシュにまとめるため）
-    /// - 画像の箱のドラッグ中（ToolSession.IsDecalBoxDraggingFor）は作り直さない: ドラッグを始めたときに 1 回だけ対象スロットの三角形を向きに関係なくすべて複製し、
+    /// - 画像の箱のドラッグ中（BoxDragState.Decal.IsFor）は作り直さない: ドラッグを始めたときに 1 回だけ対象スロットの三角形を向きに関係なくすべて複製し、
     ///   以後は OnFrame で、今の箱で「表を向き、箱と交わる」三角形の並びと投影 UV（UV0）だけを書き換えて追従させる（ふだんと同じ判定なので回転しても見切れない。
-    ///   実機 2026-10-04「追従性が悪すぎる」「回転で見切れる」）。そのため HashEdit はドラッグ中の重ね貼りの編集では箱の値を畳まない（ToolSession.DecalBoxDragIsOverlay）。
+    ///   実機 2026-10-04「追従性が悪すぎる」「回転で見切れる」）。そのため EditHash はドラッグ中の重ね貼りの編集では箱の値を畳まない（BoxDragState.DecalIsOverlay）。
     ///   ドラッグ中の近似: 画像は選択範囲で切らない画像全体（色変え・不透明度は掛ける。グラデーションは色 1 側）。離すと箱の値がハッシュに戻り、正確に作り直す。
     ///   元の UV0 が 2 成分でないメッシュでは書き換えず、離すまで始めた位置のまま
     ///   つかんだときは作り直さず、ふだんの段（箱の周りだけ複製）をそのまま使う。ドラッグ中にその範囲の外へ出たら、1 回だけ範囲で絞らずに作り直す
-    ///   （ToolSession.DecalDragNeedsFullCopy。重いメッシュでは出た瞬間に 1 回止まる）
+    ///   （BoxDragState.DecalNeedsFullCopy。重いメッシュでは出た瞬間に 1 回止まる）
     /// </summary>
     internal class DecalOverlayPreview : IRenderFilter
     {
@@ -123,11 +123,11 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
                     {
                         if (!(renderer is SkinnedMeshRenderer || renderer is MeshRenderer)) continue;
                         bool active = context.ActiveInHierarchy(renderer.gameObject);
-                        var materials = context.Observe(renderer, r => r.sharedMaterials, SameMaterialArray);
+                        var materials = context.Observe(renderer, r => r.sharedMaterials, RecolorPreview.SameMaterialArray);
                         if (materials == null) continue;
                         foreach (var material in materials)
                         {
-                            if (material != null) context.Observe(material, ShaderAndMainTexture);
+                            if (material != null) context.Observe(material, RecolorPreview.ShaderAndMainTexture);
                         }
                         if (active) candidates.Add(renderer);
                     }
@@ -188,7 +188,7 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
 
         /// <summary>
         /// 重ね貼りの表示用メッシュと画像の下地を決めるコンポーネントの状態のハッシュ（「形」）。RecolorPreview.ComputeEditsHash を丸ごと観測すると、
-        /// 他の編集の色スライダーでも作り直しになるので、重ね貼りになりうる編集のテクスチャと形（HashEditShape。画像の箱・ドラッグ状態を含む）・
+        /// 他の編集の色スライダーでも作り直しになるので、重ね貼りになりうる編集のテクスチャと形（EditHash.Shape。画像の箱・ドラッグ状態を含む）・
         /// 解像度・除外リストだけを畳む。ほかの編集（足した・色を初めて決めた等）では変わらない（クリックのたびに重ね貼りを作り直していた。
         /// 2026-10-06 計測で 100〜150ms）。重ね貼りのテクスチャの解像度・基準をどのコンポーネントが決めるかは FoldOverlayPlans。
         /// 色の設定は ComputeOverlayLookHash
@@ -211,7 +211,7 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
                 {
                     if (!IsOverlayCandidate(edit)) continue;
                     h = h * 31 + edit.sourceTexture.GetInstanceID();
-                    h = RecolorPreview.HashEditShape(h, edit);
+                    h = EditHash.Shape(h, edit);
                 }
                 return h;
             }
@@ -241,8 +241,8 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
         }
 
         /// <summary>
-        /// 重ね貼りになりうる編集のテクスチャごとに、解像度・基準を決めるコンポーネント（そのテクスチャを最初に対象にするもの。
-        /// Instantiate の sizeOf / rootOf と同じ決め方）の番号を h に畳む。解像度は ComputeOverlayShapeHash に入っている
+        /// 重ね貼りになりうる編集のテクスチャごとに、解像度・基準を決めるコンポーネント（TextureOwners.FirstEffective。
+        /// Instantiate と同じ決め方）の番号を h に畳む。解像度は ComputeOverlayShapeHash に入っている
         /// </summary>
         internal static int FoldOverlayPlans(int h, IReadOnlyList<ClickRecolor> components)
         {
@@ -256,25 +256,22 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
                     if (IsOverlayCandidate(edit)) overlayTextures.Add(edit.sourceTexture);
                 }
             }
+            if (overlayTextures.Count == 0) return h;
+            var owners = TextureOwners.FirstEffective(components, c => c.previewEnabled);
             unchecked
             {
-                for (int c = 0; c < components.Count && overlayTextures.Count > 0; c++)
+                foreach (var texture in owners.Textures)
                 {
-                    var component = components[c];
-                    if (component == null || !component.previewEnabled || component.edits == null) continue;
-                    foreach (var edit in component.edits)
-                    {
-                        if (!RecolorPreview.IsPreviewTarget(edit) || !overlayTextures.Remove(edit.sourceTexture)) continue;
-                        h = h * 31 + edit.sourceTexture.GetInstanceID();
-                        h = h * 31 + c;
-                    }
+                    if (!overlayTextures.Contains(texture)) continue;
+                    h = h * 31 + texture.GetInstanceID();
+                    h = h * 31 + owners.IndexOf(texture);
                 }
             }
             return h;
         }
 
         /// <summary>
-        /// 重ね貼りになりうる編集の画像の「置き方」（箱の位置・比率・ドラッグ状態。RecolorPreview.HashEditPlacement）のハッシュ。
+        /// 重ね貼りになりうる編集の画像の「置き方」（箱の位置・比率・ドラッグ状態。EditHash.Placement）のハッシュ。
         /// 変わったら表示用メッシュは作り直さず、描く三角形・投影 UV・画像だけ置き直す（Node.ReapplyPlacements）
         /// </summary>
         internal static int ComputeOverlayPlacementHash(ClickRecolor component)
@@ -285,13 +282,13 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
                 int h = 17;
                 foreach (var edit in component.edits)
                 {
-                    if (IsOverlayCandidate(edit)) h = RecolorPreview.HashEditPlacement(h, edit);
+                    if (IsOverlayCandidate(edit)) h = EditHash.Placement(h, edit);
                 }
                 return h;
             }
         }
 
-        /// <summary>重ね貼りになりうる編集の「見た目」（色・グラデーション等。RecolorPreview.HashEditLook）のハッシュ。変わったら画像の色の段だけ掛け直す</summary>
+        /// <summary>重ね貼りになりうる編集の「見た目」（色・グラデーション等。EditHash.Look）のハッシュ。変わったら画像の色の段だけ掛け直す</summary>
         internal static int ComputeOverlayLookHash(ClickRecolor component)
         {
             if (component == null || component.edits == null) return 0;
@@ -300,7 +297,7 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
                 int h = 17;
                 foreach (var edit in component.edits)
                 {
-                    if (IsOverlayCandidate(edit)) h = RecolorPreview.HashEditLook(h, edit);
+                    if (IsOverlayCandidate(edit)) h = EditHash.Look(h, edit);
                 }
                 return h;
             }
@@ -332,25 +329,10 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
                 // Refresh で同じ観測を新しい context に張り直して比べるので、観測は 1 か所（ObserveInputs）にまとめる
                 int signature = ObserveInputs(context, data, users, out int lookSignature, out int placementSignature);
 
-                // テクスチャごとの解像度と基準（RecolorPreview の TexturePlan と同じ: そのテクスチャに最初に効くコンポーネント）。
-                // 重ね貼りの編集もまとめて決めるので、色変えの編集と同じ大きさ・同じ文脈の選択マスクになり MaskCache を共有できる
-                var sizeOf = new Dictionary<Texture2D, int>();
-                var rootOf = new Dictionary<Texture2D, Transform>();
+                // テクスチャごとの解像度と基準（TextureOwners.FirstEffective。ビルドの ProBuild も同じ）
+                var owners = TextureOwners.FirstEffective(data.components, c => c.previewEnabled);
                 var edits = new List<RecolorEdit>();
-                foreach (var component in data.components)
-                {
-                    if (component == null || !component.previewEnabled || component.edits == null) continue;
-                    foreach (var edit in component.edits)
-                    {
-                        if (!RecolorPreview.IsPreviewTarget(edit)) continue;
-                        if (!sizeOf.ContainsKey(edit.sourceTexture))
-                        {
-                            sizeOf.Add(edit.sourceTexture, (int)component.previewResolution);
-                            rootOf.Add(edit.sourceTexture, component.transform);
-                        }
-                    }
-                    edits.AddRange(CollectOverlayEdits(component));
-                }
+                foreach (var component in data.components) edits.AddRange(CollectOverlayEdits(component));
                 if (edits.Count == 0) return Task.FromResult<IRenderFilterNode>(new EmptyNode());
 
                 // 上流（RecolorPreview）が差し替えた後のマテリアルを複製元にする（色変え・ハイライトを引き継ぐ）
@@ -365,10 +347,11 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
                 foreach (var edit in edits)
                 {
                     // ドラッグ中なのは掴んでいる箱の編集（と連結）だけ。他の画像の編集はふだんどおり作る
-                    bool dragging = SceneTool.ToolSession.IsDecalBoxDraggingFor(edit);
+                    bool dragging = BoxDragState.Decal.IsFor(edit);
                     int maxSize = dragging ? DecalLayerCache.DragMaxSize : DecalImageBuilder.MaxSize;
                     var texture = edit.sourceTexture;
-                    BuildEdit(assembler, edit, texture, sizeOf[texture], rootOf[texture], users, maxSize, dragging);
+                    var owner = owners.Of(texture);
+                    BuildEdit(assembler, edit, texture, (int)owner.previewResolution, owner.transform, users, maxSize, dragging);
                 }
 
                 var nodeOverlays = new Dictionary<Renderer, NodeOverlay>();
@@ -390,7 +373,7 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
                 foreach (var placement in assembler.Placements) recordedIds.Add(placement.editId);
                 foreach (var edit in edits)
                 {
-                    if (!recordedIds.Contains(edit.id)) unrecorded[edit.id] = RecolorPreview.HashEditPlacement(17, edit);
+                    if (!recordedIds.Contains(edit.id)) unrecorded[edit.id] = EditHash.Placement(17, edit);
                 }
                 var shared = new SharedResources(meshes, new List<RenderTexture>(assembler.Images),
                     new List<DecalOverlayAssembler.EditPlacement>(assembler.Placements), unrecorded);
@@ -443,7 +426,7 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
                             if (!IsOverlayCandidate(edit)) continue;
                             // 元テクスチャを再インポートしたら選択マスクを作り直す
                             h = h * 31 + context.Observe(edit.sourceTexture, t => t.imageContentsHash).GetHashCode();
-                            // 画像を描き直して再インポートしたら作り直す（HashEdit に畳むだけではコンポーネントの変更時にしか観測されない）
+                            // 画像を描き直して再インポートしたら作り直す（EditHash に畳むだけではコンポーネントの変更時にしか観測されない）
                             h = h * 31 + context.Observe(edit.decalTexture, t => t.imageContentsHash).GetHashCode();
                         }
                     }
@@ -451,7 +434,7 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
                 h = FoldOverlayPlans(h, data?.components);
                 foreach (var original in originals)
                 {
-                    var materials = context.Observe(original, r => r.sharedMaterials, SameMaterialArray);
+                    var materials = context.Observe(original, r => r.sharedMaterials, RecolorPreview.SameMaterialArray);
                     if (materials == null) continue;
                     foreach (var material in materials)
                     {
@@ -560,21 +543,6 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
             return result;
         }
 
-        private static (Shader, Texture2D) ShaderAndMainTexture(Material material) =>
-            (material.shader, MaterialTextureResolver.TryGetMainTexture(material, out var info) ? info.texture : null);
-
-        /// <summary>sharedMaterials の Observe 用比較（配列は毎回新規インスタンスが返るので要素で比べる）</summary>
-        private static bool SameMaterialArray(Material[] a, Material[] b)
-        {
-            if (ReferenceEquals(a, b)) return true;
-            if (a == null || b == null || a.Length != b.Length) return false;
-            for (int i = 0; i < a.Length; i++)
-            {
-                if (a[i] != b[i]) return false;
-            }
-            return true;
-        }
-
         private static void WarnOnce(string key, string message)
         {
             if (!s_warned.Add(key)) return;
@@ -609,7 +577,7 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
 
             public IReadOnlyList<DecalOverlayAssembler.EditPlacement> Placements => _placements;
 
-            /// <summary>画像を作らなかった重ね貼りの編集の id → 作ったときの置き方（RecolorPreview.HashEditPlacement）</summary>
+            /// <summary>画像を作らなかった重ね貼りの編集の id → 作ったときの置き方（EditHash.Placement）</summary>
             public IReadOnlyDictionary<string, int> UnrecordedPlacements { get; }
 
             /// <summary>このノードだけが持っている（Refresh で共有した旧ノードが残っていない）</summary>
@@ -626,7 +594,7 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
                 {
                     var edit = FindEdit(data, placement.editId);
                     if (edit == null) return false;
-                    int hash = RecolorPreview.HashEditLook(17, edit);
+                    int hash = EditHash.Look(17, edit);
                     if (hash == placement.lookHash) continue;
                     if (placement.imageBase == null || !DecalImageBuilder.ApplyLook(placement.imageBase, edit, placement.image)) return false;
                     placement.lookHash = hash;
@@ -752,7 +720,7 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
         /// <summary>
         /// ドラッグ中に作った表示用メッシュの投影 UV と描く三角形を、編集の箱が変わったフレームだけ書き換える（メッシュは作り直さない。
         /// DecalOverlayAssembler.UpdateSegment）。箱の値（位置・回転・大きさ・比率・画像）を段ごとに覚えておき、変わった段だけ計算する。
-        /// 段が複製した範囲の外へ出たら作り直しを頼む（ToolSession.RequestDecalDragFullCopy。ドラッグ中はハッシュに箱の値が無く、頼まないと離すまで見切れる）
+        /// 段が複製した範囲の外へ出たら作り直しを頼む（BoxDragState.RequestDecalFullCopy。ドラッグ中はハッシュに箱の値が無く、頼まないと離すまで見切れる）
         /// </summary>
         private sealed class DragUvs
         {
@@ -781,7 +749,7 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
                     int state = StateOf(_segments[i].edit);
                     if (state == _lastState[i]) continue;
                     // 複製した範囲の外へ出たら、外の三角形は描けないので作り直しを頼む（このフレームは範囲の中だけ描く）
-                    if (!DecalOverlayAssembler.CoversBox(_segments[i], _segments[i].edit)) SceneTool.ToolSession.RequestDecalDragFullCopy();
+                    if (!DecalOverlayAssembler.CoversBox(_segments[i], _segments[i].edit)) BoxDragState.RequestDecalFullCopy();
                     if (_uvs == null)
                     {
                         // UV0 が 2 成分のメッシュだけ書き換える（成分数が違うと SetUVs で頂点の形式ごと変わってしまう）
@@ -990,7 +958,7 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
                     foreach (var edit in CollectOverlayEdits(component))
                     {
                         if (recorded.Contains(edit.id)) continue;
-                        if (_shared.UnrecordedPlacements.TryGetValue(edit.id, out int before) && before == RecolorPreview.HashEditPlacement(17, edit)) continue;
+                        if (_shared.UnrecordedPlacements.TryGetValue(edit.id, out int before) && before == EditHash.Placement(17, edit)) continue;
                         return false;
                     }
                 }
@@ -1002,9 +970,9 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
                     {
                         var edit = FindEdit(_data, placement.editId);
                         if (edit == null) return false;
-                        int hash = RecolorPreview.HashEditPlacement(17, edit);
+                        int hash = EditHash.Placement(17, edit);
                         if (hash == placement.placementHash) continue;
-                        bool dragging = SceneTool.ToolSession.IsDecalBoxDraggingFor(edit);
+                        bool dragging = BoxDragState.Decal.IsFor(edit);
                         // ドラッグ中に作ったマテリアルには写し直した法線マップを入れていない
                         if (!dragging && edit.decalNormal && !placement.applyNormal) return false;
 
@@ -1037,7 +1005,7 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
                         _shared.ReplaceImages(placement, image, imageBase, normal, bump2ndMask);
                         placement.dragging = dragging;
                         placement.placementHash = hash;
-                        placement.lookHash = RecolorPreview.HashEditLook(17, edit);
+                        placement.lookHash = EditHash.Look(17, edit);
                     }
                     return true;
                 }

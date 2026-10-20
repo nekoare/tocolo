@@ -14,7 +14,7 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
     /// スライダーを動かしてもマスクと統計は作り直さない（選択が揺れない）。
     /// 返す RT はキャッシュ所有なので、呼び出し側で解放しないこと。
     /// 枚数は Capacity までに抑える（編集が多いとあふれた分は捨て、次に PrepareJob されたときに作り直す）。
-    /// 現在の編集（ToolSession.CurrentEditId）のマスクは Trim で捨てない。
+    /// 現在の編集（ToolSession.CurrentEditId）のマスクは、最近使った PinnedPerEdit 枚まで Trim で捨てない。
     /// 「画像を入れる」のデカール層は別のキャッシュ（DecalLayerCache）が持つ（画像の箱を動かしても選択マスクを作り直さないため）
     /// </summary>
     internal static class MaskCache
@@ -249,7 +249,7 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
         }
 
         /// <summary>
-        /// Capacity 枚まで減らす（古いものから解放。現在の編集 ToolSession.CurrentEditId のマスクは残す）。
+        /// Capacity 枚まで減らす（古いものから解放。現在の編集 ToolSession.CurrentEditId の最近のマスクは残す）。
         /// 1 回の Run に渡すマスクを捨てないよう、PrepareJob → Run を終えてから呼ぶこと。
         /// 「画像を入れる」の層（DecalLayerCache）も同じ時機に減らす（PrepareJob の約束を呼び出し側で増やさないため）
         /// </summary>
@@ -260,15 +260,30 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
         }
 
         /// <summary>
-        /// 最近使った keep 枚まで減らす（古いものから解放）。pinnedEditId の編集のマスクは捨てない（keep の枚数には数える。
-        /// それだけで keep を超えるときは keep より多く残る）
+        /// 現在の編集のマスクのうち Trim で残す枚数（最近使ったものから）。同じ編集でもプレビュー・Scene のクリック・重ね貼りで
+        /// 利用者や解像度が違えば鍵が分かれ、同時に使うのはこの程度。全部残すと、しきい値・はみ出し幅のスライダーや箱のドラッグの
+        /// 値ごとのマスクがたまり続け（2048 で 1 枚 4MB）、代わりに他の編集のマスクが追い出される
+        /// </summary>
+        internal const int PinnedPerEdit = 4;
+
+        /// <summary>
+        /// 最近使った keep 枚まで減らす（古いものから解放）。pinnedEditId の編集のマスクは最近使った PinnedPerEdit 枚まで捨てない
+        /// （keep の枚数には数える。それだけで keep を超えるときは keep より多く残る）
         /// </summary>
         internal static void Trim(int keep, string pinnedEditId)
         {
+            var pinned = new HashSet<Entry>();
+            if (pinnedEditId != null)
+            {
+                for (int i = s_entries.Count - 1; i >= 0 && pinned.Count < PinnedPerEdit; i--)
+                {
+                    if (s_entries[i].key.EditId == pinnedEditId) pinned.Add(s_entries[i]);
+                }
+            }
             int excess = s_entries.Count - Mathf.Max(0, keep);
             for (int i = 0; i < s_entries.Count && excess > 0;)
             {
-                if (pinnedEditId != null && s_entries[i].key.EditId == pinnedEditId)
+                if (pinned.Contains(s_entries[i]))
                 {
                     i++;
                     continue;

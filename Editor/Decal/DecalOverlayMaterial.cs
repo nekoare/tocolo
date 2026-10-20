@@ -393,9 +393,11 @@ namespace Nekoare.ClickRecolor.Editor.Decal
                 }
 
                 // lilToon の Setup は中で Undo.RecordObject(material) する。その記録がユーザーの操作（色の変更など）と同じ Undo の束に入ると、
-                // Ctrl+Z で透過化だけが取り消され、画像の透明な所が黒い不透明で描かれる（実機 2026-10-04。ClearUndo で消し損ねることがあった）。
+                // Ctrl+Z で透過化だけが取り消され、画像の透明な所が黒い不透明で描かれる（ClearUndo で消し損ねることがあった）。
                 // そこで Setup は使い捨ての複製（scratch）に掛け、その結果を複製し直したものを使う（使うマテリアルは Undo に一度も記録されない）。
-                // scratch の記録は確定させて消してから破棄する（消し損ねても、破棄した物の記録は Undo で何もしない）
+                // scratch の記録は確定させずに、scratch ごとすぐ破棄する（破棄した物の記録は Undo で何もしない）。
+                // FlushUndoRecordObjects で確定させてから ClearUndo で消す形は駄目: 確定した時点で Undo の履歴に操作が積まれて Redo が消え
+                // （Ctrl+Z の後にプレビューを作り直すと Ctrl+Y が効かない）、ドラッグ中のユーザーの記録まで途中で確定して Undo が細切れになる
                 scratch = clone;
                 // 透過化 API は lilShaderManager の静的なシェーダー参照（ltst 等）で切り替える。lilToon のカスタムシェーダーの Inspector は
                 // 描画のたびにそれを自分のシェーダーへ差し替え、通常の lilToon の Inspector を描くまで戻さないので、そのままだと
@@ -407,8 +409,6 @@ namespace Nekoare.ClickRecolor.Editor.Decal
                     scratch, _renderingTransparent, _transparentNormal,
                     (object)false, isLite, isTess, isMulti,
                 });
-                Undo.FlushUndoRecordObjects();
-                Undo.ClearUndo(scratch);
                 if (scratch.shader == null || !IsLilToon(scratch)) return null;
                 clone = MaterialCloner.Clone(scratch, "");
                 clone.name = scratch.name;
