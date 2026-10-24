@@ -211,5 +211,26 @@ namespace Nekoare.ClickRecolor.Tests
 
             Assert.That(BoxDragState.Decal.IsActive, Is.False);
         }
+
+        [Test]
+        public void なぞって調整の道具とスポイトは同時に持たない()
+        {
+            ToolSession.Brush = BrushMode.Add;
+            ToolSession.EyedropperActive = true;
+            Assert.That(ToolSession.Brush, Is.EqualTo(BrushMode.None), "スポイトを持ったら道具を置く");
+
+            ToolSession.Brush = BrushMode.Remove;
+            Assert.That(ToolSession.EyedropperActive, Is.False, "道具を持ったらスポイトをやめる");
+        }
+
+        [Test]
+        public void Clear_でなぞって調整の道具を置く()
+        {
+            ToolSession.Brush = BrushMode.Add;
+
+            ToolSession.Clear();
+
+            Assert.That(ToolSession.Brush, Is.EqualTo(BrushMode.None));
+        }
     }
 }

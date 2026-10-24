@@ -26,6 +26,15 @@ namespace Nekoare.ClickRecolor.Editor.Picking
         public Texture2D texture;
     }
 
+    /// <summary>なぞって調整の筆に触れた、見えている三角形 1 つ</summary>
+    internal struct BrushTriangle
+    {
+        public Renderer renderer;
+        public int submesh;
+        /// <summary>サブメッシュ内ローカルの三角形番号</summary>
+        public int triangle;
+    }
+
     /// <summary>
     /// Ctrl＋ドラッグの矩形の中に見えている島を集める。
     /// 基本は「島 ID 描画」: Scene カメラと同じ視点で、矩形の範囲だけを小さな RT に
@@ -42,6 +51,9 @@ namespace Nekoare.ClickRecolor.Editor.Picking
 
         /// <summary>フォールバックのレイの上限。レイ 1 本ごとに全三角形を調べるので、大きな矩形で固まらないよう間隔を広げる</summary>
         private const int FallbackMaxRays = 1024;
+
+        /// <summary>筆のフォールバックのレイの上限（円 1 つあたり）。レイ 1 本ごとにアバターの全三角形を調べるので、矩形選択よりずっと少なくする</summary>
+        private const int BrushFallbackMaxRays = 16;
 
         private static readonly int RendererIndexId = Shader.PropertyToID("_RendererIndex");
 
@@ -137,11 +149,6 @@ namespace Nekoare.ClickRecolor.Editor.Picking
         private static bool TryPickByIdRender(Camera camera, Rect guiRect, IReadOnlyList<Renderer> renderers, ScenePicker picker, out List<RectIsland> islands)
         {
             islands = null;
-            if (SystemInfo.graphicsShaderLevel < 40) return false;
-            if (!SystemInfo.SupportsRenderTextureFormat(RenderTextureFormat.ARGBFloat)) return false;
-            if (!SystemInfo.IsFormatSupported(GraphicsFormat.R32G32B32A32_SFloat, FormatUsage.ReadPixels)) return false;
-            var shader = ShaderAssets.LoadShader(ShaderAssets.IslandIdGuid);
-            if (shader == null || !shader.isSupported) return false;
 
             // GUI 座標（ポイント・左上原点）→ カメラの画面画素（左下原点）。pixelsPerPoint と y 反転はこの関数が面倒を見る
             Vector2 a = HandleUtility.GUIPointToScreenPixelCoordinate(guiRect.min);
@@ -156,8 +163,38 @@ namespace Nekoare.ClickRecolor.Editor.Picking
             if (width <= 0 || height <= 0 || view.width <= 0f || view.height <= 0f)
             {
                 islands = new List<RectIsland>();
-                return true;
+                return CanRenderIds(out _);
             }
+            if (!TryRenderIds(camera, x0, x1, y0, y1, renderers, picker, out var pixels)) return false;
+            islands = CollectIslands(pixels, width, height, renderers);
+            return true;
+        }
+
+        /// <summary>島 ID 描画が使えるか（シェーダーモデル 4.0 以上・float の RT と読み戻し・シェーダーが読める）。使えれば shader に入れる</summary>
+        private static bool CanRenderIds(out Shader shader)
+        {
+            shader = null;
+            if (SystemInfo.graphicsShaderLevel < 40) return false;
+            if (!SystemInfo.SupportsRenderTextureFormat(RenderTextureFormat.ARGBFloat)) return false;
+            if (!SystemInfo.IsFormatSupported(GraphicsFormat.R32G32B32A32_SFloat, FormatUsage.ReadPixels)) return false;
+            shader = ShaderAssets.LoadShader(ShaderAssets.IslandIdGuid);
+            return shader != null && shader.isSupported;
+        }
+
+        /// <summary>
+        /// カメラの画面画素（左下原点）の矩形 [x0,x1]×[y0,y1] に見えている三角形の ID を、矩形と同じ大きさの RT に描いて読み戻す
+        /// （1 画素 = RGBA の float 4 つ。何も描かれない画素は (-1, -1)）。矩形は画面の外にはみ出してもよい（投影をその範囲に引き伸ばすだけ）。
+        /// 描けなければ false
+        /// </summary>
+        private static bool TryRenderIds(
+            Camera camera, float x0, float x1, float y0, float y1, IReadOnlyList<Renderer> renderers, ScenePicker picker, out float[] pixels)
+        {
+            pixels = null;
+            if (!CanRenderIds(out var shader)) return false;
+            Rect view = camera.pixelRect;
+            int width = (int)(x1 - x0);
+            int height = (int)(y1 - y0);
+            if (width <= 0 || height <= 0 || view.width <= 0f || view.height <= 0f) return false;
 
             // 画面全体を描いて一部を ReadPixels で読むと、DirectX で部分矩形の y の原点が全体読みと逆になる（RecolorSceneTool.IsSelectedAt の注記）。
             // そこで投影行列を矩形の範囲に絞り、矩形と同じ大きさの RT に描いて RT 全体を読む（読むのは矩形の範囲だけ）
@@ -165,24 +202,18 @@ namespace Nekoare.ClickRecolor.Editor.Picking
                 (x0 - view.x) / view.width * 2f - 1f, (x1 - view.x) / view.width * 2f - 1f,
                 (y0 - view.y) / view.height * 2f - 1f, (y1 - view.y) / view.height * 2f - 1f) * camera.projectionMatrix;
 
-            var rt = new RenderTexture(width, height, 24, RenderTextureFormat.ARGBFloat, RenderTextureReadWrite.Linear)
+            // なぞるたびに呼ばれるので、RT は作って捨てずに一時 RT を借りる
+            var rt = RenderTexture.GetTemporary(IdTargetDescriptor(width, height));
+            rt.filterMode = FilterMode.Point;
+            if (!rt.IsCreated() && !rt.Create())
             {
-                hideFlags = HideFlags.HideAndDontSave,
-                useMipMap = false,
-                autoGenerateMips = false,
-                antiAliasing = 1,
-                filterMode = FilterMode.Point,
-            };
-            if (!rt.Create())
-            {
-                Object.DestroyImmediate(rt);
+                RenderTexture.ReleaseTemporary(rt);
                 return false;
             }
 
             var material = new Material(shader) { hideFlags = HideFlags.HideAndDontSave };
             var readback = new Texture2D(width, height, TextureFormat.RGBAFloat, false, true) { hideFlags = HideFlags.HideAndDontSave };
             var previous = RenderTexture.active;
-            float[] pixels;
             try
             {
                 Graphics.SetRenderTarget(rt);
@@ -210,12 +241,144 @@ namespace Nekoare.ClickRecolor.Editor.Picking
                 RenderTexture.active = previous;
                 Object.DestroyImmediate(readback);
                 Object.DestroyImmediate(material);
-                rt.Release();
-                Object.DestroyImmediate(rt);
+                RenderTexture.ReleaseTemporary(rt);
+            }
+            return true;
+        }
+
+        /// <summary>ID 描画の RT（float の RGBA・深度あり・線形・ミップなし）</summary>
+        private static RenderTextureDescriptor IdTargetDescriptor(int width, int height) =>
+            new RenderTextureDescriptor(width, height, RenderTextureFormat.ARGBFloat, 24)
+            {
+                sRGB = false,
+                useMipMap = false,
+                autoGenerateMips = false,
+                msaaSamples = 1,
+            };
+
+        /// <summary>
+        /// なぞって調整の筆が guiFrom から guiTo まで動いた帯（GUI 座標。半径 guiRadius の円を線分に沿って動かした形）の中に見えている
+        /// renderers の三角形を集める。円を半径の半分ずつずらして置き、円ごとにその外接正方形を ID 描画して読み戻す（1 回 1ms 程度）。
+        /// 帯の外接矩形を 1 回で描かないのは、帯が上下対称でないので読み戻しの上下の向きが要るため。向きを小さな描画で確かめる方式は
+        /// 実機で判定できないことがあり、そのときレイの方式に落ちて 1 回数秒かかる。円を正方形の真ん中に置けば、
+        /// 読み戻しの上下が逆でも同じ画素が円に入るので向きが要らない。ID 描画が使えない環境では、円の中心のまわりにだけレイを飛ばす
+        /// </summary>
+        public static List<BrushTriangle> PickTriangles(
+            Camera camera, Vector2 guiFrom, Vector2 guiTo, float guiRadius, IReadOnlyList<Renderer> renderers, ScenePicker picker)
+        {
+            var result = new List<BrushTriangle>();
+            if (camera == null || renderers == null || picker == null || guiRadius <= 0f) return result;
+            var seen = new HashSet<(Renderer renderer, int submesh, int triangle)>();
+            float step = Mathf.Max(guiRadius * 0.5f, 1f);
+            int count = Mathf.Max(1, Mathf.CeilToInt(Vector2.Distance(guiFrom, guiTo) / step));
+            for (int i = 0; i < count; i++)
+            {
+                var center = count == 1 ? guiTo : Vector2.Lerp(guiFrom, guiTo, (float)(i + 1) / count);
+                foreach (var triangle in PickTrianglesInCircle(camera, center, guiRadius, renderers, picker))
+                {
+                    if (seen.Add((triangle.renderer, triangle.submesh, triangle.triangle))) result.Add(triangle);
+                }
+            }
+            return result;
+        }
+
+        /// <summary>筆の円 1 つ（中心 guiCenter）。外接正方形を Scene ビューの外にはみ出しても切り詰めずに描く（円を正方形の真ん中に保つ）</summary>
+        private static List<BrushTriangle> PickTrianglesInCircle(
+            Camera camera, Vector2 guiCenter, float guiRadius, IReadOnlyList<Renderer> renderers, ScenePicker picker)
+        {
+            Vector2 center = HandleUtility.GUIPointToScreenPixelCoordinate(guiCenter);
+            float radiusPixels = guiRadius * EditorGUIUtility.pixelsPerPoint;
+            int half = Mathf.Max(1, Mathf.CeilToInt(radiusPixels));
+            float x0 = Mathf.Round(center.x) - half;
+            float y0 = Mathf.Round(center.y) - half;
+            bool rendered = TryRenderIds(camera, x0, x0 + half * 2, y0, y0 + half * 2, renderers, picker, out var pixels);
+            if (rendered)
+            {
+                var middle = new Vector2(half, half);
+                return CollectTriangles(pixels, half * 2, half * 2, middle, middle, radiusPixels, true, renderers);
+            }
+            return PickTrianglesByRays(guiCenter, guiCenter, guiRadius, renderers, picker);
+        }
+
+        /// <summary>
+        /// 読み戻した ID 画素（width×height）のうち、線分 from–to（読み戻した矩形の左下を原点とする画素座標）から radiusPixels 以内の画素の
+        /// 三角形を重複なく集める。rowsBottomUp なら読み戻しの行 0 が下として位置を読む（線分が矩形の真ん中の 1 点なら、どちらでも同じ）。
+        /// 三角形番号がメッシュ全体の番号になる環境への対応は CollectIslands と同じ
+        /// </summary>
+        internal static List<BrushTriangle> CollectTriangles(
+            float[] pixels, int width, int height, Vector2 from, Vector2 to, float radiusPixels, bool rowsBottomUp, IReadOnlyList<Renderer> renderers)
+        {
+            var result = new List<BrushTriangle>();
+            if (pixels == null || renderers == null) return result;
+            int count = Mathf.Min(width * height, pixels.Length / 4);
+            var infos = new Dictionary<int, SubmeshInfo>();
+            float r2 = radiusPixels * radiusPixels;
+
+            bool global = false;
+            for (int p = 0; p < count && !global; p++)
+            {
+                if (!TryDecode(pixels, p, out int code, out int primitive)) continue;
+                var info = GetInfo(infos, code, renderers);
+                if (info == null || info.offset == 0) continue;
+                if (primitive >= info.localCount && primitive - info.offset >= 0 && primitive - info.offset < info.localCount) global = true;
             }
 
-            islands = CollectIslands(pixels, width, height, renderers);
-            return true;
+            var seen = new HashSet<(int code, int local)>();
+            for (int p = 0; p < count; p++)
+            {
+                int row = p / width;
+                var position = new Vector2(p % width + 0.5f, rowsBottomUp ? row + 0.5f : height - row - 0.5f);
+                if (SquaredDistanceToSegment(position, from, to) > r2) continue;
+                if (!TryDecode(pixels, p, out int code, out int primitive)) continue;
+                var info = GetInfo(infos, code, renderers);
+                if (info == null) continue;
+                int local = global ? primitive - info.offset : primitive;
+                if (local < 0 || local >= info.localCount) continue;
+                if (!seen.Add((code, local))) continue;
+                result.Add(new BrushTriangle
+                {
+                    renderer = renderers[code / SubmeshStride],
+                    submesh = code % SubmeshStride,
+                    triangle = local,
+                });
+            }
+            return result;
+        }
+
+        /// <summary>点 p から線分 a–b までの距離の 2 乗</summary>
+        internal static float SquaredDistanceToSegment(Vector2 p, Vector2 a, Vector2 b)
+        {
+            var ab = b - a;
+            float lengthSquared = ab.sqrMagnitude;
+            float t = lengthSquared > 1e-12f ? Mathf.Clamp01(Vector2.Dot(p - a, ab) / lengthSquared) : 0f;
+            return (p - (a + ab * t)).sqrMagnitude;
+        }
+
+        /// <summary>フォールバック: 筆の帯の中に格子状にレイを飛ばし、当たった三角形を集める（細い三角形は拾えないことがある）</summary>
+        private static List<BrushTriangle> PickTrianglesByRays(
+            Vector2 guiFrom, Vector2 guiTo, float guiRadius, IReadOnlyList<Renderer> renderers, ScenePicker picker)
+        {
+            var result = new List<BrushTriangle>();
+            var seen = new HashSet<(Renderer renderer, int submesh, int triangle)>();
+            float step = Mathf.Max(guiRadius / 4f, 2f / Mathf.Max(EditorGUIUtility.pixelsPerPoint, 1e-3f));
+            var min = Vector2.Min(guiFrom, guiTo) - Vector2.one * guiRadius;
+            var max = Vector2.Max(guiFrom, guiTo) + Vector2.one * guiRadius;
+            float columns = (max.x - min.x) / step + 1f;
+            float rows = (max.y - min.y) / step + 1f;
+            if (columns * rows > BrushFallbackMaxRays) step *= Mathf.Sqrt(columns * rows / BrushFallbackMaxRays);
+            for (float y = min.y; y <= max.y; y += step)
+            {
+                for (float x = min.x; x <= max.x; x += step)
+                {
+                    var point = new Vector2(x, y);
+                    if (SquaredDistanceToSegment(point, guiFrom, guiTo) > guiRadius * guiRadius) continue;
+                    var ray = HandleUtility.GUIPointToWorldRay(point);
+                    if (!picker.TryPick(ray, renderers, null, out var hit)) continue;
+                    if (!seen.Add((hit.renderer, hit.subMeshIndex, hit.triangleIndex))) continue;
+                    result.Add(new BrushTriangle { renderer = hit.renderer, submesh = hit.subMeshIndex, triangle = hit.triangleIndex });
+                }
+            }
+            return result;
         }
 
         /// <summary>

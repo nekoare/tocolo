@@ -283,6 +283,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             member.feather = anchor.feather;
             member.cleanupRadius = anchor.cleanupRadius;
             member.padding = anchor.padding;
+            member.paintEdgeOffset = anchor.paintEdgeOffset;
             member.perSeedStats = anchor.perSeedStats;
             member.targetColor = anchor.targetColor;
             member.hasTarget = anchor.hasTarget;

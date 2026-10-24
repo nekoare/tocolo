@@ -728,3 +728,42 @@ msgstr "Could not create the overlay material for '{0}', so the image of edit '{
 
 msgid "Error:OverlayApplyFailed"
 msgstr "Could not apply the smoothly placed image to '{0}' (see the Console for details)."
+
+msgid "Scene:Paint:Label"
+msgstr "Adjust by tracing"
+
+msgid "Scene:Paint:Add"
+msgstr "Add"
+
+msgid "Scene:Paint:Remove"
+msgstr "Remove"
+
+msgid "Scene:Paint:Size"
+msgstr "Brush size"
+
+msgid "Scene:Paint:Reset"
+msgstr "Delete tracing"
+
+
+msgid "Help:Paint"
+msgstr "Add to or remove from the selected parts by tracing faces (triangles) in the Scene view. Use this to select finer than a part, such as streaks or inner color on hair whose UVs are not split. The brush only affects visible faces. Traced adjustments are kept even if you later add or remove parts with Ctrl+click."
+
+msgid "Scene:Paint:OtherTexture"
+msgstr "Faces that use a different texture from this edit cannot be traced (only faces on the same texture can be added or removed)"
+
+
+
+msgid "Scene:Paint:HintDrag"
+msgstr "Drag to trace and add or remove"
+
+msgid "Scene:Paint:HintCtrl"
+msgstr "Hold Ctrl to swap add and remove"
+
+msgid "Scene:Paint:HintEsc"
+msgstr "Esc to put the brush down (press again to exit)"
+
+msgid "Scene:Paint:EdgeOffset"
+msgstr "Brush edge offset"
+
+msgid "Help:PaintEdgeOffset"
+msgstr "Moves the edges of traced additions and removals by pixels: + moves them outward (the selection grows), - moves them inward (it shrinks). Use this when the color boundary of a strand does not line up with the mesh edges. How far the selection spreads into UV gaps is set by Edge padding."

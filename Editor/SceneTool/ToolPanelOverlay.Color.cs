@@ -49,12 +49,17 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 }
                 if (ToolSession.TexTransToolNotice) EditorGUILayout.HelpBox(Locales.Tr("Scene:Panel:TexTransToolNotice"), MessageType.Warning);
             }
-            // Ctrl＋クリックで種を足せなかった理由など（数秒で消える）
-            string notice = ToolSession.TransientNotice;
-            if (notice != null)
+            // Ctrl＋クリックで種を足せなかった理由など（数秒で消える）。出すかは Layout のときに決めて、続くイベントでも同じにする
+            // （時刻で消えるので、Layout とマウスのイベントの間に消える時刻を過ぎると行の数が食い違い、GUILayout が崩れる）
+            if (Event.current.type == EventType.Layout)
             {
-                var args = ToolSession.TransientNoticeArgs;
-                EditorGUILayout.HelpBox(args.Length > 0 ? Locales.Tr(notice, args) : Locales.Tr(notice), MessageType.Info);
+                s_shownNotice = ToolSession.TransientNotice;
+                s_shownNoticeArgs = ToolSession.TransientNoticeArgs;
+            }
+            if (s_shownNotice != null)
+            {
+                var args = s_shownNoticeArgs ?? System.Array.Empty<object>();
+                EditorGUILayout.HelpBox(args.Length > 0 ? Locales.Tr(s_shownNotice, args) : Locales.Tr(s_shownNotice), MessageType.Info);
             }
             // ホイール・スライダー・最近の色・見本行の書き込み先（グラデーション ON で「色 2」を選んでいれば色 2）
             bool end = IsEditingGradientEnd(edit);

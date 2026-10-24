@@ -176,5 +176,100 @@ namespace Nekoare.ClickRecolor.Tests
             Assert.That(islands[0].uv.x, Is.EqualTo(islands[0].uv0.x + 0.5f).Within(1e-5f));
             Assert.That(islands[0].uv.y, Is.EqualTo(islands[0].uv0.y).Within(1e-5f));
         }
+
+        // ── なぞって調整の筆（CollectTriangles）──
+
+        [Test]
+        public void 筆の円の外の画素の三角形は集めない()
+        {
+            var renderer = MakeRenderer(splitSubmesh: false);
+            // 3×3 の真ん中が円の中心、半径 1.2。上下左右（画素の中心が中心から 1.0）は円の中、四隅（約 1.41）は円の外
+            var pixels = Pixels(
+                (0, 1), (0, 0), (0, 1),
+                (0, 0), (0, 0), (0, 0),
+                (0, 1), (0, 0), (0, 1));
+
+            var center = new Vector2(1.5f, 1.5f);
+            var triangles = IslandRectPicker.CollectTriangles(pixels, 3, 3, center, center, 1.2f, true, new[] { renderer });
+
+            Assert.That(triangles.Count, Is.EqualTo(1));
+            Assert.That(triangles[0].triangle, Is.EqualTo(0));
+            Assert.That(triangles[0].renderer, Is.SameAs(renderer));
+        }
+
+        [Test]
+        public void 筆の中の三角形は同じ島でも三角形ごとに1つずつ集める()
+        {
+            var renderer = MakeRenderer(splitSubmesh: false);
+            var pixels = Pixels((0, 0), (0, 1), (0, 0), (0, 3));
+
+            var center = new Vector2(1f, 1f);
+            var triangles = IslandRectPicker.CollectTriangles(pixels, 2, 2, center, center, 2f, true, new[] { renderer });
+
+            Assert.That(triangles.ConvertAll(t => t.triangle), Is.EquivalentTo(new[] { 0, 1, 3 }));
+        }
+
+        [Test]
+        public void 筆の三角形番号がメッシュ全体の番号でもサブメッシュ内の番号に直す()
+        {
+            var renderer = MakeRenderer(splitSubmesh: true);
+            var pixels = Pixels((1, 3), (1, 2));
+
+            var center = new Vector2(1f, 0.5f);
+            var triangles = IslandRectPicker.CollectTriangles(pixels, 2, 1, center, center, 2f, true, new[] { renderer });
+
+            Assert.That(triangles.ConvertAll(t => (t.submesh, t.triangle)), Is.EquivalentTo(new[] { (1, 1), (1, 0) }));
+        }
+
+        [Test]
+        public void 筆の中の無効画素と範囲外の番号は無視する()
+        {
+            var renderer = MakeRenderer(splitSubmesh: false);
+            var pixels = Pixels((-1, -1), (0, 99), (5 * 256, 0), (0, 2));
+
+            var center = new Vector2(1f, 1f);
+            var triangles = IslandRectPicker.CollectTriangles(pixels, 2, 2, center, center, 2f, true, new[] { renderer });
+
+            Assert.That(triangles.ConvertAll(t => t.triangle), Is.EquivalentTo(new[] { 2 }));
+        }
+
+        [Test]
+        public void 筆を動かした帯の中の画素の三角形を集め帯の外は集めない()
+        {
+            var renderer = MakeRenderer(splitSubmesh: false);
+            // 横 5 画素。筆は画素 0 の中心から画素 2 の中心まで、半径 0.6
+            var pixels = Pixels((0, 0), (0, 1), (0, 2), (0, 3), (0, 3));
+
+            var triangles = IslandRectPicker.CollectTriangles(
+                pixels, 5, 1, new Vector2(0.5f, 0.5f), new Vector2(2.5f, 0.5f), 0.6f, true, new[] { renderer });
+
+            Assert.That(triangles.ConvertAll(t => t.triangle), Is.EquivalentTo(new[] { 0, 1, 2 }));
+        }
+
+        [Test]
+        public void 読み戻しの行の向きに合わせて帯の位置を読む()
+        {
+            var renderer = MakeRenderer(splitSubmesh: false);
+            // 縦 3 画素（読み戻しの行 0, 1, 2）。筆は下の端の画素（y = 0.5）だけに当たる
+            var pixels = Pixels((0, 0), (0, 1), (0, 2));
+            var bottom = new Vector2(0.5f, 0.5f);
+
+            var bottomUp = IslandRectPicker.CollectTriangles(pixels, 1, 3, bottom, bottom, 0.6f, true, new[] { renderer });
+            var topDown = IslandRectPicker.CollectTriangles(pixels, 1, 3, bottom, bottom, 0.6f, false, new[] { renderer });
+
+            Assert.That(bottomUp.ConvertAll(t => t.triangle), Is.EquivalentTo(new[] { 0 }), "行 0 が下なら行 0");
+            Assert.That(topDown.ConvertAll(t => t.triangle), Is.EquivalentTo(new[] { 2 }), "行 0 が上なら最後の行");
+        }
+
+        [Test]
+        public void 線分までの距離は端を越えたら端の点からの距離になる()
+        {
+            var a = new Vector2(0f, 0f);
+            var b = new Vector2(4f, 0f);
+
+            Assert.That(IslandRectPicker.SquaredDistanceToSegment(new Vector2(2f, 3f), a, b), Is.EqualTo(9f).Within(1e-5f));
+            Assert.That(IslandRectPicker.SquaredDistanceToSegment(new Vector2(7f, 4f), a, b), Is.EqualTo(25f).Within(1e-5f));
+            Assert.That(IslandRectPicker.SquaredDistanceToSegment(new Vector2(1f, 1f), a, a), Is.EqualTo(2f).Within(1e-5f));
+        }
     }
 }

@@ -122,6 +122,9 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             EditorApplication.playModeStateChanged += OnPlayModeStateChanged;
             // Undo/Redo で連結のメンバーが増減しても縞（ハイライト）の対象が古いままにならないよう、そのたびに出し直す
             Undo.undoRedoPerformed += () => { if (IsActive) ToolSession.PublishHighlight(); };
+            // Ctrl の押し・離しだけでは Scene に描き直しのイベントが来ないので、ブラシを持っている間はここで描き直す
+            // （ブラシの円の色と、パネルの［足す］［消す］の光り方が Ctrl で入れ替わる）
+            EditorApplication.modifierKeysChanged += () => { if (IsActive && ToolSession.Brush != BrushMode.None) SceneView.RepaintAll(); };
             // 起動時・ドメインリロード時に、保存レイアウトから復元された Overlay の表示をツールの状態に揃える
             // （レイアウトの復元が後から効くので 1 フレーム遅らせる）
             EditorApplication.delayCall += () => SetOverlaysDisplayed(IsActive);
@@ -192,6 +195,9 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             // 選択範囲のハイライトを消す（ビルドには元々乗らないが、ツール外のプレビューにも出さない）
             ToolSession.HideHighlight();
             ToolSession.EyedropperActive = false;
+            // なぞりの途中で終了したら、そこまでなぞった分を保存して道具を置く
+            FinishBrushStroke();
+            ToolSession.Brush = BrushMode.None;
             SetOverlaysDisplayed(false);
             _picker?.Dispose();
             _picker = null;
@@ -227,11 +233,13 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             if (s_capturedControl == 0) return;
             string reason = null;
             if (GUIUtility.hotControl != s_capturedControl) reason = "ほかで放された";
-            else if (!_ctrlPressPending && !_imagePressPending) reason = "押下中の印が無いのに掴んだまま";
+            else if (!_ctrlPressPending && !_imagePressPending && !_brushStroke) reason = "押下中の印が無いのに掴んだまま";
             else if (e.type == EventType.MouseDown) reason = "離しを取りこぼしたまま次の押下";
             if (reason == null) return;
             // ほかで放されたのは異常ではない（ツールの切り替え等）ので記録しない
             if (GUIUtility.hotControl == s_capturedControl) Debug.Log($"[Tocolo][調査] 掴んだままのマウスを放しました（{reason}）"); // 診断用（2026-10-06。Scene のクリックが効かなくなる件の再発・報告の切り分けに残す。原因が確定したら消す）
+            // なぞりの途中なら、そこまでなぞった分は保存する
+            FinishBrushStroke();
             EndPress();
         }
 
@@ -252,6 +260,15 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 e.Use();
                 RestoreImageDragStart();
                 EndPress();
+                sceneView.Repaint();
+                return;
+            }
+            // なぞって調整の道具を持っている間の Esc は道具を置くだけ（ツールは終了しない）。なぞりの途中ならそこまでを保存する
+            if (e.type == EventType.KeyDown && e.keyCode == KeyCode.Escape && (ToolSession.Brush != BrushMode.None || _brushStroke))
+            {
+                e.Use();
+                FinishBrushStroke();
+                ToolSession.Brush = BrushMode.None;
                 sceneView.Repaint();
                 return;
             }
@@ -335,6 +352,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 ToolSession.HoverPick = null;
                 // 押下中に対象が消えた（破棄など）: 押下を捨てて hotControl を返す
                 if (_ctrlPressPending || _imagePressPending) EndPress();
+                FinishBrushStroke();
                 // 対象未設定: 左クリックがモデルに当たったら、そのルートを対象にしてそのままクリック位置を表示する。
                 // 外れたらクリックは消費しない（ドラッグ等はそのまま）。案内とアバターのボタンは ToolPanelOverlay が出す
                 if (e.type == EventType.MouseDown && e.button == 0 && !e.alt && TryResolveTargetByClick(e.mousePosition, out root))
@@ -345,6 +363,9 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 }
                 return;
             }
+
+            // なぞって調整の道具を持っている間は、左ドラッグをなぞりにする（クリック・ホバー・矩形選択より先）
+            if (HandleBrush(e, sceneView, root, controlId)) return;
 
             if (e.type == EventType.MouseMove)
             {
@@ -472,6 +493,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             {
                 if (ToolSession.HoverPick.HasValue) DrawHoverMarker(ToolSession.HoverPick.Value);
                 if (ToolSession.LastPick.HasValue) DrawPickMarker(ToolSession.LastPick.Value);
+                if (ToolSession.BrushSizePreview) DrawBrushSizePreview(sceneView);
                 if (_ctrlPressPending && _rectActive) DrawSelectionRect(RectFromPoints(_rectStart, _rectEnd));
             }
         }

@@ -10,6 +10,9 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
     /// <summary>ツールバーの「影響範囲」3 ボタンに対応するプリセット（島＝島モード、同じ色／似た色＝色モード。値は RecolorSceneTool.ApplyPreset）</summary>
     internal enum RangePreset { Island = 0, SameColor = 1, SimilarColor = 2, Box = 3 }
 
+    /// <summary>なぞって調整の道具（パネルの［なぞって足す］［なぞって消す］）。None なら道具を持っていない（ふつうのパーツ選び）</summary>
+    internal enum BrushMode { None = 0, Add = 1, Remove = 2 }
+
     /// <summary>ツールのエディタ状態。コンポーネントには保存しない（ビルドに乗せない）</summary>
     internal static class ToolSession
     {
@@ -209,7 +212,53 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             {
                 if (s_eyedropperActive == value) return;
                 s_eyedropperActive = value;
+                // スポイトと筆は同時に持たない（どちらも次のクリックの意味を変えるため）
+                if (value) s_brush = BrushMode.None;
                 if (!value) Cursor.SetCursor(null, Vector2.zero, CursorMode.Auto);
+            }
+        }
+
+        private static BrushMode s_brush;
+
+        /// <summary>
+        /// なぞって調整の道具を持っているか（Add・Remove）。持っている間、Scene の左ドラッグは今の編集の範囲をなぞって足す・消す。
+        /// ツールの終了・Esc・今の編集がパーツモードでなくなったときに置く（None）。エディタ上の状態なのでドメインリロードで消えてよい
+        /// </summary>
+        public static BrushMode Brush
+        {
+            get => s_brush;
+            set
+            {
+                if (s_brush == value) return;
+                s_brush = value;
+                if (value != BrushMode.None) EyedropperActive = false;
+            }
+        }
+
+        /// <summary>
+        /// ブラシの太さのスライダーを動かしている間か（Scene のクリック位置のまわりに、ブラシの太さの円を出す）。
+        /// エディタ上の表示のためだけなのでドメインリロードで消えてよい
+        /// </summary>
+        public static bool BrushSizePreview { get; set; }
+
+        private const string KeyBrushRadius = "ClickRecolor.BrushRadius";
+        internal const float MinBrushRadius = 2f;
+        internal const float MaxBrushRadius = 100f;
+
+        private static float? s_brushRadius;
+
+        /// <summary>筆の円の半径（Scene の GUI のポイント）。再起動後も残す（EditorPrefs。描くたびに読むので手元にも持つ）</summary>
+        public static float BrushRadius
+        {
+            get
+            {
+                s_brushRadius ??= Mathf.Clamp(EditorPrefs.GetFloat(KeyBrushRadius, 16f), MinBrushRadius, MaxBrushRadius);
+                return s_brushRadius.Value;
+            }
+            set
+            {
+                s_brushRadius = Mathf.Clamp(value, MinBrushRadius, MaxBrushRadius);
+                EditorPrefs.SetFloat(KeyBrushRadius, s_brushRadius.Value);
             }
         }
 
@@ -332,6 +381,8 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             TexTransToolNotice = false;
             HoverPick = null;
             EyedropperActive = false;
+            Brush = BrushMode.None;
+            BrushSizePreview = false;
             HideHighlight();
         }
     }

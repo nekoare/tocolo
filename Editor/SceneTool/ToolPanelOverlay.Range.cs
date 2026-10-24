@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using Nekoare.ClickRecolor.Editor.Colors;
 using Nekoare.ClickRecolor.Editor.Decal;
 using Nekoare.ClickRecolor.Editor.Localization;
+using Nekoare.ClickRecolor.Editor.Masks;
 using UnityEditor;
 using UnityEditor.Overlays;
 using UnityEngine;
@@ -285,6 +286,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             // モードはこのイベント内で変わらないので、部品の数は Layout と Repaint で揃う
             bool colorMode = edit.mode == SelectionMode.Color;
             bool boxMode = edit.mode == SelectionMode.Box;
+            bool paintable = RecolorSceneTool.CanPaint(edit);
             float threshold = edit.threshold;
             float feather = edit.feather;
             ColorScope scope = edit.scope;
@@ -336,7 +338,103 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 });
                 EditorUtility.SetDirty(component);
             }
+            if (paintable) DrawPaintAdjust(component, edit);
             return edit;
+        }
+
+        /// <summary>
+        /// パーツモードの編集の「なぞって調整」: ［足す］［消す］（押すと道具を持ち、もう一度押すと置く）・ブラシの太さ・［なぞりを削除］。
+        /// 操作の案内は右下の操作の案内（HintOverlay）に出す。ここに道具を持っている間だけの行を足すと、Scene の Esc で道具を置いたときに
+        /// Layout と次のイベントの間で行の数が変わり、IMGUI の並びが崩れる
+        /// </summary>
+        private static void DrawPaintAdjust(ClickRecolor component, RecolorEdit edit)
+        {
+            var brush = ToolSession.Brush;
+            // Ctrl を押している間は、なぞると効く方のボタンを光らせる（RecolorSceneTool.StrokeState と同じ入れ替え）。
+            // 見た目だけなので Repaint のときだけ入れ替える（押したときの判定は持っている道具のまま）
+            var shown = brush;
+            var current = Event.current;
+            if (current.type == EventType.Repaint && brush != BrushMode.None && (current.control || current.command))
+            {
+                shown = brush == BrushMode.Add ? BrushMode.Remove : BrushMode.Add;
+            }
+            bool hasAdjust = false;
+            EditGroups.ForEachInGroup(component, edit, e => hasAdjust |= e.HasPaintAdjust);
+
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                GUILayout.Label(Locales.Tr("Scene:Paint:Label"));
+                GUILayout.FlexibleSpace();
+                HelpMark.Draw("Help:Paint");
+            }
+            HelpMark.DrawBoxIfOpen("Help:Paint");
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                bool add = GUILayout.Toggle(shown == BrushMode.Add, Locales.Tr("Scene:Paint:Add"), GUI.skin.button);
+                bool remove = GUILayout.Toggle(shown == BrushMode.Remove, Locales.Tr("Scene:Paint:Remove"), GUI.skin.button);
+                // 押されたかは渡した値（shown）と比べる。Toggle は Repaint では渡した値をそのまま返すので、
+                // 持っている道具（brush）と比べると、Ctrl で見た目を入れ替えた描画のたびに「押された」と見なして道具を置いてしまう
+                if (add != (shown == BrushMode.Add)) ToolSession.Brush = add ? BrushMode.Add : BrushMode.None;
+                else if (remove != (shown == BrushMode.Remove)) ToolSession.Brush = remove ? BrushMode.Remove : BrushMode.None;
+                if (ToolSession.Brush != brush) SceneView.RepaintAll();
+            }
+            // ブラシの 2 行は、見出しの幅を長い方に合わせ（パネルの既定の 70px では「ブラシのはみ出し」が切れる）、
+            // 太さの行にも「？」と同じ幅の空きを置いて、2 本のスライダーの幅を揃える
+            string sizeLabel = Locales.Tr("Scene:Paint:Size");
+            string edgeLabel = Locales.Tr("Scene:Paint:EdgeOffset");
+            float previousLabelWidth = EditorGUIUtility.labelWidth;
+            EditorGUIUtility.labelWidth = Mathf.Max(previousLabelWidth,
+                Mathf.Max(EditorStyles.label.CalcSize(new GUIContent(sizeLabel)).x, EditorStyles.label.CalcSize(new GUIContent(edgeLabel)).x) + 4f);
+            float radius;
+            int edgeOffset;
+            try
+            {
+                using (new EditorGUILayout.HorizontalScope())
+                {
+                    radius = EditorGUILayout.Slider(sizeLabel, ToolSession.BrushRadius, ToolSession.MinBrushRadius, ToolSession.MaxBrushRadius);
+                    GUILayoutUtility.GetRect(HelpMark.ButtonWidth, EditorGUIUtility.singleLineHeight, EditorStyles.miniButton, GUILayout.Width(HelpMark.ButtonWidth));
+                }
+                EditorGUI.BeginChangeCheck();
+                edgeOffset = WithHelp("Help:PaintEdgeOffset", () => EditorGUILayout.IntSlider(edgeLabel, edit.paintEdgeOffset, -8, 8));
+                if (EditorGUI.EndChangeCheck())
+                {
+                    BeginDragIfGrabbing("Tocolo: ブラシのはみ出しを変更");
+                    Undo.RecordObject(component, "Tocolo: ブラシのはみ出しを変更");
+                    EditGroups.ForEachInGroup(component, edit, e => e.paintEdgeOffset = edgeOffset);
+                    EditorUtility.SetDirty(component);
+                }
+            }
+            finally
+            {
+                EditorGUIUtility.labelWidth = previousLabelWidth;
+            }
+            if (!Mathf.Approximately(radius, ToolSession.BrushRadius))
+            {
+                ToolSession.BrushRadius = radius;
+                // 動かしている間は、Scene のクリック位置のまわりにブラシの太さの円を出す（数字だけでは太さが分かりにくい）
+                ToolSession.BrushSizePreview = true;
+                SceneView.RepaintAll();
+            }
+            else if (ToolSession.BrushSizePreview && GUIUtility.hotControl == 0)
+            {
+                // スライダーを放した（掴んでいる部品が無くなった）ら円を消す
+                ToolSession.BrushSizePreview = false;
+                SceneView.RepaintAll();
+            }
+
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                GUILayout.FlexibleSpace();
+                using (new EditorGUI.DisabledScope(!hasAdjust))
+                {
+                    if (GUILayout.Button(Locales.Tr("Scene:Paint:Reset"), GUILayout.ExpandWidth(false)) && hasAdjust)
+                    {
+                        Undo.RecordObject(component, "Tocolo: なぞった調整を戻す");
+                        EditGroups.ForEachInGroup(component, edit, e => PaintAdjustStore.SetImage(e, null));
+                        EditorUtility.SetDirty(component);
+                    }
+                }
+            }
         }
 
         /// <summary>

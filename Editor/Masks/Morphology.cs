@@ -19,6 +19,7 @@ namespace Nekoare.ClickRecolor.Editor.Masks
         private static int s_kernelBlur3;
         private static int s_kernelMul;
         private static int s_kernelMax;
+        private static int s_kernelSub;
 
         private static readonly int InId = Shader.PropertyToID("In");
         private static readonly int OtherId = Shader.PropertyToID("Other");
@@ -46,6 +47,7 @@ namespace Nekoare.ClickRecolor.Editor.Masks
                         s_kernelBlur3 = s_shader.FindKernel("CSBlur3");
                         s_kernelMul = s_shader.FindKernel("CSMul");
                         s_kernelMax = s_shader.FindKernel("CSMax");
+                        s_kernelSub = s_shader.FindKernel("CSSub");
                     }
                 }
                 return s_shader;
@@ -225,6 +227,24 @@ namespace Nekoare.ClickRecolor.Editor.Masks
             {
                 shader.SetTexture(s_kernelMax, OtherId, other);
                 Run(s_kernelMax, rt, tmp, 0);
+                Graphics.CopyTexture(tmp, rt);
+            }
+            finally
+            {
+                RenderTexture.ReleaseTemporary(tmp);
+            }
+        }
+
+        /// <summary>rt を rt × (1 − other) にする（同じサイズであること）</summary>
+        internal static void Subtract(RenderTexture rt, RenderTexture other)
+        {
+            if (Compute == null || rt == null || other == null) return;
+            var shader = Compute;
+            var tmp = MaskTextures.GetTemporary(rt.width, rt.height);
+            try
+            {
+                shader.SetTexture(s_kernelSub, OtherId, other);
+                Run(s_kernelSub, rt, tmp, 0);
                 Graphics.CopyTexture(tmp, rt);
             }
             finally

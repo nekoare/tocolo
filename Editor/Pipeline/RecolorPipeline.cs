@@ -244,6 +244,9 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
             if (edit.mode == SelectionMode.Box) foldedHash = FoldBox(foldedHash, edit, sourceAsset, context, boxDragging);
             // 「元のグラデーションを打ち消す」は帯の統計を部分に持つので、向きと位置（姿勢）を鍵に畳み込む
             if (edit.flattenBase) foldedHash = FoldFlatten(foldedHash, edit, sourceAsset, context);
+            // なぞって調整（パーツモードだけ）。なぞっている間は手元の画像を番号で区別する
+            var paintAdjust = UsesPaintAdjust(edit) ? PaintAdjustStore.Get(edit) : null;
+            if (paintAdjust != null) foldedHash = FoldPaintAdjust(foldedHash, edit);
             // 「画像を入れる」の画像と箱は選択マスクの鍵に入れない（層は DecalLayerCache に別に持つ。箱を動かしても選択マスクを作り直さない）
             var key = new MaskCache.Key(edit, sourceAsset, size, foldedHash, fromExport);
             if (MaskCache.TryGet(key, out var cachedMask, out var cachedParts))
@@ -303,8 +306,9 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
                 {
                     // パーツを合成するだけなら、同じメッシュ・サブメッシュのパーツをまとめて 1 回で描く
                     // （種ごとに作ると、［テクスチャの残りを選択］で全パーツを足した編集で数百回の GPU 処理と読み戻しになる）
-                    mask = BuildIslandUnion(seeds, users, source, coverage, edit.padding, edit.cleanupRadius);
+                    mask = BuildIslandUnion(seeds, users, source, coverage, edit.padding, edit.cleanupRadius, raw: paintAdjust != null);
                     if (mask == null) return null;
+                    if (paintAdjust != null) FinishWithPaintAdjust(mask, paintAdjust, coverage, edit.padding, edit.paintEdgeOffset, add: true);
                 }
                 else
                 for (int i = 0; i < seeds.Count; i++)
@@ -319,8 +323,16 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
                     }
                     else
                     {
-                        seedMask = BuildIslandMask(seed, source, uvScale, uvOffset, coverage, edit.padding, edit.cleanupRadius, out var islandBounds);
+                        seedMask = BuildIslandMask(seed, source, uvScale, uvOffset, coverage, edit.padding, edit.cleanupRadius, out var islandBounds,
+                            raw: paintAdjust != null);
                         bounds = islandBounds;
+                        if (seedMask != null && paintAdjust != null)
+                        {
+                            // 種ごとに揃えるなら、足した所は種のマスクに入れず別の部分にする（同じ画素を 2 つの部分で二重に変えない）
+                            FinishWithPaintAdjust(seedMask, paintAdjust, coverage, edit.padding, edit.paintEdgeOffset, add: !perSeed);
+                            // 足した所は種の範囲の外にもあるので、読み戻しの範囲で絞らない
+                            bounds = null;
+                        }
                     }
                     if (seedMask == null)
                     {
@@ -347,6 +359,16 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
                     finally
                     {
                         MaskTextures.Destroy(seedMask);
+                    }
+                }
+
+                if (perSeed && paintAdjust != null && seedMasks.Count > 0)
+                {
+                    var added = BuildPaintAddedPart(paintAdjust, seedMasks, coverage, edit.padding, edit.paintEdgeOffset);
+                    if (added != null)
+                    {
+                        seedMasks.Add(added);
+                        seedBounds.Add(null);
                     }
                 }
 
@@ -954,13 +976,64 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
             RenderTexture coverage, int padding, int cleanupRadius) =>
             BuildIslandMask(seed, source, uvScale, uvOffset, coverage, padding, cleanupRadius, out _);
 
+        /// <summary>なぞって調整を使う編集か（パーツモードだけ。テクスチャ全体に広げている間は範囲が全体なので使わない）</summary>
+        internal static bool UsesPaintAdjust(RecolorEdit edit) =>
+            edit != null && edit.mode == SelectionMode.Island && !edit.wholeTexture;
+
+        /// <summary>なぞって調整の番号と中身をマスクの鍵に畳み込む（なぞっている間は中身が編集に書かれていないので番号で区別する）</summary>
+        private static int FoldPaintAdjust(int hash, RecolorEdit edit)
+        {
+            unchecked
+            {
+                hash = hash * 31 + edit.paintAdjustRevision;
+                hash = hash * 31 + PaintAdjustStore.DataHash(edit.paintAdjustData);
+                hash = hash * 31 + edit.paintEdgeOffset;
+                return hash;
+            }
+        }
+
+        /// <summary>
+        /// はみ出し幅・ぼかしの前の島マスク mask に、消した所を引き（add なら足した所も足し）、それから仕上げ（IslandMaskBuilder.Finish）を掛ける。
+        /// 仕上げを後にするのは、先に広げると消した三角形の縁のすき間へ広げた分が残るため
+        /// </summary>
+        private static void FinishWithPaintAdjust(
+            RenderTexture mask, PaintAdjustImage adjust, RenderTexture coverage, int padding, int edgeOffset, bool add)
+        {
+            PaintAdjustMask.Apply(mask, adjust, add: add, remove: true, edgeOffset, coverage);
+            IslandMaskBuilder.Finish(mask, coverage, padding);
+        }
+
+        /// <summary>
+        /// 種ごとに色を揃える編集で、なぞって足した所のうち種のパーツの外の部分（別の部分として色を揃える）。
+        /// 種のマスク（仕上げ済み）を引いた残りに仕上げを掛ける。足した所が無ければ null（呼び出し側が MaskTextures.Destroy する）
+        /// </summary>
+        private static RenderTexture BuildPaintAddedPart(
+            PaintAdjustImage adjust, List<RenderTexture> seedMasks, RenderTexture coverage, int padding, int edgeOffset)
+        {
+            var first = seedMasks[0];
+            var added = PaintAdjustMask.CreateStateMask(adjust, PaintState.Add, first.width, first.height);
+            if (added == null) return null;
+            try
+            {
+                PaintAdjustMask.ShiftEdge(added, PaintState.Add, edgeOffset, coverage);
+                foreach (var seedMask in seedMasks) Morphology.Subtract(added, seedMask);
+                IslandMaskBuilder.Finish(added, coverage, padding);
+                return added;
+            }
+            catch
+            {
+                MaskTextures.Destroy(added);
+                throw;
+            }
+        }
+
         /// <summary>
         /// 島モードの種 seeds（先頭が主種）のパーツをすべて合わせたマスク。同じメッシュ・サブメッシュの種はまとめて 1 回で描き（IslandMaskBuilder.BuildCharts）、
         /// メッシュ・サブメッシュごとのマスクを画素ごとの最大値で合成する。主種のパーツが作れなければ null（種ごとに作るときと同じ）
         /// </summary>
         private static RenderTexture BuildIslandUnion(
             List<SeedSpec> seeds, IReadOnlyList<(Mesh mesh, int submesh, Vector2 uvScale, Vector2 uvOffset)> users,
-            RenderTexture source, RenderTexture coverage, int padding, int cleanupRadius)
+            RenderTexture source, RenderTexture coverage, int padding, int cleanupRadius, bool raw = false)
         {
             // 主種のメッシュ・サブメッシュを先頭にして、出てきた順にまとめる
             var groups = new List<(Mesh mesh, int submesh, List<int> triangles)>();
@@ -993,6 +1066,7 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
                         width = source.width,
                         height = source.height,
                         coverage = coverage,
+                        skipFinish = raw,
                     }, triangles, out _);
                     if (part == null)
                     {
@@ -1023,10 +1097,13 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
             }
         }
 
-        /// <summary>BuildIslandMask と同じ。bounds はマスクが 0 でない画素をすべて含む矩形（IslandMaskBuilder.Build）</summary>
+        /// <summary>
+        /// BuildIslandMask と同じ。bounds はマスクが 0 でない画素をすべて含む矩形（IslandMaskBuilder.Build）。
+        /// raw なら、はみ出し幅とぼかしを掛けずに返す（なぞって調整を掛けてから仕上げる）
+        /// </summary>
         private static RenderTexture BuildIslandMask(
             in SeedSpec seed, RenderTexture source, Vector2 uvScale, Vector2 uvOffset,
-            RenderTexture coverage, int padding, int cleanupRadius, out RectInt bounds)
+            RenderTexture coverage, int padding, int cleanupRadius, out RectInt bounds, bool raw = false)
         {
             return IslandMaskBuilder.Build(new IslandRequest
             {
@@ -1041,6 +1118,7 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
                 width = source.width,
                 height = source.height,
                 coverage = coverage,
+                skipFinish = raw,
             }, out bounds);
         }
 

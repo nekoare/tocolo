@@ -728,3 +728,42 @@ msgstr "「{0}」の重ね貼り用マテリアルを作れなかったため、
 
 msgid "Error:OverlayApplyFailed"
 msgstr "「{0}」に画像のなめらかな貼り付けを反映できませんでした（詳しくはConsoleを見てください）"
+
+msgid "Scene:Paint:Label"
+msgstr "なぞって調整"
+
+msgid "Scene:Paint:Add"
+msgstr "足す"
+
+msgid "Scene:Paint:Remove"
+msgstr "消す"
+
+msgid "Scene:Paint:Size"
+msgstr "ブラシの太さ"
+
+msgid "Scene:Paint:Reset"
+msgstr "なぞりを削除"
+
+
+msgid "Help:Paint"
+msgstr "選んだパーツの範囲を、Sceneでなぞって面（三角形）ごとに足したり消したりします。UVが分かれていない髪のメッシュカラーやインナーカラーなど、パーツより細かく選びたいときに使います。ブラシが当たるのは見えている面だけです。なぞった調整は、あとでCtrl＋クリックでパーツを足したり外したりしても残ります。"
+
+msgid "Scene:Paint:OtherTexture"
+msgstr "この編集のテクスチャではない面はなぞれません（同じテクスチャの面だけ足す・消すできます）"
+
+
+
+msgid "Scene:Paint:HintDrag"
+msgstr "ドラッグでなぞって足す・消す"
+
+msgid "Scene:Paint:HintCtrl"
+msgstr "Ctrlを押している間は足す・消すを入れ替え"
+
+msgid "Scene:Paint:HintEsc"
+msgstr "Escでブラシを置く（もう一度押すと終了）"
+
+msgid "Scene:Paint:EdgeOffset"
+msgstr "ブラシのはみ出し"
+
+msgid "Help:PaintEdgeOffset"
+msgstr "なぞって足した・消した所の境目を、＋で外へ（選ぶ範囲が広がる）、−で内へ（狭まる）ずらします（px）。毛束の色の境目がメッシュの辺とずれているときに使います。UVのすき間への広がりは「はみ出し幅」で決まります。"

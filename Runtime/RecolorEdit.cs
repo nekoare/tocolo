@@ -59,6 +59,32 @@ namespace Nekoare.ClickRecolor
         /// </summary>
         public bool perSeedStats = true;
 
+        // ── なぞって調整（パーツモードだけで使う。設計 docs/plans/2026-10-25-tocolo-paint-select-design.md）──
+        /// <summary>
+        /// パーツで選んだ範囲を Scene でなぞって足した・消した所。テクスチャ座標（Tiling/Offset 適用後、y = 0 が下）の
+        /// paintAdjustWidth×paintAdjustHeight の画像で、画素ごとに 0 = そのまま、1 = 足す、2 = 消す、を Deflate で圧縮して Base64 にしたもの。調整が無ければ空。
+        /// 三角形の番号ではなく画像で持つのは、髪を再インポートして三角形の並びや数が変わっても、UV が同じなら範囲がずれないため。
+        /// byte[] で持たないのは、アバターが Prefab のときに配列の 1 バイトごとが Prefab の上書きになり（1 万件以上）、
+        /// 色を変えるたびの Undo の記録で上書きを作り直すのが重くなるため（文字列なら上書きは 1 件）
+        /// </summary>
+        public string paintAdjustData;
+        public int paintAdjustWidth;
+        public int paintAdjustHeight;
+        /// <summary>
+        /// 調整を変えるたびに振り直す番号。なぞっている間は画像を圧縮せずに手元に持つ（paintAdjustData は離したときに書く）ので、
+        /// プレビューとマスクのキャッシュはこの番号で作り直しを判断する
+        /// </summary>
+        public int paintAdjustRevision;
+        /// <summary>
+        /// ブラシのはみ出し（px、マスクの解像度）。＋なら、なぞって消した所を内へ削り・足した所を外へ広げる（選択が広がる）。−なら逆（選択が狭まる）。
+        /// 毛束の色の境目がメッシュの辺とずれている髪で、なぞった境目だけを合わせる。UV のすき間への広がりは padding（はみ出し幅）で別に決める
+        /// （padding を境目にも効かせると、既定の 8px で境目が毛束 1 本ぶんほど動いてしまう）
+        /// </summary>
+        [Range(-8, 8)] public int paintEdgeOffset;
+
+        /// <summary>なぞって足した・消した所があるか</summary>
+        public bool HasPaintAdjust => !string.IsNullOrEmpty(paintAdjustData) && paintAdjustWidth > 0 && paintAdjustHeight > 0;
+
         // ── 色（CHM の Oklab 変換と同じパラメータ）──
         public Color targetColor = Color.white;
         /// <summary>false の間は見た目を変えない（クリック直後）</summary>

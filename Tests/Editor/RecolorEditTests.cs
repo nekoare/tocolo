@@ -36,6 +36,14 @@ namespace Nekoare.ClickRecolor.Tests
         }
 
         [Test]
+        public void なぞった記録は配列ではなく文字列1つで持つ()
+        {
+            // 配列だとアバターが Prefab のとき 1 要素ごとに Prefab の上書きになり、色を変えるたびの Undo の記録が重くなる
+            var field = typeof(RecolorEdit).GetField(nameof(RecolorEdit.paintAdjustData));
+            Assert.That(field.FieldType, Is.EqualTo(typeof(string)));
+        }
+
+        [Test]
         public void AddEdit_は末尾に追加し_FindEdit_で引ける()
         {
             _go = new GameObject("avatar");

@@ -40,6 +40,12 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
                 h = h * 31 + edit.cleanupRadius;
                 h = h * 31 + edit.padding;
                 h = h * 31 + (edit.perSeedStats ? 1 : 0);
+                // なぞって調整。なぞっている間は中身（paintAdjust）を書かず番号だけ振り直すので、番号も畳む
+                h = h * 31 + edit.paintAdjustRevision;
+                h = h * 31 + Masks.PaintAdjustStore.DataHash(edit.paintAdjustData);
+                h = h * 31 + edit.paintAdjustWidth;
+                h = h * 31 + edit.paintAdjustHeight;
+                h = h * 31 + edit.paintEdgeOffset;
                 // 打ち消し・グラデーションの ON/OFF は画像の下地に位置マップが要るかを決める（DecalImageBuilder.BuildBase）ので形の側
                 h = h * 31 + (edit.flattenBase ? 1 : 0);
                 h = h * 31 + (edit.gradientEnabled ? 1 : 0);

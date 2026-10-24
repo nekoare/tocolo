@@ -49,6 +49,9 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         private static float s_viewHeight;
         private static Vector2 s_scroll;
         private static bool s_lastScroll;
+        /// <summary>色ブロックに出している一時メッセージ（直近の Layout で決めたもの。ToolSession.TransientNotice）</summary>
+        private static string s_shownNotice;
+        private static object[] s_shownNoticeArgs;
         /// <summary>スクロールにするとき、縦スクロールバーのぶん広げる幅</summary>
         private const float ScrollBarWidth = 16f;
         /// <summary>オーバーレイの枠（見出しと余白）が中身に足す高さの概算（RecolorSceneTool と同じ値）</summary>

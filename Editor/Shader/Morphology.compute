@@ -6,9 +6,10 @@
 #pragma kernel CSBlur3
 #pragma kernel CSMul
 #pragma kernel CSMax
+#pragma kernel CSSub
 
 Texture2D<float> In;
-Texture2D<float> Other;   // CSMul / CSMax の 2 枚目（In と同じサイズ）
+Texture2D<float> Other;   // CSMul / CSMax / CSSub の 2 枚目（In と同じサイズ）
 Texture2D<float> Allowed; // CSDilateMasked / CSBlur3: 0.5 未満の画素へは広げない（In と別サイズでもよい）
 RWTexture2D<float> Out;
 int Width;
@@ -130,4 +131,12 @@ void CSMax(uint3 id : SV_DispatchThreadID)
 {
     if ((int)id.x >= Width || (int)id.y >= Height) return;
     Out[id.xy] = max(In[id.xy], Other[id.xy]);
+}
+
+// 1 枚目から 2 枚目を引く（なぞって消した所をパーツの範囲から外す）
+[numthreads(16, 16, 1)]
+void CSSub(uint3 id : SV_DispatchThreadID)
+{
+    if ((int)id.x >= Width || (int)id.y >= Height) return;
+    Out[id.xy] = In[id.xy] * (1.0 - Other[id.xy]);
 }

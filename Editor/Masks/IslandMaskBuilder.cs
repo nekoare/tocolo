@@ -29,6 +29,11 @@ namespace Nekoare.ClickRecolor.Editor.Masks
         public int height;
         /// <summary>全チャート被覆 A（CoverageMask）。width×height と同じ大きさで作ったものを渡す。null ならパディングしない</summary>
         public RenderTexture coverage;
+        /// <summary>
+        /// true なら、はみ出し幅とぼかし（Finish）を掛けずに返す（なぞって調整を掛けてから Finish する。
+        /// 先に広げると、なぞって消した三角形の縁のすき間に広げた分が残る）
+        /// </summary>
+        public bool skipFinish;
     }
 
     /// <summary>
@@ -94,20 +99,13 @@ namespace Nekoare.ClickRecolor.Editor.Masks
                     Mathf.Clamp(Mathf.FloorToInt(r.seedUv.y * r.height), 0, r.height - 1));
                 RestrictToConnected(rt, seed, chartBounds);
 
-                // 5. チャートを意識したパディング（どのチャートにも属さない画素へだけ、1px ずつ padding 回広げる）→ 1px ぼかし。
-                // 被覆はマスクと同じ大きさで作る前提（縁が画素単位で揃うので、島とパディングの間に塗られない輪が残らない）
-                if (r.padding > 0 && r.coverage != null)
+                // 5. チャートを意識したパディング → 1px ぼかし（Finish）
+                if (r.skipFinish)
                 {
-                    Morphology.DilateInto(rt, r.coverage, r.padding, invertAllowed: true);
+                    bounds = chartBounds;
+                    return rt;
                 }
-                // 負のはみ出し幅: 縁を |padding| px 削る（縫い目の色残りをあえて残す・縁を細く見せる用）
-                else if (r.padding < 0)
-                {
-                    Morphology.Erode(rt, -r.padding);
-                }
-                // ぼかしも被覆の外（とマスク内）にだけ書く。制約なしだと隣のチャートの縁 1px へにじむ
-                if (r.coverage != null) Morphology.Blur1(rt, r.coverage, invertAllowed: true);
-                else Morphology.Blur1(rt);
+                Finish(rt, r.coverage, r.padding);
                 // パディングは 1 回 1px ずつ、ぼかしは 1px 広げる
                 bounds = Expand(chartBounds, Mathf.Max(r.padding, 0) + 1, r.width, r.height);
                 return rt;
@@ -161,16 +159,12 @@ namespace Nekoare.ClickRecolor.Editor.Masks
                 UvRasterizer.Draw(rt, verts);
                 Morphology.Close(rt, 1);
                 Morphology.Open(rt, r.cleanupRadius);
-                if (r.padding > 0 && r.coverage != null)
+                if (r.skipFinish)
                 {
-                    Morphology.DilateInto(rt, r.coverage, r.padding, invertAllowed: true);
+                    bounds = chartBounds;
+                    return rt;
                 }
-                else if (r.padding < 0)
-                {
-                    Morphology.Erode(rt, -r.padding);
-                }
-                if (r.coverage != null) Morphology.Blur1(rt, r.coverage, invertAllowed: true);
-                else Morphology.Blur1(rt);
+                Finish(rt, r.coverage, r.padding);
                 bounds = Expand(chartBounds, Mathf.Max(r.padding, 0) + 1, r.width, r.height);
                 return rt;
             }
@@ -179,6 +173,27 @@ namespace Nekoare.ClickRecolor.Editor.Masks
                 MaskTextures.Destroy(rt);
                 throw;
             }
+        }
+
+        /// <summary>
+        /// 島マスクの仕上げ: チャートを意識したパディング（どのチャートにも属さない画素へだけ、1px ずつ padding 回広げる）→ 1px ぼかし。
+        /// 被覆はマスクと同じ大きさで作る前提（縁が画素単位で揃うので、島とパディングの間に塗られない輪が残らない）。
+        /// 被覆が無ければ広げない
+        /// </summary>
+        internal static void Finish(RenderTexture rt, RenderTexture coverage, int padding)
+        {
+            if (padding > 0 && coverage != null)
+            {
+                Morphology.DilateInto(rt, coverage, padding, invertAllowed: true);
+            }
+            // 負のはみ出し幅: 縁を |padding| px 削る（縫い目の色残りをあえて残す・縁を細く見せる用）
+            else if (padding < 0)
+            {
+                Morphology.Erode(rt, -padding);
+            }
+            // ぼかしも被覆の外（とマスク内）にだけ書く。制約なしだと隣のチャートの縁 1px へにじむ
+            if (coverage != null) Morphology.Blur1(rt, coverage, invertAllowed: true);
+            else Morphology.Blur1(rt);
         }
 
         /// <summary>

@@ -25,6 +25,11 @@ namespace Nekoare.ClickRecolor.Tests
             nameof(RecolorEdit.hasSeedOklab),
             nameof(RecolorEdit.extraSeeds),
             nameof(RecolorEdit.wholeTexture),
+            // なぞって調整はメンバーのテクスチャの UV の画像なので、別のテクスチャへは写さない
+            nameof(RecolorEdit.paintAdjustData),
+            nameof(RecolorEdit.paintAdjustWidth),
+            nameof(RecolorEdit.paintAdjustHeight),
+            nameof(RecolorEdit.paintAdjustRevision),
         };
 
         private readonly List<Object> _created = new List<Object>();

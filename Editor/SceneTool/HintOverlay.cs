@@ -39,6 +39,8 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
 
         /// <summary>中身の素の高さ（倍率 1 のとき）</summary>
         private static float s_naturalHeight;
+        /// <summary>なぞりの案内を出しているか（直近の Layout で決めたもの）</summary>
+        private static bool s_brushShown;
 
         public override void OnGUI()
         {
@@ -71,6 +73,19 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 bool hasEdit = edit != null;
                 // Ctrl で足す相手は現在の編集なので、そのモードで案内を出し分ける（無ければ次に作る編集のモード。影響範囲のボタンは後者）
                 var mode = hasEdit ? edit.mode : ToolSession.Mode;
+                // ブラシを持っている間はクリック・Shift・Ctrl＋クリック・矩形が効かないので、なぞりの案内に入れ替える。
+                // 持っているかは Layout のときに決める（Scene の Esc で置くと、Layout と次のイベントの間で行の数が変わり IMGUI の並びが崩れる）
+                if (Event.current.type == EventType.Layout) s_brushShown = ToolSession.Brush != BrushMode.None;
+                if (s_brushShown)
+                {
+                    GUILayout.Label(Locales.Tr("Scene:Paint:HintDrag"), EditorStyles.miniLabel);
+                    GUILayout.Label(Locales.Tr("Scene:Paint:HintCtrl"), EditorStyles.miniLabel);
+                    EditorGUILayout.Space(EditorGUIUtility.singleLineHeight * 0.8f);
+                    GUILayout.Label(Locales.Tr("Scene:Paint:HintEsc"), EditorStyles.miniLabel);
+                    EditorGUILayout.Space(4);
+                    if (GUILayout.Button(Locales.Tr("Scene:Panel:EscHint"), GUILayout.Height(26))) RecolorSceneTool.Deactivate();
+                    return;
+                }
                 // 編集済みの範囲の再クリックはその編集を選ぶので、新しく作る方法を案内する
                 GUILayout.Label(Locales.Tr("Scene:Panel:ShiftHint"), EditorStyles.miniLabel);
                 // 「箱の中」は範囲を箱で決めるので、Ctrl＋クリック・矩形でパーツを足せない（RecolorSceneTool.ResolveSeedToggle が断る）

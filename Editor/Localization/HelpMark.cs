@@ -13,6 +13,9 @@ namespace Nekoare.ClickRecolor.Editor.Localization
     {
         private static readonly HashSet<string> s_open = new HashSet<string>();
 
+        /// <summary>「？」ボタンの幅（同じ幅の空きを置いて、？の無い行と部品の幅を揃えるのにも使う）</summary>
+        internal const float ButtonWidth = 20f;
+
         /// <summary>閉じている「？」ボタンの不透明度</summary>
         private const float IdleAlpha = 0.45f;
 
@@ -39,7 +42,7 @@ namespace Nekoare.ClickRecolor.Editor.Localization
             // 閉じている「？」は薄くして、ブロックの背景色を透かす（主張を抑える。ユーザー要望 2026-10-03）。開いている「✕」は元の濃さ
             var previousColor = GUI.color;
             if (!open) GUI.color = new Color(previousColor.r, previousColor.g, previousColor.b, previousColor.a * IdleAlpha);
-            bool clicked = GUILayout.Button(open ? "✕" : "?", EditorStyles.miniButton, GUILayout.Width(20f));
+            bool clicked = GUILayout.Button(open ? "✕" : "?", EditorStyles.miniButton, GUILayout.Width(ButtonWidth));
             GUI.color = previousColor;
             if (clicked)
             {
