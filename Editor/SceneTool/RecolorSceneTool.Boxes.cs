@@ -56,7 +56,11 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                     EditorUtility.SetDirty(component);
                 }
 
-                if (e.type == EventType.Repaint) DrawBoxShape(position, rotation, size, edit.targetColor, edit.gradientColor, edit.gradientInsideOnly);
+                if (e.type == EventType.Repaint)
+                {
+                    DrawBoxShape(position, rotation, size, edit.targetColor, edit.gradientColor, edit.gradientInsideOnly);
+                    DrawMidStopOutlines(position, rotation, size, edit.gradientMidStops);
+                }
             }
         }
 
@@ -557,6 +561,28 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         }
 
         /// <summary>高さ y の水平な面（箱のローカル）を color で薄く塗る</summary>
+        /// <summary>途中の色の高さに、その色の枠だけを描く（塗ると上下の面の薄い塗りと重なって箱の中が見えにくくなる）</summary>
+        private static void DrawMidStopOutlines(Vector3 position, Quaternion rotation, Vector3 size, List<RecolorGradientStop> stops)
+        {
+            if (stops == null || stops.Count == 0) return;
+            using (new Handles.DrawingScope(Color.white, Handles.matrix * Matrix4x4.TRS(position, rotation, Vector3.one)))
+            {
+                var half = size * 0.5f;
+                foreach (var stop in stops)
+                {
+                    float y = -half.y + Mathf.Clamp01(stop.position) * size.y;
+                    var verts = new[]
+                    {
+                        new Vector3(-half.x, y, -half.z),
+                        new Vector3(half.x, y, -half.z),
+                        new Vector3(half.x, y, half.z),
+                        new Vector3(-half.x, y, half.z),
+                    };
+                    Handles.DrawSolidRectangleWithOutline(verts, Color.clear, new Color(stop.color.r, stop.color.g, stop.color.b, 1f));
+                }
+            }
+        }
+
         private static void DrawFace(float y, Vector3 half, Color color)
         {
             var verts = new[]

@@ -7,7 +7,7 @@ using Object = UnityEngine.Object;
 namespace Nekoare.ClickRecolor.Tests
 {
     /// <summary>
-    /// RecolorEdit・RecolorSeed のシリアライズされるフィールドを、型ごとに「別の値」へ変える（全フィールドを見るテスト用）。
+    /// RecolorEdit・RecolorSeed・RecolorGradientStop のシリアライズされるフィールドを、型ごとに「別の値」へ変える（全フィールドを見るテスト用）。
     /// 作った Unity のオブジェクトは track に渡す（テスト側で破棄する）
     /// </summary>
     internal sealed class FieldMutator
@@ -53,6 +53,13 @@ namespace Nekoare.ClickRecolor.Tests
             if (type == typeof(List<RecolorSeed>))
             {
                 return new List<RecolorSeed>((List<RecolorSeed>)value) { new RecolorSeed { renderer = NewRenderer() } };
+            }
+            if (type == typeof(List<RecolorGradientStop>))
+            {
+                return new List<RecolorGradientStop>((List<RecolorGradientStop>)value)
+                {
+                    new RecolorGradientStop { position = 0.5f, color = new Color(0.2f, 0.4f, 0.6f) },
+                };
             }
             return null;
         }

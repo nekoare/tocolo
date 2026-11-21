@@ -302,6 +302,10 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             member.gradientDarkEndRatio = anchor.gradientDarkEndRatio;
             member.gradientGamma = anchor.gradientGamma;
             member.gradientStrength = anchor.gradientStrength;
+            // 同じ一覧を共有すると、片方の途中の色を消したときにもう片方も消える（Undo の記録も片方だけになる）
+            member.gradientMidStops = anchor.gradientMidStops != null
+                ? new List<RecolorGradientStop>(anchor.gradientMidStops)
+                : new List<RecolorGradientStop>();
             member.gradientBoxPosition = anchor.gradientBoxPosition;
             member.gradientBoxRotation = anchor.gradientBoxRotation;
             member.gradientBoxSize = anchor.gradientBoxSize;

@@ -178,6 +178,10 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
         private static readonly int BoxSizeId = Shader.PropertyToID("BoxSize");
         private static readonly int GradientInsideOnlyId = Shader.PropertyToID("GradientInsideOnly");
         private static readonly int TargetOklab2Id = Shader.PropertyToID("TargetOklab2");
+        private static readonly int GradientMidStopsId = Shader.PropertyToID("GradientMidStops");
+        private static readonly int GradientMidStopCountId = Shader.PropertyToID("GradientMidStopCount");
+        /// <summary>途中の色を compute に渡す入れ物（使わない所は 0 のまま。長さは compute の配列と同じ）</summary>
+        private static readonly Vector4[] s_midStops = new Vector4[RecolorGradientStop.MaxCount];
         private static readonly int LayerId = Shader.PropertyToID("Layer");
         private static readonly int LayerWidthId = Shader.PropertyToID("LayerWidth");
         private static readonly int LayerHeightId = Shader.PropertyToID("LayerHeight");
@@ -1598,6 +1602,11 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
             shader.SetVector(BoxSizeId, p.boxSize);
             shader.SetInt(GradientInsideOnlyId, gradient && p.gradientInsideOnly ? 1 : 0);
             shader.SetVector(TargetOklab2Id, p.targetOklab2);
+            int midCount = p.midStops != null ? Mathf.Min(p.midStops.Length, s_midStops.Length) : 0;
+            System.Array.Clear(s_midStops, 0, s_midStops.Length);
+            if (midCount > 0) System.Array.Copy(p.midStops, s_midStops, midCount);
+            shader.SetVectorArray(GradientMidStopsId, s_midStops);
+            shader.SetInt(GradientMidStopCountId, midCount);
             shader.SetFloat(DarkEndRatio2Id, p.darkEndRatio2);
             shader.SetFloat(Strength2Id, p.strength2);
 

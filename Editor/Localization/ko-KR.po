@@ -579,6 +579,15 @@ msgstr "색 1"
 msgid "Scene:Color:EditTarget:End"
 msgstr "색 2"
 
+msgid "Scene:Color:EditTarget:Mid"
+msgstr "중간 색"
+
+msgid "Scene:Color:GradientStopsHint"
+msgstr "▲를 누르면 색을 고를 수 있어요. 빈 곳을 누르면 색을 추가할 수 있어요"
+
+msgid "Scene:Color:RemoveMidStop"
+msgstr "삭제"
+
 msgid "Scene:Color:Padding"
 msgstr "여백 확장"
 
@@ -655,7 +664,7 @@ msgid "Help:Strength"
 msgstr "색 변경의 불투명도예요. 1이면 지정한 색이 완전히 적용되고, 낮출수록 원래 색이 남아요."
 
 msgid "Help:Gradient"
-msgstr "켜면 Scene에 박스가 나타나요. 박스의 아래쪽 끝에서 위쪽 끝으로 '색 1'에서 '색 2'로 변해요. 박스를 움직여 방향과 범위를 정해 주세요. 박스 표시는 패널 옆의 작은 창에서 바꿀 수 있어요."
+msgstr "켜면 Scene에 박스가 나타나요. 박스의 아래쪽 끝에서 위쪽 끝으로 '색 1'에서 '색 2'로 변해요. 박스를 움직여 방향과 범위를 정해 주세요. 박스 표시는 패널 옆의 작은 창에서 바꿀 수 있어요. 미리보기 아래의 ▲를 누르면 그 색을 휠로 바꿀 수 있어요. 빈 곳을 누르면 중간 색을 추가할 수 있어요(6색까지). 중간 ▲는 좌우로 드래그해서 옮길 수 있어요. 같은 위치에 2색을 두면 그곳에서 색이 또렷하게 바뀌어요. 중간 색은 색만 가져요. 음영 어둡기·감마·불투명도는 색 1과 색 2로 정해지므로, 중간 색을 고른 동안에는 회색으로 표시돼요."
 
 msgid "Help:GradientInsideOnly"
 msgstr "켜면 박스의 위쪽 끝보다 위와 아래쪽 끝보다 아래는 색을 바꾸지 않고 원래 색으로 남기며, 박스 높이 범위만 그라데이션이 돼요. 가로 방향은 박스로 자르지 않아요. 끄면 위아래 바깥쪽도 끝의 색으로 이어져요."

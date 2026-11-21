@@ -1075,10 +1075,10 @@ namespace Nekoare.ClickRecolor.Tests
             var component = MakeComponent();
             var edit = RecolorSceneTool.CreateEditFromHit(component, MakeHit(_texture), Color.green);
             ToolPanelOverlay.ApplyTargetColor(component, edit, Color.red);
-            ToolPanelOverlay.ApplyTargetColor(component, edit, Color.blue, gradientEnd: true);
+            ToolPanelOverlay.ApplyTargetColor(component, edit, Color.blue, GradientTarget.End);
             edit.gradientEnabled = true;
 
-            ToolPanelOverlay.ResetEditingColor(component, edit, end: false);
+            ToolPanelOverlay.ResetEditingColor(component, edit, GradientTarget.Start);
 
             Assert.That(edit.targetColor, Is.EqualTo(Color.green), "色1は元の色");
             Assert.That(edit.hasTarget, Is.True, "色の指定は残る（色未設定の編集として捨てられない）");
@@ -1096,7 +1096,7 @@ namespace Nekoare.ClickRecolor.Tests
             var component = MakeComponent();
             var reset = RecolorSceneTool.CreateEditFromHit(component, MakeHit(_texture), Color.green);
             ToolPanelOverlay.ApplyTargetColor(component, reset, Color.red);
-            ToolPanelOverlay.ResetEditingColor(component, reset, end: false);
+            ToolPanelOverlay.ResetEditingColor(component, reset, GradientTarget.Start);
             Assert.That(reset.hasTarget, Is.False, "見た目は元どおり（色未設定）");
             Assert.That(reset.confirmed, Is.True, "一度色を決めた印は残る");
 
@@ -1118,7 +1118,7 @@ namespace Nekoare.ClickRecolor.Tests
             var edit = RecolorSceneTool.CreateEditFromHit(component, MakeHit(_texture), Color.green);
             ToolPanelOverlay.ApplyTargetColor(component, edit, Color.red);
 
-            ToolPanelOverlay.ResetEditingColor(component, edit, end: false);
+            ToolPanelOverlay.ResetEditingColor(component, edit, GradientTarget.Start);
 
             Assert.That(edit.hasTarget, Is.False);
             Assert.That(edit.targetColor, Is.EqualTo(Color.green));
@@ -1130,16 +1130,16 @@ namespace Nekoare.ClickRecolor.Tests
             var component = MakeComponent();
             var edit = RecolorSceneTool.CreateEditFromHit(component, MakeHit(_texture), Color.green);
             ToolPanelOverlay.ApplyTargetColor(component, edit, Color.red);
-            ToolPanelOverlay.ApplyTargetColor(component, edit, Color.blue, gradientEnd: true);
+            ToolPanelOverlay.ApplyTargetColor(component, edit, Color.blue, GradientTarget.End);
             edit.gradientEnabled = true;
             edit.gamma = 0.5f;
             edit.gradientGamma = 1.5f;
 
-            ToolPanelOverlay.ResetEditingColor(component, edit, end: true);
+            ToolPanelOverlay.ResetEditingColor(component, edit, GradientTarget.End);
             Assert.That(edit.gradientGamma, Is.EqualTo(1f), "色 2 のリセットで色 2 のガンマが戻る");
             Assert.That(edit.gamma, Is.EqualTo(0.5f), "色 1 のガンマは変えない");
 
-            ToolPanelOverlay.ResetEditingColor(component, edit, end: false);
+            ToolPanelOverlay.ResetEditingColor(component, edit, GradientTarget.Start);
             Assert.That(edit.gamma, Is.EqualTo(1f), "グラデーション中の色 1 のリセットで色 1 のガンマが戻る");
 
             edit.gradientEnabled = false;
@@ -1154,7 +1154,7 @@ namespace Nekoare.ClickRecolor.Tests
             var component = MakeComponent();
             var edit = RecolorSceneTool.CreateEditFromHit(component, MakeHit(_texture), Color.green);
             ToolPanelOverlay.ApplyTargetColor(component, edit, Color.red);
-            ToolPanelOverlay.ApplyTargetColor(component, edit, Color.blue, gradientEnd: true);
+            ToolPanelOverlay.ApplyTargetColor(component, edit, Color.blue, GradientTarget.End);
             edit.darkEndRatio = 0.1f;
             edit.shadingStretch = 0.8f;
             edit.strength = 0.3f;
@@ -1178,7 +1178,7 @@ namespace Nekoare.ClickRecolor.Tests
             var component = MakeComponent();
             var edit = RecolorSceneTool.CreateEditFromHit(component, MakeHit(_texture), Color.green);
 
-            ToolPanelOverlay.ApplyTargetColor(component, edit, Color.blue, gradientEnd: true);
+            ToolPanelOverlay.ApplyTargetColor(component, edit, Color.blue, GradientTarget.End);
 
             Assert.That(edit.gradientColor, Is.EqualTo(Color.blue));
             Assert.That(edit.targetColor, Is.EqualTo(Color.green), "色1は元の色のまま");
@@ -1187,7 +1187,57 @@ namespace Nekoare.ClickRecolor.Tests
             Assert.That(edit.darkEndRatio, Is.EqualTo(DarkEndAutoAdjust.Compute(Color.green)).Within(1e-5f));
             Assert.That(edit.gradientDarkEndRatio, Is.EqualTo(DarkEndAutoAdjust.Compute(Color.blue)).Within(1e-5f));
         }
-    
+
+        [Test]
+        public void 途中の色への書き込みはその色だけを変え_位置と両端の色は変えない()
+        {
+            var component = MakeComponent();
+            var edit = RecolorSceneTool.CreateEditFromHit(component, MakeHit(_texture), Color.green);
+            ToolPanelOverlay.ApplyTargetColor(component, edit, Color.red);
+            ToolPanelOverlay.ApplyTargetColor(component, edit, Color.blue, GradientTarget.End);
+            edit.gradientEnabled = true;
+            edit.gradientMidStops.Add(new RecolorGradientStop { position = 0.2f, color = Color.white });
+            edit.gradientMidStops.Add(new RecolorGradientStop { position = 0.7f, color = Color.white });
+
+            ToolPanelOverlay.ApplyTargetColor(component, edit, Color.yellow, GradientTarget.Mid(1));
+
+            Assert.That(edit.gradientMidStops[1].color, Is.EqualTo(Color.yellow));
+            Assert.That(edit.gradientMidStops[1].position, Is.EqualTo(0.7f), "位置は変えない");
+            Assert.That(edit.gradientMidStops[0].color, Is.EqualTo(Color.white), "ほかの途中の色は変えない");
+            Assert.That(edit.targetColor, Is.EqualTo(Color.red), "色1は変えない");
+            Assert.That(edit.gradientColor, Is.EqualTo(Color.blue), "色2は変えない");
+        }
+
+        [Test]
+        public void 途中の色のリセットはその色を元の色に戻し_途中の色は残す()
+        {
+            var component = MakeComponent();
+            var edit = RecolorSceneTool.CreateEditFromHit(component, MakeHit(_texture), Color.green);
+            ToolPanelOverlay.ApplyTargetColor(component, edit, Color.red);
+            edit.gradientEnabled = true;
+            edit.gradientMidStops.Add(new RecolorGradientStop { position = 0.5f, color = Color.yellow });
+
+            ToolPanelOverlay.ResetEditingColor(component, edit, GradientTarget.Mid(0));
+
+            Assert.That(edit.gradientMidStops, Has.Count.EqualTo(1));
+            Assert.That(edit.gradientMidStops[0].color, Is.EqualTo(edit.seedColor));
+            Assert.That(edit.targetColor, Is.EqualTo(Color.red), "色1は変えない");
+        }
+
+        [Test]
+        public void グラデーションのリセットで途中の色も消える()
+        {
+            var component = MakeComponent();
+            var edit = RecolorSceneTool.CreateEditFromHit(component, MakeHit(_texture), Color.green);
+            ToolPanelOverlay.ApplyTargetColor(component, edit, Color.red);
+            GradientBox.SetEnabled(component, edit, true);
+            edit.gradientMidStops.Add(new RecolorGradientStop { position = 0.5f, color = Color.yellow });
+
+            GradientBox.ResetSettings(component, edit);
+
+            Assert.That(edit.gradientMidStops, Is.Empty);
+        }
+
         // ── テクスチャの残りを選択（RemainingParts）──
 
         [Test]

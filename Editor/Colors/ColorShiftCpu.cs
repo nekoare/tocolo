@@ -1,4 +1,5 @@
 // 流用元: com.nekoare.chimera-hair-master/Editor/Processing/ColorProcessor.cs（TransformHueShiftOklab）
+using System.Collections.Generic;
 using Nekoare.ClickRecolor.Editor.Pipeline;
 using UnityEngine;
 
@@ -45,6 +46,11 @@ namespace Nekoare.ClickRecolor.Editor.Colors
         public float darkEndRatio2;
         /// <summary>色 2（箱の上端 t=1）の不透明度。useGradient のとき t で strength と混ぜる。compute の _Strength2</summary>
         public float strength2;
+        /// <summary>
+        /// 途中の色（xyz = Oklab、w = 位置 0..1）を位置の順に並べたもの。null か空なら色 1 → 色 2 だけ。
+        /// 長さは RecolorGradientStop.MaxCount まで。compute の GradientMidStops / GradientMidStopCount
+        /// </summary>
+        public Vector4[] midStops;
 
         /// <summary>編集の色設定と、選択内の統計（元テクスチャ基準）から作る</summary>
         internal static ShiftParams FromEdit(RecolorEdit edit, in Stats stats)
@@ -73,11 +79,37 @@ namespace Nekoare.ClickRecolor.Editor.Colors
                 hueRetain = edit.hueRetain,
                 strength = edit.strength,
                 strength2 = gradient ? edit.gradientStrength : edit.strength,
+                midStops = gradient ? SortedMidStops(edit.gradientMidStops) : null,
                 lP05 = stats.lP05,
                 lP95 = stats.lP95,
                 hDominant = stats.hDominant,
                 shadingStretch = edit.shadingStretch,
             };
+        }
+
+        /// <summary>
+        /// 途中の色を位置の順（同じ位置なら足した順）に並べて Oklab にしたもの。上限を超えた分は捨てる。無ければ null。
+        /// List.Sort は同じ位置の順番を保たない（同じ位置に 2 つ置いて段差にしたとき、どちらが下か入れ替わりうる）ので、番号も比べる
+        /// </summary>
+        internal static Vector4[] SortedMidStops(List<RecolorGradientStop> stops)
+        {
+            if (stops == null || stops.Count == 0) return null;
+            int count = Mathf.Min(stops.Count, RecolorGradientStop.MaxCount);
+            var order = new int[count];
+            for (int i = 0; i < count; i++) order[i] = i;
+            System.Array.Sort(order, (a, b) =>
+            {
+                int c = Mathf.Clamp01(stops[a].position).CompareTo(Mathf.Clamp01(stops[b].position));
+                return c != 0 ? c : a.CompareTo(b);
+            });
+            var result = new Vector4[count];
+            for (int i = 0; i < count; i++)
+            {
+                var stop = stops[order[i]];
+                Vector3 lab = OklabConverter.LinearRGBToOklab(OklabConverter.SRGBToLinear(stop.color));
+                result[i] = new Vector4(lab.x, lab.y, lab.z, Mathf.Clamp01(stop.position));
+            }
+            return result;
         }
     }
 
@@ -126,7 +158,7 @@ namespace Nekoare.ClickRecolor.Editor.Colors
             {
                 // 目標色は Oklab で混ぜる（色相の回り方で遠回りしない）。混ぜた後に Oklch へ戻して従来の式へ
                 Vector3 lab1 = OklabConverter.OklchToOklab(targetLch);
-                targetLch = OklabConverter.OklabToOklch(lab1 + (p.targetOklab2 - lab1) * t);
+                targetLch = OklabConverter.OklabToOklch(GradientTargetOklab(lab1, p, t));
                 // 彩度 0 の atan2(0, 0) は GPU で NaN になりうるので色相を 0 に決める（compute と同じ）
                 if (targetLch.y < MinGradientChroma) targetLch.z = 0f;
             }
@@ -138,6 +170,37 @@ namespace Nekoare.ClickRecolor.Editor.Colors
                 srcLinear.b + (shifted.z - srcLinear.b) * w,
                 srcLinear.a);
         }
+
+        /// <summary>
+        /// t の目標色（Oklab）。色 1（t=0）・途中の色（位置の順）・色 2（t=1）の隣り合う 2 色のあいだを Oklab でまっすぐ混ぜる。
+        /// 同じ位置に 2 色あれば、その位置ちょうどは先の色、それより上は後の色（段差になる）。compute の GradientTargetOklab と同じ
+        /// </summary>
+        internal static Vector3 GradientTargetOklab(Vector3 lab1, in ShiftParams p, float t)
+        {
+            Vector3 fromLab = lab1;
+            float fromT = 0f;
+            int count = p.midStops != null ? Mathf.Min(p.midStops.Length, RecolorGradientStop.MaxCount) : 0;
+            for (int i = 0; i < count; i++)
+            {
+                var stop = p.midStops[i];
+                var stopLab = new Vector3(stop.x, stop.y, stop.z);
+                if (t <= stop.w) return LerpSegment(fromLab, fromT, stopLab, stop.w, t);
+                fromLab = stopLab;
+                fromT = stop.w;
+            }
+            return LerpSegment(fromLab, fromT, p.targetOklab2, 1f, t);
+        }
+
+        private static Vector3 LerpSegment(Vector3 fromLab, float fromT, Vector3 toLab, float toT, float t)
+        {
+            float span = toT - fromT;
+            // 幅 0 の区間（同じ位置の 2 色・端と同じ位置の色）は割らずに後の色
+            if (span < MinStopSpan) return toLab;
+            return fromLab + (toLab - fromLab) * ((t - fromT) / span);
+        }
+
+        /// <summary>途中の色の区間の幅の下限（これ未満は幅 0 として割らない）。compute の MinStopSpan と同じ</summary>
+        private const float MinStopSpan = 1e-6f;
 
         /// <summary>「箱の中だけ」でグラデーション方向（y）の箱の外なら true（その画素は色変えしない）。横方向は切らない。描かれていない画素は箱の中扱い</summary>
         internal static bool GradientOutsideBox(in ShiftParams p, Vector4 position)

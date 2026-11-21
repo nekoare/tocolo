@@ -691,6 +691,69 @@ namespace Nekoare.ClickRecolor.Tests
             Assert.That(HueDistance(bottomHue, startHue), Is.LessThan(0.05f), "下端の行は色1");
         }
 
+        [Test]
+        public void 途中の色を置いたグラデーションも_GPU_と_CPU_が一致し_その高さでは途中の色になる()
+        {
+            // 灰色一面・マスク全面。位置マップは行 y ごとに箱のローカル y = y/(Size-1) − 0.5（下端 t = 0 → 上端 t = 1）
+            var src = new Color[Size * Size];
+            float grey = 0.2f;
+            for (int i = 0; i < src.Length; i++) src[i] = new Color(grey, grey, grey, 1f);
+            var mask = new byte[Size * Size];
+            for (int i = 0; i < mask.Length; i++) mask[i] = 255;
+            var positions = new Vector4[Size * Size];
+            var posPixels = new Color[Size * Size];
+            for (int y = 0; y < Size; y++)
+            {
+                for (int x = 0; x < Size; x++)
+                {
+                    var position = new Vector4(0f, y / (float)(Size - 1) - 0.5f, 0f, 1f);
+                    positions[y * Size + x] = position;
+                    posPixels[y * Size + x] = new Color(position.x, position.y, position.z, position.w);
+                }
+            }
+            var posMap = new Texture2D(Size, Size, TextureFormat.RGBAFloat, false, true)
+            {
+                filterMode = FilterMode.Point,
+                wrapMode = TextureWrapMode.Clamp,
+            };
+            posMap.SetPixels(posPixels);
+            posMap.Apply(false);
+            _cleanup.Add(posMap);
+
+            var start = new Color(0.9f, 0.1f, 0.15f);
+            var end = new Color(0.1f, 0.2f, 0.9f);
+            var green = new Color(0.1f, 0.8f, 0.2f);
+            var p = Params(start, 0.25f, 0.85f);
+            p.hueRetain = 0f;
+            p.useGradient = true;
+            p.rootToBox = Matrix4x4.identity;
+            p.boxSize = Vector3.one;
+            p.targetOklab2 = OklabConverter.LinearRGBToOklab(OklabConverter.SRGBToLinear(end));
+            // 行 3 の高さ（3/7）に緑、行 5 と行 6 のあいだ（0.8）に黄と水色の段差
+            p.midStops = ShiftParams.SortedMidStops(new List<RecolorGradientStop>
+            {
+                new RecolorGradientStop { position = 0.8f, color = new Color(0.9f, 0.85f, 0.1f) },
+                new RecolorGradientStop { position = 3f / 7f, color = green },
+                new RecolorGradientStop { position = 0.8f, color = new Color(0.1f, 0.85f, 0.9f) },
+            });
+
+            var gpu = RunGpu(MakeSource(src), MakeMask(mask), p, posMap);
+
+            for (int i = 0; i < src.Length; i++)
+            {
+                Color cpu = ColorShiftCpu.ShiftLinear(src[i], 1f, p, positions[i]);
+                Color cpuSrgb = OklabConverter.LinearToSRGB(new Vector3(cpu.r, cpu.g, cpu.b));
+                Color gpuSrgb = OklabConverter.LinearToSRGB(new Vector3(gpu[i].r, gpu[i].g, gpu[i].b));
+                Assert.That(gpuSrgb.r, Is.EqualTo(cpuSrgb.r).Within(SrgbTolerance), $"画素{i}のR");
+                Assert.That(gpuSrgb.g, Is.EqualTo(cpuSrgb.g).Within(SrgbTolerance), $"画素{i}のG");
+                Assert.That(gpuSrgb.b, Is.EqualTo(cpuSrgb.b).Within(SrgbTolerance), $"画素{i}のB");
+            }
+
+            var c = gpu[3 * Size + 4];
+            float hue = OklabConverter.OklabToOklch(OklabConverter.LinearRGBToOklab(new Vector3(c.r, c.g, c.b))).z;
+            Assert.That(HueDistance(hue, OklabConverter.SRGBToOklch(green).z), Is.LessThan(0.05f), "途中の色の高さの行は緑");
+        }
+
         /// <summary>色相（ラジアン）の差の大きさ（0..π）</summary>
         private static float HueDistance(float a, float b) => Mathf.Abs(OklabConverter.WrapHueRadians(a - b));
 

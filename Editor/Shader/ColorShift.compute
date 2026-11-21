@@ -56,9 +56,39 @@ float3 TargetOklab2;      // 色 2（箱の上端 t = 1）の Oklab
 float _DarkEndRatio2;     // 色 2（箱の上端 t = 1）の暗部の明るさ。t で _DarkEndRatio と混ぜる
 float _Gamma2;            // 色 2（箱の上端 t = 1）のガンマ。t で _Gamma と混ぜる
 float _Strength2;         // 色 2（箱の上端 t = 1）の強さ。t で _Strength と混ぜる
+// 途中の色（xyz = Oklab、w = 位置 0..1。位置の順）。長さは RecolorGradientStop.MaxCount と同じ。
+// C# の SetVectorArray は最初に渡した長さで配列の大きさが決まるので、C# 側は数が少なくても常にこの長さで渡す
+float4 GradientMidStops[6];
+int GradientMidStopCount;
 
 static const float MinBoxHeight = 1e-5;      // 箱の高さの下限（0 で割らない）
 static const float MinGradientChroma = 1e-6; // 混ぜた目標色の彩度がこれ未満なら色相を 0 とみなす（atan2(0, 0) の NaN 除け）
+static const float MinStopSpan = 1e-6;       // 途中の色の区間の幅の下限（これ未満は幅 0 として割らない）
+
+// 区間 [fromT, toT] の t の色。幅 0 の区間（同じ位置の 2 色・端と同じ位置の色）は割らずに後の色
+float3 LerpSegment(float3 fromLab, float fromT, float3 toLab, float toT, float t)
+{
+    float span = toT - fromT;
+    if (span < MinStopSpan) return toLab;
+    return lerp(fromLab, toLab, (t - fromT) / span);
+}
+
+// t の目標色（Oklab）。色 1（t = 0）・途中の色（位置の順）・色 2（t = 1）の隣り合う 2 色のあいだをまっすぐ混ぜる。
+// 同じ位置に 2 色あれば、その位置ちょうどは先の色、それより上は後の色（ColorShiftCpu.GradientTargetOklab と同じ）
+float3 GradientTargetOklab(float3 lab1, float t)
+{
+    float3 fromLab = lab1;
+    float fromT = 0.0;
+    int count = min(GradientMidStopCount, 6);
+    for (int i = 0; i < count; i++)
+    {
+        float4 stop = GradientMidStops[i];
+        if (t <= stop.w) return LerpSegment(fromLab, fromT, stop.xyz, stop.w, t);
+        fromLab = stop.xyz;
+        fromT = stop.w;
+    }
+    return LerpSegment(fromLab, fromT, TargetOklab2, 1.0, t);
+}
 
 // グラデーションの混ぜ具合 t（0 = 新しい色、1 = 終了色）。箱のローカル y / 高さ + 0.5 を 0..1 に切り詰める。
 // 位置マップで描かれていない画素（a ≤ 0）は 0
@@ -199,7 +229,7 @@ void CSShift(uint3 id : SV_DispatchThreadID)
     {
         // 目標色は Oklab で混ぜ、Oklch へ戻して従来の式へ
         float3 lab1 = OklchToOklab(targetLch);
-        targetLch = OklabToOklch(lerp(lab1, TargetOklab2, t));
+        targetLch = OklabToOklch(GradientTargetOklab(lab1, t));
         if (targetLch.y < MinGradientChroma) targetLch.z = 0.0;
     }
 

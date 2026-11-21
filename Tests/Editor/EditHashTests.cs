@@ -107,6 +107,30 @@ namespace Nekoare.ClickRecolor.Tests
         }
 
         [Test]
+        public void 途中の色のフィールドはどれを変えてもハッシュが変わる()
+        {
+            var failures = new List<string>();
+            foreach (var field in FieldMutator.SerializedFields(typeof(RecolorGradientStop)))
+            {
+                var edit = NewFullEdit();
+                edit.gradientMidStops.Add(new RecolorGradientStop { position = 0.25f, color = Color.green });
+                int before = EditHash.All(17, edit);
+                object stop = edit.gradientMidStops[0];
+                var mutated = _mutator.Mutate(field.GetValue(stop), field.FieldType);
+                if (mutated == null)
+                {
+                    failures.Add($"{field.Name}: 知らない型 {field.FieldType.Name}");
+                    continue;
+                }
+                // 構造体なので、箱に入れた写しを変えてから一覧へ戻す
+                field.SetValue(stop, mutated);
+                edit.gradientMidStops[0] = (RecolorGradientStop)stop;
+                if (EditHash.All(17, edit) == before) failures.Add($"{field.Name}: 変えてもハッシュが変わらない（EditHash のグラデーションの区分に入れる）");
+            }
+            Assert.That(failures, Is.Empty, string.Join("\n", failures));
+        }
+
+        [Test]
         public void 表示専用のフィールドを変えてもハッシュは変わらない()
         {
             var edit = NewFullEdit();

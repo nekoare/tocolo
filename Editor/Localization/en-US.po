@@ -579,6 +579,15 @@ msgstr "Color 1"
 msgid "Scene:Color:EditTarget:End"
 msgstr "Color 2"
 
+msgid "Scene:Color:EditTarget:Mid"
+msgstr "Middle color"
+
+msgid "Scene:Color:GradientStopsHint"
+msgstr "Click a ▲ to select a color. Click an empty spot to add a color"
+
+msgid "Scene:Color:RemoveMidStop"
+msgstr "Remove"
+
 msgid "Scene:Color:Padding"
 msgstr "Edge padding"
 
@@ -655,7 +664,7 @@ msgid "Help:Strength"
 msgstr "Opacity of the recolor. At 1 the chosen color is applied fully; lower values keep more of the original color."
 
 msgid "Help:Gradient"
-msgstr "When on, a box appears in the Scene. The color changes from Color 1 at the bottom of the box to Color 2 at the top. Move the box to set the direction and range. Use the small window next to the panel to show or hide the box."
+msgstr "When on, a box appears in the Scene. The color changes from Color 1 at the bottom of the box to Color 2 at the top. Move the box to set the direction and range. Use the small window next to the panel to show or hide the box. Click a ▲ under the preview to edit that color with the wheel. Click an empty spot to add a middle color (up to 6). Drag a middle ▲ left or right to move it. Two colors at the same spot make a sharp change there. A middle color has only a color. Its shadow darkness, gamma, and opacity come from Color 1 and Color 2, so those are grayed out while a middle color is selected."
 
 msgid "Help:GradientInsideOnly"
 msgstr "When on, everything above the top and below the bottom of the box is left as the original color, and only the box height becomes a gradient. Sideways the box does not cut anything. When off, the colors continue beyond both ends."

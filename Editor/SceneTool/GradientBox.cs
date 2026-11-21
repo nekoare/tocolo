@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Nekoare.ClickRecolor.Editor.Masks;
 using Nekoare.ClickRecolor.Editor.NDMF;
 using Nekoare.ClickRecolor.Editor.Pipeline;
@@ -294,6 +295,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             e.gradientDarkEndRatio = e.darkEndRatio;
             e.gradientGamma = e.gamma;
             e.gradientStrength = e.strength;
+            e.gradientMidStops = new List<RecolorGradientStop>();
             e.gradientBoxPosition = box.position;
             e.gradientBoxRotation = box.rotation;
             e.gradientBoxSize = box.size;

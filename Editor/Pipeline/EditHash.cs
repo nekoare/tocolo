@@ -146,6 +146,15 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
                     h = h * 31 + edit.gradientDarkEndRatio.GetHashCode();
                     h = h * 31 + edit.gradientGamma.GetHashCode();
                     h = h * 31 + edit.gradientStrength.GetHashCode();
+                    if (edit.gradientMidStops != null)
+                    {
+                        h = h * 31 + edit.gradientMidStops.Count;
+                        foreach (var stop in edit.gradientMidStops)
+                        {
+                            h = h * 31 + stop.position.GetHashCode();
+                            h = h * 31 + stop.color.GetHashCode();
+                        }
+                    }
                 }
                 return h;
             }

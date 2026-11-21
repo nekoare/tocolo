@@ -81,9 +81,41 @@ namespace Nekoare.ClickRecolor.Tests
             foreach (var field in FieldMutator.SerializedFields(typeof(RecolorEdit)))
             {
                 if (PerMember.Contains(field.Name)) continue;
-                if (!Equals(field.GetValue(member), field.GetValue(anchor))) failures.Add($"{field.Name}: 写していない（EditGroups.CopyForTexture に足す）");
+                if (!SameValue(field.GetValue(member), field.GetValue(anchor))) failures.Add($"{field.Name}: 写していない（EditGroups.CopyForTexture に足す）");
             }
             Assert.That(failures, Is.Empty, string.Join("\n", failures));
+        }
+
+        [Test]
+        public void 島の連結に足したメンバーの途中の色は元の編集と別の一覧になる()
+        {
+            var root = new GameObject("EditGroupsCopyTests");
+            _created.Add(root);
+            var component = root.AddComponent<ClickRecolor>();
+            var anchor = RecolorEdit.CreateNew();
+            anchor.gradientMidStops.Add(new RecolorGradientStop { position = 0.5f, color = Color.green });
+            component.AddEdit(anchor);
+
+            var member = EditGroups.LinkSeedBased(component, anchor, (Texture2D)_mutator.Mutate(null, typeof(Texture2D)), _mutator.NewRenderer(), 0, 0, Vector2.zero);
+            anchor.gradientMidStops.Clear();
+
+            Assert.That(member, Is.Not.Null);
+            Assert.That(member.gradientMidStops, Has.Count.EqualTo(1), "元の編集の途中の色を消してもメンバーには残る");
+        }
+
+        /// <summary>一覧は中身で比べる（写すときに別の一覧へ複製するので、参照は一致しない）</summary>
+        private static bool SameValue(object a, object b)
+        {
+            if (a is System.Collections.IList listA && b is System.Collections.IList listB)
+            {
+                if (listA.Count != listB.Count) return false;
+                for (int i = 0; i < listA.Count; i++)
+                {
+                    if (!Equals(listA[i], listB[i])) return false;
+                }
+                return true;
+            }
+            return Equals(a, b);
         }
     }
 }

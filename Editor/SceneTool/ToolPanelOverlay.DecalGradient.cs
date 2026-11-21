@@ -168,6 +168,9 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         /// 「グラデーション」トグルと、ON のときの終了色（見本＋カラーコード）・色の書き込み先の切り替え。
         /// ON にすると Scene に箱が出る（RecolorSceneTool。出すかどうかは小窓「箱を表示」の BoxToggleOverlay）。連結（「アバター全体」・島の連結）なら連結の全編集に効かせる
         /// </summary>
+        /// <summary>グラデーションのトグルより下の字下げ（px）</summary>
+        private const float GradientIndent = 16f;
+
         private static void DrawGradient(ClickRecolor component, RecolorEdit edit)
         {
             // トグルを押したイベントの中で部品の数が変わらないよう、押す前の値で後半を出すか決める
@@ -194,20 +197,12 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             // トグル以外は字下げして入れ子だと分かるようにする（ユーザー要望 2026-09-25）
             using (new EditorGUILayout.HorizontalScope())
             {
-            GUILayout.Space(16);
+            GUILayout.Space(GradientIndent);
             using (new EditorGUILayout.VerticalScope())
             {
-            // 色 1 → 色 2 の見本
-            DrawGradientRow(edit);
-
-            // ホイール・スライダー・最近の色をどちらの色に効かせるか
-            int target = SessionState.GetInt(ColorEditTargetKey, 0) == 1 ? 1 : 0;
-            int selected = GUILayout.Toolbar(target, new[]
-            {
-                Locales.Tr("Scene:Color:EditTarget:Start"),
-                Locales.Tr("Scene:Color:EditTarget:End"),
-            });
-            if (selected != target) SessionState.SetInt(ColorEditTargetKey, selected);
+            // 色 1 → 色 2 の見本と▲、色 1・色 2 の切り替え（ホイール・スライダー・最近の色をどの色に効かせるか）。
+            // 帯は字下げと枠の余白を越えて、枠線（1px）の内側いっぱいに広げる
+            DrawGradientRow(component, edit, GradientIndent + BlockPadding - 1f, BlockPadding - 1f);
 
             // 箱の中だけグラデーションにするか（外側は「新しい色」のまま）
             bool insideOnly = WithHelp("Help:GradientInsideOnly",

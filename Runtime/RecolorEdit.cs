@@ -140,6 +140,8 @@ namespace Nekoare.ClickRecolor
         [Range(0.01f, 2f)] public float gradientGamma = 1f;
         /// <summary>色 2（箱の上端）の強さ。グラデーション ON のとき、テクセルの t で strength と混ぜる</summary>
         [Range(0f, 1f)] public float gradientStrength = 1f;
+        /// <summary>途中の色（並びは足した順。位置の順に並べるのは色を混ぜるとき）。空なら色 1 → 色 2 の 2 色</summary>
+        public List<RecolorGradientStop> gradientMidStops = new List<RecolorGradientStop>();
         /// <summary>箱の中心（対象ルート＝ClickRecolor の GameObject のローカル座標）</summary>
         public Vector3 gradientBoxPosition;
         /// <summary>箱の回転（対象ルートのローカル）</summary>

@@ -579,6 +579,15 @@ msgstr "色1"
 msgid "Scene:Color:EditTarget:End"
 msgstr "色2"
 
+msgid "Scene:Color:EditTarget:Mid"
+msgstr "途中の色"
+
+msgid "Scene:Color:GradientStopsHint"
+msgstr "▲を押すと色を選べます。空いた所を押すと色を足せます"
+
+msgid "Scene:Color:RemoveMidStop"
+msgstr "削除"
+
 msgid "Scene:Color:Padding"
 msgstr "はみ出し幅"
 
@@ -655,7 +664,7 @@ msgid "Help:Strength"
 msgstr "色変えの不透明度です。１で完全に指定した色になり、下げるほど元の色が残ります。"
 
 msgid "Help:Gradient"
-msgstr "オンにするとSceneに箱が出ます。箱の下端から上端に向けて「色1」から「色2」へ変化します。箱を動かして向きと範囲を決めてください。箱の表示はパネルの横の小窓「表示切替」で切り替えられます。"
+msgstr "オンにするとSceneに箱が出ます。箱の下端から上端に向けて「色1」から「色2」へ変化します。箱を動かして向きと範囲を決めてください。箱の表示はパネルの横の小窓「表示切替」で切り替えられます。見本の下の▲を押すと、その色をホイールで変えられます。空いた所を押すと途中の色を足せます（6色まで）。途中の▲は左右にドラッグして動かせます。同じ位置に2色置くと、そこで色がくっきり切り替わります。途中の色が持つのは色だけです。陰影の暗さ・ガンマ・不透明度は色1と色2から決まるので、途中の色を選んでいるあいだは灰色になります。"
 
 msgid "Help:GradientInsideOnly"
 msgstr "オンにすると、箱の上端より上と下端より下は色変えせず元の色のままになり、箱の高さの範囲だけがグラデーションになります。横方向は箱で切りません。オフでは上下の外側も端の色で続きます。"

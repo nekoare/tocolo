@@ -70,12 +70,14 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 return;
             }
 
-            // ホイール・スライダー・最近の色・見本行の書き込み先（グラデーション ON で「色 2」を選んでいれば色 2）
-            bool end = IsEditingGradientEnd(edit);
+            // ホイール・スライダー・最近の色・見本行の書き込み先（グラデーション ON で帯の▲を選んでいればその色）
+            var target = EditingTarget(edit);
+            bool end = target.IsEnd;
+            bool mid = target.MidIndex >= 0;
 
-            // 元の色（クリック時の種色）と編集中の色（色 1 または色 2）の見本を横並びに。アルファは無視して色だけ見せる
+            // 元の色（クリック時の種色）と編集中の色（色 1・色 2・途中の色）の見本を横並びに。アルファは無視して色だけ見せる
             // 元の色の見本は押すと編集中の色を元に戻す。編集中の色の右に 16 進入力（# なし）
-            DrawColorRow(component, edit, end);
+            DrawColorRow(component, edit, target);
 
             // スポイト中の案内
             if (ToolSession.EyedropperActive) EditorGUILayout.HelpBox(Locales.Tr("Scene:Color:EyedropperHint"), MessageType.Info);
@@ -101,19 +103,19 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 GUILayout.FlexibleSpace();
                 var wheelRect = GUILayoutUtility.GetRect(wheelSize, wheelSize, GUILayout.ExpandWidth(false));
                 EditorGUI.BeginChangeCheck();
-                var wheelColor = ColorWheelGUI.Draw(wheelRect, EditingColor(edit, end), s_wheelHint);
-                if (EditorGUI.EndChangeCheck()) ChangeColor(component, edit, wheelColor, end);
+                var wheelColor = ColorWheelGUI.Draw(wheelRect, EditingColor(edit, target), s_wheelHint);
+                if (EditorGUI.EndChangeCheck()) ChangeColor(component, edit, wheelColor, target);
                 GUILayout.FlexibleSpace();
             }
 
             // HSV／RGB のスライダー（切り替えはホイールの下の右端）
-            DrawColorSliders(component, edit, end);
+            DrawColorSliders(component, edit, target);
 
-            DrawRecentColors(component, edit, end);
+            DrawRecentColors(component, edit, target);
 
             // 色を決める前は新しい色が仮の値（元の色）なので、自動調整の基準にしない
             // end（色 2 を編集中）なら自動調整・陰影の暗さ・強さは色 2 側の値（gradientDarkEndRatio / gradientStrength）を読み書きする
-            using (new EditorGUI.DisabledScope(!edit.hasTarget))
+            using (new EditorGUI.DisabledScope(!edit.hasTarget || mid))
             using (new EditorGUILayout.HorizontalScope())
             {
                 if (GUILayout.Button(Locales.Tr("Scene:Color:AutoDarkEnd")))
@@ -135,8 +137,12 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             EditorGUI.BeginChangeCheck();
             // 色 2 のときはラベルに「（色 2）」を付けて、どちらの値を触っているか分かるようにする
             string shadingSuffix = end ? Locales.Tr("Scene:Color:ShadingFor2") : "";
-            float currentDarkEndRatio = end ? edit.gradientDarkEndRatio : edit.darkEndRatio;
-            float currentStrength = end ? edit.gradientStrength : edit.strength;
+            // 途中の色は、その位置で実際に効く値（色 1 と色 2 の値を位置で混ぜた値）を触れない状態で見せる
+            float midT = mid ? MidStopPosition(edit, target) : 0f;
+            float currentDarkEndRatio = mid ? Mathf.Lerp(edit.darkEndRatio, edit.gradientDarkEndRatio, midT)
+                : end ? edit.gradientDarkEndRatio : edit.darkEndRatio;
+            float currentStrength = mid ? Mathf.Lerp(edit.strength, edit.gradientStrength, midT)
+                : end ? edit.gradientStrength : edit.strength;
             string darkEndLabel = Locales.Tr("Scene:Color:DarkEnd") + shadingSuffix;
             string strengthLabel = Locales.Tr("Scene:Color:Strength") + shadingSuffix;
             // 「（色 2）」付きの文言がパネル既定のラベル幅（70px）に収まらず見切れるので、ラベル幅は「（色 2）」付きの文言に合わせる。
@@ -146,10 +152,14 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             EditorGUIUtility.labelWidth = Mathf.Max(previousLabelWidth,
                 SliderLabelWidth(Locales.Tr("Scene:Color:DarkEnd") + suffix2, Locales.Tr("Scene:Color:Strength") + suffix2) + 4f);
             // 表示は「陰影の暗さ」（右ほど暗い）。保存値 darkEndRatio は「暗部の明るさ」（右ほど明るい）なので 1 − 値で表裏を変換する
-            float darkEnd = 1f - WithHelp("Help:DarkEnd",
-                () => EditorGUILayout.Slider(darkEndLabel, 1f - currentDarkEndRatio, 0f, 1f));
-            float strength = WithHelp("Help:Strength",
-                () => EditorGUILayout.Slider(strengthLabel, currentStrength, 0f, 1f));
+            float darkEnd, strength;
+            using (new EditorGUI.DisabledScope(mid))
+            {
+                darkEnd = 1f - WithHelp("Help:DarkEnd",
+                    () => EditorGUILayout.Slider(darkEndLabel, 1f - currentDarkEndRatio, 0f, 1f));
+                strength = WithHelp("Help:Strength",
+                    () => EditorGUILayout.Slider(strengthLabel, currentStrength, 0f, 1f));
+            }
             EditorGUIUtility.labelWidth = previousLabelWidth;
             if (EditorGUI.EndChangeCheck())
             {
@@ -221,15 +231,40 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         internal static void ApplyEyedropperColor(ClickRecolor component, RecolorEdit edit, Color color)
         {
             if (component == null || edit == null) return;
-            CommitColor(component, edit, new Color(color.r, color.g, color.b, 1f), IsEditingGradientEnd(edit));
+            CommitColor(component, edit, new Color(color.r, color.g, color.b, 1f), EditingTarget(edit));
         }
 
-        /// <summary>ホイール・スライダー・最近の色の書き込み先が「終了色」か（グラデーション ON かつ切り替えで終了色を選んでいる）</summary>
-        private static bool IsEditingGradientEnd(RecolorEdit edit) =>
-            edit != null && edit.gradientEnabled && SessionState.GetInt(ColorEditTargetKey, 0) == 1;
+        /// <summary>
+        /// ホイール・スライダー・最近の色の書き込み先（グラデーション ON で帯の▲を選んでいればその色、それ以外は色 1）。
+        /// 選んだ▲は編集をまたいで覚えるので、この編集に無い途中の色なら色 1 にする
+        /// </summary>
+        private static GradientTarget EditingTarget(RecolorEdit edit)
+        {
+            if (edit == null || !edit.gradientEnabled) return GradientTarget.Start;
+            var target = GradientTarget.FromValue(SessionState.GetInt(ColorEditTargetKey, 0));
+            int mid = target.MidIndex;
+            if (mid >= 0 && (edit.gradientMidStops == null || mid >= edit.gradientMidStops.Count)) return GradientTarget.Start;
+            return target;
+        }
 
-        /// <summary>書き込み先の色（end なら終了色、そうでなければ新しい色）</summary>
-        private static Color EditingColor(RecolorEdit edit, bool end) => end ? edit.gradientColor : edit.targetColor;
+        private static void SelectEditingTarget(GradientTarget target) => SessionState.SetInt(ColorEditTargetKey, target.value);
+
+        /// <summary>書き込み先の色（色 1・色 2・途中の色）</summary>
+        private static Color EditingColor(RecolorEdit edit, GradientTarget target)
+        {
+            int mid = target.MidIndex;
+            if (mid >= 0) return edit.gradientMidStops[mid].color;
+            return target.IsEnd ? edit.gradientColor : edit.targetColor;
+        }
+
+        /// <summary>途中の色の位置（途中の色でなければ 0）</summary>
+        private static float MidStopPosition(RecolorEdit edit, GradientTarget target)
+        {
+            int mid = target.MidIndex;
+            return mid >= 0 && edit.gradientMidStops != null && mid < edit.gradientMidStops.Count
+                ? Mathf.Clamp01(edit.gradientMidStops[mid].position)
+                : 0f;
+        }
 
         /// <summary>
         /// 色ブロックの「▸ 設定」の中身: 陰影の強調（色 1・色 2 で共通）・各点の色を揃える（種か連結のメンバーが複数のときだけ）・
@@ -319,15 +354,17 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         /// 高さと中心が必ず揃う（縦並びのラベル＋部品を横に並べると数 px ずれる）。ラベルは上の行に別で出す。
         /// end（色 2 の編集中）は見本・入力・リセットの全部が色 2 に効く（ユーザー要望 2026-09-25: グラデーション側のカラーコードを無くすため）
         /// </summary>
-        private static void DrawColorRow(ClickRecolor component, RecolorEdit edit, bool end)
+        private static void DrawColorRow(ClickRecolor component, RecolorEdit edit, GradientTarget target)
         {
+            bool end = target.IsEnd;
+            int mid = target.MidIndex;
             // ラベル行 → 部品の行、の順に矩形を取る（ラベルは見本の列幅に合わせて置く）
             var labelRow = EditorGUILayout.GetControlRect(false, EditorGUIUtility.singleLineHeight * 0.8f);
             var full = EditorGUILayout.GetControlRect(false, EditorGUIUtility.singleLineHeight);
             float swatchWidth = (full.width - HexFieldWidth - ResetButtonWidth - RowGap * 3f) / 2f;
             EditorGUI.LabelField(new Rect(full.x, labelRow.y, swatchWidth, labelRow.height), Locales.Tr("Scene:Color:Original"), EditorStyles.miniLabel);
             EditorGUI.LabelField(new Rect(full.x + swatchWidth + RowGap, labelRow.y, swatchWidth, labelRow.height),
-                Locales.Tr(end ? "Scene:Color:EditTarget:End" : "Scene:Color:Target"), EditorStyles.miniLabel);
+                Locales.Tr(mid >= 0 ? "Scene:Color:EditTarget:Mid" : end ? "Scene:Color:EditTarget:End" : "Scene:Color:Target"), EditorStyles.miniLabel);
 
             var originalRect = new Rect(full.x, full.y, swatchWidth, full.height);
             var targetRect = new Rect(originalRect.xMax + RowGap, full.y, swatchWidth, full.height);
@@ -339,36 +376,44 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             EditorGUI.DrawRect(originalRect, new Color(seed.r, seed.g, seed.b, 1f));
             GUI.Label(originalRect, new GUIContent(string.Empty, Locales.Tr("Scene:Color:ResetToOriginal")), GUIStyle.none);
             EditorGUIUtility.AddCursorRect(originalRect, MouseCursor.Link);
-            if (GUI.Button(originalRect, GUIContent.none, GUIStyle.none)) ResetEditingColor(component, edit, end);
+            if (GUI.Button(originalRect, GUIContent.none, GUIStyle.none)) ResetEditingColor(component, edit, target);
 
-            // 編集中の色（色 1 または色 2）
-            var editing = EditingColor(edit, end);
+            // 編集中の色（色 1・色 2・途中の色）
+            var editing = EditingColor(edit, target);
             EditorGUI.DrawRect(targetRect, new Color(editing.r, editing.g, editing.b, 1f));
 
             // カラーコード（# なし）
             EditorGUI.BeginChangeCheck();
             string typed = EditorGUI.DelayedTextField(hexRect, ColorUtility.ToHtmlStringRGB(editing));
-            if (EditorGUI.EndChangeCheck() && TryParseHex(typed, out var typedColor)) CommitColor(component, edit, typedColor, gradientEnd: end);
+            if (EditorGUI.EndChangeCheck() && TryParseHex(typed, out var typedColor)) CommitColor(component, edit, typedColor, target);
 
-            // リセット（色 1: 色未設定のあいだは無効。色 2: 元の色と同じなら無効）
-            bool canReset = end
-                ? edit.gradientColor != edit.seedColor
+            // リセット（色 1: 色未設定のあいだは無効。色 2・途中の色: 元の色と同じなら無効）
+            bool canReset = mid >= 0 || end
+                ? editing != edit.seedColor
                 : edit.gradientEnabled ? edit.targetColor != edit.seedColor : edit.hasTarget;
             using (new EditorGUI.DisabledScope(!canReset))
             {
                 var content = new GUIContent(Locales.Tr("Scene:Color:ResetButton"), Locales.Tr("Scene:Color:ResetToOriginal"));
-                if (GUI.Button(resetRect, content, EditorStyles.miniButton)) ResetEditingColor(component, edit, end);
+                if (GUI.Button(resetRect, content, EditorStyles.miniButton)) ResetEditingColor(component, edit, target);
             }
         }
 
         /// <summary>
-        /// 見本行のリセット（「元の色」の見本・［リセット］）。色 2 の編集中は色 2 を元の色に、グラデーション中の色 1 は色 1 を元の色にする
-        /// （どちらもグラデーションと選択範囲は残す）。グラデーション OFF の色 1 は ResetToOriginal（色の指定の取り消し）
+        /// 見本行のリセット（「元の色」の見本・［リセット］）。色 2・途中の色の編集中はその色を元の色に、グラデーション中の色 1 は色 1 を元の色にする
+        /// （どれもグラデーションと選択範囲は残す）。グラデーション OFF の色 1 は ResetToOriginal（色の指定の取り消し）
         /// </summary>
-        internal static void ResetEditingColor(ClickRecolor component, RecolorEdit edit, bool end)
+        internal static void ResetEditingColor(ClickRecolor component, RecolorEdit edit, GradientTarget target)
         {
             if (component == null || edit == null) return;
-            if (end)
+            int mid = target.MidIndex;
+            if (mid >= 0)
+            {
+                Undo.RecordObject(component, "Tocolo: 途中の色を元の色に戻す");
+                EditGroups.ForEachInGroup(component, edit, e => SetMidStopColor(e, mid, e.seedColor));
+                EditorUtility.SetDirty(component);
+                return;
+            }
+            if (target.IsEnd)
             {
                 Undo.RecordObject(component, "Tocolo: 色2を元の色に戻す");
                 EditGroups.ForEachInGroup(component, edit, e =>
@@ -396,28 +441,105 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             ResetToOriginal(component, edit);
         }
 
-        /// <summary>「色 1 → 色 2」のグラデーション見本の行。色 2 のカラーコードは見本行（DrawColorRow の色 2 編集中）に出すのでここには無い</summary>
-        private static void DrawGradientRow(RecolorEdit edit)
+        /// <summary>
+        /// 「色 1 → 色 2」のグラデーション見本と▲の行。▲を押すとホイールなどの書き込み先が変わり、空いた所を押すと途中の色を足す。
+        /// 途中の色を選んでいるときだけ、見出しの右に［削除］。カラーコードは見本行（DrawColorRow）に出すのでここには無い
+        /// </summary>
+        /// <param name="extendLeft">帯を左へ広げる幅（字下げと枠の内側の余白の分。帯だけは枠線の内側いっぱいに出す）</param>
+        /// <param name="extendRight">帯を右へ広げる幅</param>
+        private static void DrawGradientRow(ClickRecolor component, RecolorEdit edit, float extendLeft, float extendRight)
         {
-            GUILayout.Label(Locales.Tr("Scene:Color:GradientPreview"), EditorStyles.miniLabel);
-            var full = EditorGUILayout.GetControlRect(false, EditorGUIUtility.singleLineHeight);
-            DrawGradientRect(full, edit.targetColor, edit.gradientColor);
+            var target = EditingTarget(edit);
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                GUILayout.Label(Locales.Tr("Scene:Color:GradientPreview"), EditorStyles.miniLabel);
+                GUILayout.FlexibleSpace();
+                // 押したイベントの中でも下の帯は描く（途中で抜けると、このイベントの部品の数が Layout と食い違う）
+                if (target.MidIndex >= 0
+                    && GUILayout.Button(Locales.Tr("Scene:Color:RemoveMidStop"), EditorStyles.miniButton, GUILayout.ExpandWidth(false)))
+                {
+                    RemoveMidStop(component, edit, target.MidIndex);
+                }
+            }
+            // GetControlRect は部品の左右に余白を付けるので、余白の無い GUIStyle.none で取ってから広げる
+            var rect = GUILayoutUtility.GetRect(0f, EditorGUIUtility.singleLineHeight + GradientStopsGUI.StripHeight,
+                GUIStyle.none, GUILayout.ExpandWidth(true));
+            rect.xMin -= extendLeft;
+            rect.xMax += extendRight;
+            var result = GradientStopsGUI.Draw(rect, edit, target);
+            switch (result.action)
+            {
+                case GradientStopsGUI.Action.Select:
+                    SelectEditingTarget(result.target);
+                    break;
+                case GradientStopsGUI.Action.Add:
+                    AddMidStop(component, edit, result.position);
+                    break;
+                case GradientStopsGUI.Action.Move:
+                    MoveMidStop(component, edit, result.target.MidIndex, result.position);
+                    break;
+            }
+            GUILayout.Label(Locales.Tr("Scene:Color:GradientStopsHint"), EditorStyles.wordWrappedMiniLabel);
+
+            // 色 1・色 2 は▲のほかに切り替えでも選べる（途中の色を選んでいるあいだはどちらも押されていない表示）
+            int current = target.IsStart ? 0 : target.IsEnd ? 1 : -1;
+            int selected = GUILayout.Toolbar(current, new[]
+            {
+                Locales.Tr("Scene:Color:EditTarget:Start"),
+                Locales.Tr("Scene:Color:EditTarget:End"),
+            });
+            if (selected != current && selected >= 0) SelectEditingTarget(selected == 1 ? GradientTarget.End : GradientTarget.Start);
         }
 
-        /// <summary>矩形に左→右で start→end のグラデーションを描く（Oklab で補間、32 分割）。Repaint 以外では何もしない</summary>
-        private static void DrawGradientRect(Rect rect, Color start, Color end)
+        /// <summary>位置 position に途中の色を足して選ぶ（色はその位置の今の色＝足しただけでは見た目が変わらない）。連結なら連結の全編集に足す</summary>
+        private static void AddMidStop(ClickRecolor component, RecolorEdit edit, float position)
         {
-            if (Event.current.type != EventType.Repaint) return;
-            const int steps = 32;
-            var a = OklabConverter.LinearRGBToOklab(OklabConverter.SRGBToLinear(start));
-            var b = OklabConverter.LinearRGBToOklab(OklabConverter.SRGBToLinear(end));
-            float w = rect.width / steps;
-            for (int i = 0; i < steps; i++)
+            if (edit.gradientMidStops != null && edit.gradientMidStops.Count >= RecolorGradientStop.MaxCount) return;
+            Undo.RecordObject(component, "Tocolo: 途中の色を足す");
+            EditGroups.ForEachInGroup(component, edit, e =>
             {
-                float t = (i + 0.5f) / steps;
-                var c = OklabConverter.LinearToSRGB(OklabConverter.OklabToLinearRGB(Vector3.Lerp(a, b, t)));
-                EditorGUI.DrawRect(new Rect(rect.x + i * w, rect.y, w + 0.5f, rect.height), new Color(c.r, c.g, c.b, 1f));
-            }
+                if (e.gradientMidStops == null) e.gradientMidStops = new List<RecolorGradientStop>();
+                if (e.gradientMidStops.Count >= RecolorGradientStop.MaxCount) return;
+                e.gradientMidStops.Add(new RecolorGradientStop { position = position, color = GradientStopsGUI.ColorAt(e, position) });
+            });
+            EditorUtility.SetDirty(component);
+            SelectEditingTarget(GradientTarget.Mid(edit.gradientMidStops.Count - 1));
+        }
+
+        /// <summary>途中の色をドラッグで動かす（ドラッグ中の変更は Undo 1 回にまとめる）</summary>
+        private static void MoveMidStop(ClickRecolor component, RecolorEdit edit, int index, float position)
+        {
+            if (index < 0) return;
+            BeginDragIfGrabbing("Tocolo: 途中の色を動かす");
+            Undo.RecordObject(component, "Tocolo: 途中の色を動かす");
+            EditGroups.ForEachInGroup(component, edit, e =>
+            {
+                if (e.gradientMidStops == null || index >= e.gradientMidStops.Count) return;
+                var stop = e.gradientMidStops[index];
+                stop.position = position;
+                e.gradientMidStops[index] = stop;
+            });
+            EditorUtility.SetDirty(component);
+        }
+
+        private static void RemoveMidStop(ClickRecolor component, RecolorEdit edit, int index)
+        {
+            Undo.RecordObject(component, "Tocolo: 途中の色を削除");
+            EditGroups.ForEachInGroup(component, edit, e =>
+            {
+                if (e.gradientMidStops != null && index < e.gradientMidStops.Count) e.gradientMidStops.RemoveAt(index);
+            });
+            EditorUtility.SetDirty(component);
+            SelectEditingTarget(GradientTarget.Start);
+        }
+
+        /// <summary>途中の色の色だけを変える（番号が無い編集は何もしない。連結のメンバーで数がずれていても壊さない）</summary>
+        private static void SetMidStopColor(RecolorEdit e, int index, Color color)
+        {
+            if (e.gradientMidStops == null || index < 0 || index >= e.gradientMidStops.Count) return;
+            var stop = e.gradientMidStops[index];
+            stop.color = color;
+            e.gradientMidStops[index] = stop;
         }
 
 
@@ -426,7 +548,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         /// HSV: 色相（0〜360）・彩度・明るさ（0〜100）、RGB: R・G・B（0〜255）。どちらも 3 行なので、切り替えても部品の数は変わらない。
         /// end なら終了色を操作する
         /// </summary>
-        private static void DrawColorSliders(ClickRecolor component, RecolorEdit edit, bool end)
+        private static void DrawColorSliders(ClickRecolor component, RecolorEdit edit, GradientTarget target)
         {
             int mode = EditorPrefs.GetInt(SliderModeKey, SliderModeHsv) == SliderModeRgb ? SliderModeRgb : SliderModeHsv;
             using (new EditorGUILayout.HorizontalScope())
@@ -445,7 +567,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 string vLabel = Locales.Tr("Scene:Color:Val");
                 labelWidth = SliderLabelWidth(hLabel, sLabel, vLabel, gammaLabel);
 
-                Vector3 hsv = ColorWheelGUI.GetHsv(EditingColor(edit, end));
+                Vector3 hsv = ColorWheelGUI.GetHsv(EditingColor(edit, target));
                 s_satGradient.Update(hsv, t => Color.HSVToRGB(hsv.x, t, hsv.z));
                 s_valGradient.Update(hsv, t => Color.HSVToRGB(hsv.x, hsv.y, t));
 
@@ -455,7 +577,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 float val = GradientSlider.Draw(vLabel, hsv.z * 100f, 0f, 100f, s_valGradient.Texture, "0", labelWidth);
                 if (EditorGUI.EndChangeCheck())
                 {
-                    ChangeColor(component, edit, ColorWheelGUI.FromHsv(new Vector3(hue / 360f, sat / 100f, val / 100f)), end);
+                    ChangeColor(component, edit, ColorWheelGUI.FromHsv(new Vector3(hue / 360f, sat / 100f, val / 100f)), target);
                 }
             }
             else
@@ -465,7 +587,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 string bLabel = Locales.Tr("Scene:Color:Blue");
                 labelWidth = SliderLabelWidth(rLabel, gLabel, bLabel, gammaLabel);
 
-                Color c = EditingColor(edit, end);
+                Color c = EditingColor(edit, target);
                 var rgb = new Vector3(c.r, c.g, c.b);
                 s_redGradient.Update(rgb, t => new Color(t, c.g, c.b));
                 s_greenGradient.Update(rgb, t => new Color(c.r, t, c.b));
@@ -477,11 +599,11 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 float b = GradientSlider.Draw(bLabel, c.b * 255f, 0f, 255f, s_blueGradient.Texture, "0", labelWidth);
                 if (EditorGUI.EndChangeCheck())
                 {
-                    ChangeColor(component, edit, new Color(r / 255f, g / 255f, b / 255f, 1f), end);
+                    ChangeColor(component, edit, new Color(r / 255f, g / 255f, b / 255f, 1f), target);
                 }
             }
 
-            DrawGammaSlider(component, edit, end, gammaLabel, labelWidth);
+            DrawGammaSlider(component, edit, target, gammaLabel, labelWidth);
         }
 
         /// <summary>ガンマのスライダーの範囲（lilToon の色調補正のガンマと同じ）</summary>
@@ -491,12 +613,16 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
 
         /// <summary>
         /// 色のスライダーの下（明るさ・青の下）のガンマ（lilToon の色調補正のガンマと同じ式・範囲。小さいほど明るい。ユーザー要望 2026-10-04）。
-        /// end（色 2 を編集中）なら色 2 のガンマ。トラックには編集中の色にそのガンマを掛けた色を敷く
+        /// 色 2 を編集中なら色 2 のガンマ。途中の色はガンマを持たないので、その位置で効く値（色 1 と色 2 のガンマを位置で混ぜた値）を触れない状態で見せる。
+        /// トラックには編集中の色にそのガンマを掛けた色を敷く
         /// </summary>
-        private static void DrawGammaSlider(ClickRecolor component, RecolorEdit edit, bool end, string label, float labelWidth)
+        private static void DrawGammaSlider(ClickRecolor component, RecolorEdit edit, GradientTarget target, string label, float labelWidth)
         {
-            float current = end ? edit.gradientGamma : edit.gamma;
-            Color c = EditingColor(edit, end);
+            bool end = target.IsEnd;
+            bool mid = target.MidIndex >= 0;
+            float current = mid ? Mathf.Lerp(edit.gamma, edit.gradientGamma, MidStopPosition(edit, target))
+                : end ? edit.gradientGamma : edit.gamma;
+            Color c = EditingColor(edit, target);
             var linear = new Vector3(Mathf.GammaToLinearSpace(c.r), Mathf.GammaToLinearSpace(c.g), Mathf.GammaToLinearSpace(c.b));
             s_gammaGradient.Update(new Vector3(c.r, c.g, c.b), t =>
             {
@@ -505,8 +631,12 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             });
 
             EditorGUI.BeginChangeCheck();
-            float gamma = GradientSlider.Draw(label, current, GammaMin, GammaMax, s_gammaGradient.Texture, "0.00", labelWidth);
-            if (!EditorGUI.EndChangeCheck()) return;
+            float gamma;
+            using (new EditorGUI.DisabledScope(mid))
+            {
+                gamma = GradientSlider.Draw(label, current, GammaMin, GammaMax, s_gammaGradient.Texture, "0.00", labelWidth);
+            }
+            if (!EditorGUI.EndChangeCheck() || mid) return;
             BeginDragIfGrabbing("Tocolo: ガンマを変更");
             Undo.RecordObject(component, "Tocolo: ガンマを変更");
             EditGroups.ForEachInGroup(component, edit, e =>
@@ -537,7 +667,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         /// 最近使った色 5 枠。押すとその色を新しい色（end なら終了色）にする。
         /// 枠の数は常に 5（まだ無い枠は押せない空欄）。このイベント内で色が増えても部品の数が変わらないようにするため
         /// </summary>
-        private static void DrawRecentColors(ClickRecolor component, RecolorEdit edit, bool end)
+        private static void DrawRecentColors(ClickRecolor component, RecolorEdit edit, GradientTarget target)
         {
             GUILayout.Label(Locales.Tr("Scene:Color:Recent"));
             var recent = RecentColors.Get();
@@ -557,7 +687,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                         var r = GUILayoutUtility.GetLastRect();
                         EditorGUI.DrawRect(new Rect(r.x + 3f, r.y + 3f, r.width - 6f, r.height - 6f), color);
                     }
-                    if (clicked && has) CommitColor(component, edit, color, end);
+                    if (clicked && has) CommitColor(component, edit, color, target);
                 }
             }
         }
@@ -574,19 +704,19 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
 
         /// <summary>
         /// ホイール・HSV／RGB のスライダーで色を変える。ドラッグ中なら Undo をまとめ始める。
-        /// 最近の色に入れるのは、離したとき／数値入力を終えたとき（FinishDragIfReleased）。gradientEnd なら終了色を変える
+        /// 最近の色に入れるのは、離したとき／数値入力を終えたとき（FinishDragIfReleased）。target の色を変える
         /// </summary>
-        private static void ChangeColor(ClickRecolor component, RecolorEdit edit, Color color, bool gradientEnd)
+        private static void ChangeColor(ClickRecolor component, RecolorEdit edit, Color color, GradientTarget target)
         {
             BeginDragIfGrabbing("Tocolo: 色を変更");
-            ApplyTargetColor(component, edit, color, gradientEnd);
+            ApplyTargetColor(component, edit, color, target);
             s_pendingRecent = color;
         }
 
-        /// <summary>16 進入力・最近の色で色を決める。その場で最近の色に入れる。gradientEnd なら終了色を変える</summary>
-        private static void CommitColor(ClickRecolor component, RecolorEdit edit, Color color, bool gradientEnd)
+        /// <summary>16 進入力・最近の色で色を決める。その場で最近の色に入れる。target の色を変える</summary>
+        private static void CommitColor(ClickRecolor component, RecolorEdit edit, Color color, GradientTarget target)
         {
-            ApplyTargetColor(component, edit, color, gradientEnd);
+            ApplyTargetColor(component, edit, color, target);
             s_pendingRecent = null;
             RecentColors.Push(color);
         }
@@ -630,24 +760,26 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         /// <summary>
         /// 新しい色を決める。最初の 1 回だけ hasTarget を立てて暗部の明るさを自動値にする
         /// （以後は手動値を保ち、再計算は「暗部の明るさを自動調整」ボタンで行う）。連結（「アバター全体」・島の連結）なら連結の全編集に効かせる。
-        /// gradientEnd なら終了色（gradientColor）だけを変える（hasTarget と暗部の明るさの自動調整は「新しい色」のときだけ）
+        /// 色 2・途中の色ならその色だけを変える（hasTarget と暗部の明るさの自動調整は「新しい色」のときだけ）
         /// </summary>
-        internal static void ApplyTargetColor(ClickRecolor component, RecolorEdit edit, Color newColor, bool gradientEnd = false)
+        internal static void ApplyTargetColor(ClickRecolor component, RecolorEdit edit, Color newColor, GradientTarget target = default)
         {
             if (component == null || edit == null) return;
             Undo.RecordObject(component, "Tocolo: 色を変更");
+            int mid = target.MidIndex;
             EditGroups.ForEachInGroup(component, edit, e =>
             {
-                if (gradientEnd)
+                if (target.IsEnd || mid >= 0)
                 {
-                    e.gradientColor = newColor;
+                    if (mid >= 0) SetMidStopColor(e, mid, newColor);
+                    else e.gradientColor = newColor;
                     // 色 1 を決める前に色 2 を決めた場合も編集を確定する（仮のままだとパイプラインが素通しして
                     // グラデーションが掛からない）。色 1 は元の色のままなので、暗部の明るさはその色から自動調整
                     if (!e.hasTarget)
                     {
                         e.hasTarget = true;
                         e.darkEndRatio = DarkEndAutoAdjust.Compute(e.targetColor);
-                        e.gradientDarkEndRatio = DarkEndAutoAdjust.Compute(newColor);
+                        e.gradientDarkEndRatio = DarkEndAutoAdjust.Compute(target.IsEnd ? newColor : e.gradientColor);
                     }
                     e.confirmed = true;
                     return;

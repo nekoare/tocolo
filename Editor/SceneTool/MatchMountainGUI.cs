@@ -23,6 +23,8 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         private const float ColumnWidth = 2f;
         private const float MarkerHalfWidth = 5f;
         private const float MarkerHeight = 9f;
+        /// <summary>太い枠（選んでいる▲）まで含めた▲の半分の幅（px）。帯の端の▲をはみ出させないための余白に使う</summary>
+        internal const float ThickMarkerHalfWidth = MarkerHalfWidth + 3.5f;
 
         private static readonly int s_hint = "ClickRecolor.MatchMountain".GetHashCode();
         private static Part s_part;
@@ -38,7 +40,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         private static readonly Color HighlightMarker = new Color(0.95f, 0.95f, 0.95f, 1f);
         private static readonly Color MarkerOutlineDark = new Color(0.1f, 0.1f, 0.1f, 1f);
         private static readonly Color MarkerOutlineLight = new Color(0.85f, 0.85f, 0.85f, 1f);
-        private static readonly Color MarkerOutlineActive = new Color(0.35f, 0.65f, 1f, 1f);
+        internal static readonly Color MarkerOutlineActive = new Color(0.35f, 0.65f, 1f, 1f);
 
         /// <summary>お手本どおり（ずらし無し）の山を描くための編集</summary>
         private static readonly RecolorEdit s_neutral = RecolorEdit.CreateNew();
@@ -166,9 +168,11 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         /// 上向きの▲を 1px の横線の積み重ねで描く（Handles の多角形は Scene の描画と行列・色の状態を共有するので、
         /// パネルの中では状態に左右されない GUI の矩形だけで描く）。先に一回り大きい枠の色で描いてから中を塗る
         /// </summary>
-        private static void DrawMarker(Rect strip, float x, Color fill, Color outline)
+        internal static void DrawMarker(Rect strip, float x, Color fill, Color outline, bool thickOutline = false)
         {
             float top = strip.y + 2f;
+            // 選んでいる▲は枠をもう一回り太く（小さい▲は枠の色だけでは選んでいるか見分けにくい）
+            if (thickOutline) FillTriangle(x, top - 2.5f, MarkerHeight + 4f, ThickMarkerHalfWidth, outline);
             FillTriangle(x, top - 1f, MarkerHeight + 2f, MarkerHalfWidth + 1.5f, outline);
             FillTriangle(x, top + 0.5f, MarkerHeight - 0.5f, MarkerHalfWidth - 0.5f, fill);
         }

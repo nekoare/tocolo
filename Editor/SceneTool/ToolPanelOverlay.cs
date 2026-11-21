@@ -276,7 +276,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                     EditorGUI.DrawRect(new Rect(rect.xMax - 1f, rect.y, 1f, rect.height), border);
                 }
                 EditorGUILayout.BeginHorizontal();
-                GUILayout.Space(4);
+                GUILayout.Space(BlockPadding);
                 EditorGUILayout.BeginVertical();
                 GUILayout.Space(3);
             }
@@ -285,7 +285,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             {
                 GUILayout.Space(3);
                 EditorGUILayout.EndVertical();
-                GUILayout.Space(4);
+                GUILayout.Space(BlockPadding);
                 EditorGUILayout.EndHorizontal();
                 EditorGUILayout.EndVertical();
             }
