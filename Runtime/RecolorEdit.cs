@@ -97,9 +97,10 @@ namespace Nekoare.ClickRecolor
 
         /// <summary>
         /// 選択範囲を残す編集か（色が決まっている、または一度でも色を決めた、または画像入り）。false なら自動で捨ててよい仮の編集。
-        /// 画像入りも残す: 画像を入れた時点で見た目が変わるので、新しい色が未決定でも捨てない
+        /// 画像入りも残す: 画像を入れた時点で見た目が変わるので、新しい色が未決定でも捨てない。
+        /// お手本を指定した編集も残す: 測れなかった（Read/Write 無効など）直後に別の所を触っても、指定ごと捨てない
         /// </summary>
-        public bool IsKept => hasTarget || confirmed || HasDecal;
+        public bool IsKept => hasTarget || confirmed || HasDecal || (matchEnabled && matchRenderer != null);
         /// <summary>
         /// テクスチャ全体を選ぶ（「テクスチャの残りを選択」で立てる）。立っている間は、モードに関係なく範囲がそのテクスチャを使う
         /// 全メッシュの UV が覆う所すべてになる（はみ出し幅は効く）。影響範囲のモードを選び直すと下ろす（ユーザー要望 2026-10-04）
@@ -201,6 +202,37 @@ namespace Nekoare.ClickRecolor
         /// 法線マップ 1 枚ぶんテクスチャが増える（大きさは元の法線マップの密度に合わせる）。焼き込みでは効かない
         /// </summary>
         public bool decalNormal = true;
+
+        // ── お手本に合わせる（設計 docs/plans/2026-11-21-tocolo-color-match-design.md）──
+        /// <summary>
+        /// true なら目標色の代わりに、お手本の髪の色味（明るさの分布と明るさごとの色）へ範囲を合わせる。
+        /// ON の間、グラデーション・画像を入れるは使わない（パネルで切る）
+        /// </summary>
+        public bool matchEnabled;
+        /// <summary>お手本の Renderer（アバターの外の物でもよい）。消えても matchProfileData の控えで同じ色を出す</summary>
+        public Renderer matchRenderer;
+        /// <summary>お手本の Renderer のマテリアル枠の番号</summary>
+        public int matchSlot;
+        /// <summary>明るさのずらし（Oklab の L に足す）。0 でお手本どおり</summary>
+        [Range(-0.5f, 0.5f)] public float matchLightness;
+        /// <summary>色相のずらし（度）。お手本の代表色の色相からの差。0 でお手本どおり</summary>
+        [Range(-180f, 180f)] public float matchHue;
+        /// <summary>
+        /// 彩度のずらし（Oklab の C に足す）。0 でお手本どおり。倍率にしないのは、白・灰色のお手本（彩度ほぼ 0）に色を足せなくなるため
+        /// </summary>
+        [Range(-0.3f, 0.3f)] public float matchChromaShift;
+        /// <summary>陰影の暗さ（−1〜1）。お手本の中央の明るさより暗い側を (1 + 値) 倍に広げる。0 でお手本どおり、正で影が深く、−1 で影が中央の明るさにそろう</summary>
+        [Range(-1f, 1f)] public float matchShadow;
+        /// <summary>ハイライトの伸び（−1〜1）。お手本の中央の明るさより明るい側を (1 + 値) 倍に広げる。0 でお手本どおり</summary>
+        [Range(-1f, 1f)] public float matchHighlight;
+        /// <summary>
+        /// お手本の色の統計の控え（MatchProfile.Serialize の文字列。未測定なら空）。変換はプレビューもビルドもこれだけを見る。
+        /// お手本が見つかる間はプレビューが測り直して書き換える。float[] で持たないのは、アバターが Prefab のとき要素ごとが Prefab の上書きになるため
+        /// </summary>
+        public string matchProfileData;
+
+        /// <summary>お手本に合わせる編集で、お手本の色を測り終えている（控えがある）か</summary>
+        public bool HasMatch => matchEnabled && !string.IsNullOrEmpty(matchProfileData);
 
         /// <summary>画像を貼る編集か（ON かつ画像あり）</summary>
         public bool HasDecal => decalEnabled && decalTexture != null;

@@ -240,6 +240,23 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
             maskValues = ReadbackMask(mask, w, h, new RectInt(0, 0, w, h));
         }
 
+        /// <summary>
+        /// source（線形 RGB の RT）のうち、mask &gt; 0.5 かつ α ≥ 0.01 の画素の Oklab（長辺 maxSize 以下に縮めて読み戻す）。
+        /// 数える画素の決まりは Compute と同じ
+        /// </summary>
+        internal static List<Vector3> ReadbackOklab(RenderTexture sourceLinear, RenderTexture mask, int maxSize)
+        {
+            ReadbackDownscaled(sourceLinear, mask, maxSize, out var pixels, out var maskValues);
+            var result = new List<Vector3>(pixels.Length / 2);
+            for (int i = 0; i < pixels.Length; i++)
+            {
+                Color c = pixels[i];
+                if (!(maskValues[i] > MaskThreshold) || c.a < AlphaThreshold) continue;
+                result.Add(OklabConverter.LinearRGBToOklab(new Vector3(c.r, c.g, c.b)));
+            }
+            return result;
+        }
+
         /// <summary>読み戻す大きさ（source を長辺 maxSize 以下に縮めた大きさ。0 なら縮めない）</summary>
         private static void ReadbackSize(RenderTexture source, int maxSize, out int w, out int h)
         {

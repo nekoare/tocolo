@@ -61,6 +61,15 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 var args = s_shownNoticeArgs ?? System.Array.Empty<object>();
                 EditorGUILayout.HelpBox(args.Length > 0 ? Locales.Tr(s_shownNotice, args) : Locales.Tr(s_shownNotice), MessageType.Info);
             }
+            // ［色を指定］［お手本に合わせる］。下の欄は押す前の値で出し分ける（押したイベントの途中で部品の数を変えない）
+            bool matchMode = edit.matchEnabled;
+            DrawColorModeSwitch(component, edit);
+            if (matchMode)
+            {
+                DrawMatchSection(component, edit);
+                return;
+            }
+
             // ホイール・スライダー・最近の色・見本行の書き込み先（グラデーション ON で「色 2」を選んでいれば色 2）
             bool end = IsEditingGradientEnd(edit);
 

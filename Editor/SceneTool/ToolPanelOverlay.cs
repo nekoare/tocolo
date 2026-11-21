@@ -204,7 +204,8 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
 
                     // 使う人の少ない設定は「▸ 設定」に畳む。またぐ・隠れているは次のクリックに効くので、編集が無くても出す。
                     // 縞の表示は小窓「表示切替」の［選択範囲］
-                    if (DrawSettingsFoldout(RangeSettingsOpenKey, RangeSettingsChanged(edit)))
+                    // パーツモードの「範囲をなぞって選ぶ」もここに入れる
+                    if (DrawSettingsFoldout(RangeSettingsOpenKey, RangeSettingsChanged(component, edit)))
                     {
                         using (new EditorGUILayout.HorizontalScope())
                         {
@@ -212,8 +213,15 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                             using (new EditorGUILayout.VerticalScope())
                             {
                                 DrawRangeSettings(component, edit);
+                                if (edit != null && RecolorSceneTool.CanPaint(edit)) DrawPaintAdjust(component, edit);
                             }
                         }
+                    }
+                    else if (ToolSession.Brush != BrushMode.None)
+                    {
+                        // ［足す］［消す］が畳まれて見えないまま道具を持ち続けないよう、閉じたら置く
+                        ToolSession.Brush = BrushMode.None;
+                        SceneView.RepaintAll();
                     }
                 }
 

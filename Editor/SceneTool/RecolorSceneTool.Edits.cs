@@ -615,6 +615,16 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             }
         }
 
+        /// <summary>
+        /// 色モードのプリセットで使う範囲: 前回選んだ範囲。ただしお手本に合わせる編集は「アバター全体」にしない
+        /// （連結は統計を連結でまとめる仕組みで、テクスチャごとの髪全体の統計と噛み合わない）
+        /// </summary>
+        private static ColorScope PresetScope(RecolorEdit edit)
+        {
+            var scope = ToolSession.ColorScopePreference;
+            return edit.matchEnabled && scope == ColorScope.WholeAvatar ? ColorScope.Contiguous : scope;
+        }
+
         internal static void ApplyPreset(RecolorEdit edit, RangePreset preset)
         {
             // モードを選び直したら「テクスチャの残りを選択」で広げた範囲は戻す（範囲を選び直す意思とみなす）
@@ -625,13 +635,13 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                     edit.mode = SelectionMode.Color;
                     edit.threshold = SameColorThreshold;
                     edit.feather = 0.05f;
-                    edit.scope = ToolSession.ColorScopePreference;
+                    edit.scope = PresetScope(edit);
                     break;
                 case RangePreset.SimilarColor:
                     edit.mode = SelectionMode.Color;
                     edit.threshold = SimilarColorThreshold;
                     edit.feather = 0.15f;
-                    edit.scope = ToolSession.ColorScopePreference;
+                    edit.scope = PresetScope(edit);
                     break;
                 case RangePreset.Box:
                     edit.mode = SelectionMode.Box;

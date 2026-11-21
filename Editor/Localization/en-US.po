@@ -355,7 +355,7 @@ msgid "Scene:Panel:Mode"
 msgstr "Affected area"
 
 msgid "Scene:Panel:SelectWholeTexture"
-msgstr "Select rest of texture"
+msgstr "+ Also select remaining parts"
 
 msgid "Scene:Panel:SelectWholeTextureTooltip"
 msgstr "Adds every part of this texture that is not selected yet. Ctrl+click a part to remove it (undo with Ctrl+Z)"
@@ -730,7 +730,7 @@ msgid "Error:OverlayApplyFailed"
 msgstr "Could not apply the smoothly placed image to '{0}' (see the Console for details)."
 
 msgid "Scene:Paint:Label"
-msgstr "Adjust by tracing"
+msgstr "Trace to select range"
 
 msgid "Scene:Paint:Add"
 msgstr "Add"
@@ -767,3 +767,82 @@ msgstr "Brush edge offset"
 
 msgid "Help:PaintEdgeOffset"
 msgstr "Moves the edges of traced additions and removals by pixels: + moves them outward (the selection grows), - moves them inward (it shrinks). Use this when the color boundary of a strand does not line up with the mesh edges. How far the selection spreads into UV gaps is set by Edge padding."
+
+msgid "Scene:Match:ModeColor"
+msgstr "Pick color"
+
+msgid "Scene:Match:ModeMatch"
+msgstr "Match a sample"
+
+msgid "Scene:Match:Reference"
+msgstr "Sample"
+
+msgid "Scene:Match:PickTooltip"
+msgstr "Press, then click the sample hair in the Scene"
+
+msgid "Scene:Match:PickHint"
+msgstr "Click the hair to use as the sample in the Scene (Esc to cancel). For hair outside the avatar, drag and drop it into the field."
+
+msgid "Scene:Match:ChooseHint"
+msgstr "Choose the sample hair. Press the button on the left and click it in the Scene, or drag and drop the hair into the field."
+
+msgid "Scene:Match:Slot"
+msgstr "Material"
+
+msgid "Scene:Match:Missing"
+msgstr "The sample was not found. Matching with the colors measured earlier."
+
+msgid "Scene:Match:NoRenderer"
+msgstr "The sample hair was not found."
+
+msgid "Scene:Match:NoTexture"
+msgstr "The sample material has no main texture."
+
+msgid "Scene:Match:SameTexture"
+msgstr "Hair that uses the same texture as the hair being matched cannot be the sample."
+
+msgid "Scene:Match:ChmHair"
+msgstr "Hair handled by Chimera Hair Master is not supported by Match a sample."
+
+msgid "Scene:Match:Unreadable"
+msgstr "Could not read the sample colors (mesh Read/Write is disabled, etc.)."
+
+msgid "Scene:Match:NoWholeAvatar"
+msgstr "\"Whole avatar\" cannot be used with Match a sample."
+
+msgid "Scene:Match:Lightness"
+msgstr "Lightness"
+
+msgid "Scene:Match:Hue"
+msgstr "Hue"
+
+msgid "Scene:Match:Chroma"
+msgstr "Chroma"
+
+msgid "Scene:Match:Reset"
+msgstr "Reset to sample"
+
+
+msgid "Inspector:Edit:Match"
+msgstr "Sample"
+
+msgid "Inspector:Edit:MatchMissingTooltip"
+msgstr "The sample was not found (it may have been deleted). Matching with the colors measured earlier, so changes to the sample's colors are not followed"
+
+msgid "Scene:Match:Remeasure"
+msgstr "Measure again"
+
+msgid "Scene:Match:ReferenceColor"
+msgstr "Sample color"
+
+msgid "Scene:Match:ResultColor"
+msgstr "Result color"
+
+msgid "Scene:Match:Highlight"
+msgstr "Highlight stretch"
+
+msgid "Scene:Match:MountainHint"
+msgstr "You can drag the hill, lines, and ▲"
+
+msgid "Help:MatchMountain"
+msgstr "The horizontal axis is lightness (dark on the left), the height is how much of the texture has that lightness, and the color is the result after matching. Drag the hill (or the middle ▲) sideways to change the overall lightness, the left line (▲) to change the shadow darkness, and the right line (▲) to change the highlight stretch. These are the same values as the sliders below. The faint gray hill is the shape before shifting (as in the sample)."

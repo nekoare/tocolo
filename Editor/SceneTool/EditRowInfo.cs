@@ -16,6 +16,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         {
             if (edit == null) return string.Empty;
             if (edit.decalEnabled) return Locales.Tr("Inspector:Edit:Decal");
+            if (edit.matchEnabled) return Locales.Tr("Inspector:Edit:Match");
             return edit.mode switch
             {
                 SelectionMode.Color => Locales.Tr("Inspector:Edit:Mode:Color"),
@@ -44,8 +45,39 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             {
                 if (edit != null && edit.HasMissingDecal) return Locales.Tr("Inspector:Edit:DecalMissingTooltip");
             }
+            // お手本が消えた編集は控えの色で効き続けるが、お手本の色を変えても追従しないので知らせる。
+            // お手本を指定し直せば済むので「見つからない編集を削除」の対象にはしない
+            foreach (var edit in members)
+            {
+                if (HasMissingMatchReference(edit)) return Locales.Tr("Inspector:Edit:MatchMissingTooltip");
+                // 髪ツールの髪になって止めた編集（控えを捨てたので見た目を変えない）
+                if (edit != null && edit.matchEnabled && Pipeline.MatchReference.LastStatus(edit) == Pipeline.MatchReferenceStatus.ChmHair)
+                {
+                    return Locales.Tr("Scene:Match:ChmHair");
+                }
+            }
             return null;
         }
+
+        /// <summary>
+        /// 一覧の色見本の色（sRGB）。お手本に合わせる編集は合わせた結果の代表色（目標色は使っていないので出さない）、
+        /// それ以外は目標色
+        /// </summary>
+        internal static Color SwatchColor(RecolorEdit edit)
+        {
+            if (edit == null) return Color.gray;
+            if (!edit.matchEnabled) return edit.targetColor;
+            if (!Colors.MatchProfile.TryParse(edit.matchProfileData, out var profile)) return Color.gray;
+            var lab = Colors.MatchRepresentative.Result(profile, edit);
+            return Colors.OklabConverter.OklchToSRGBGamutMapped(Colors.OklabConverter.OklabToOklch(lab));
+        }
+
+        /// <summary>
+        /// お手本に合わせる編集で、指定したお手本の Renderer が削除などで無くなったか（未指定とは区別する: Unity は消えた参照を偽の null で残す）
+        /// </summary>
+        internal static bool HasMissingMatchReference(RecolorEdit edit) =>
+            edit != null && edit.matchEnabled && !ReferenceEquals(edit.matchRenderer, null)
+            && edit.matchRenderer.GetInstanceID() != 0 && edit.matchRenderer == null;
 
         /// <summary>
         /// members の中で、アバター内のどのマテリアルも使っていないテクスチャ（最初の 1 つ）。

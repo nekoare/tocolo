@@ -389,7 +389,8 @@ namespace Nekoare.ClickRecolor.Editor.Inspector
 
             if (hasTargetProp.boolValue)
             {
-                var c = targetColorProp.colorValue;
+                var shown = GetEdit(index);
+                var c = shown != null ? EditRowInfo.SwatchColor(shown) : targetColorProp.colorValue;
                 c.a = 1f;
                 EditorGUI.DrawRect(swatchRect, c);
             }

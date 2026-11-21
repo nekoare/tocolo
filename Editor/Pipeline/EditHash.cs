@@ -68,6 +68,14 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
                     h = h * 31 + (edit.decalSmooth ? 1 : 0);
                     h = h * 31 + (edit.decalNormal ? 1 : 0);
                 }
+                // お手本に合わせる。お手本の控え（matchProfileData）は入れない: プレビューが測り直して書き換えるたびに
+                // コンポーネントの観測が変わり、同じ内容でもう 1 回作り直されてしまう。結果のキャッシュ鍵（RecolorPreview.ComputeTextureHash）にだけ畳む
+                h = h * 31 + (edit.matchEnabled ? 1 : 0);
+                if (edit.matchEnabled)
+                {
+                    h = h * 31 + (edit.matchRenderer != null ? edit.matchRenderer.GetInstanceID() : 0);
+                    h = h * 31 + edit.matchSlot;
+                }
                 return h;
             }
         }
@@ -119,6 +127,14 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
                 h = h * 31 + edit.strength.GetHashCode();
                 h = h * 31 + edit.shadingStretch.GetHashCode();
                 if (edit.flattenBase) h = h * 31 + edit.flattenStrength.GetHashCode();
+                if (edit.matchEnabled)
+                {
+                    h = h * 31 + edit.matchLightness.GetHashCode();
+                    h = h * 31 + edit.matchHue.GetHashCode();
+                    h = h * 31 + edit.matchChromaShift.GetHashCode();
+                    h = h * 31 + edit.matchShadow.GetHashCode();
+                    h = h * 31 + edit.matchHighlight.GetHashCode();
+                }
                 // グラデーション OFF のときは終了色・箱を変えても結果が変わらないので含めない（無駄に作り直さない）
                 if (edit.gradientEnabled)
                 {

@@ -321,6 +321,15 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             member.decalSticker = anchor.decalSticker;
             member.decalSmooth = anchor.decalSmooth;
             member.decalNormal = anchor.decalNormal;
+            member.matchEnabled = anchor.matchEnabled;
+            member.matchRenderer = anchor.matchRenderer;
+            member.matchSlot = anchor.matchSlot;
+            member.matchLightness = anchor.matchLightness;
+            member.matchHue = anchor.matchHue;
+            member.matchChromaShift = anchor.matchChromaShift;
+            member.matchShadow = anchor.matchShadow;
+            member.matchHighlight = anchor.matchHighlight;
+            member.matchProfileData = anchor.matchProfileData;
             return member;
         }
     }

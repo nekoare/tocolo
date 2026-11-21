@@ -11,6 +11,7 @@
 #pragma kernel CSWeight
 #pragma kernel CSComposite
 #pragma kernel CSOverlayOpacity
+#pragma kernel CSMatch
 
 #include "OklabConverter.hlsl"
 
@@ -292,4 +293,94 @@ void CSOverlayOpacity(uint3 id : SV_DispatchThreadID)
     }
     float strength = UseGradient != 0 ? lerp(_Strength, _Strength2, t) : _Strength;
     Dst[id.xy] = float4(src.rgb, src.a * saturate(strength));
+}
+
+// ── お手本に合わせる（④明るさの曲線合わせ。C# の MatchParams と 1:1）──
+// ※ Editor/Colors/ColorMatch.cs の ColorMatchCpu に同じ式がある。片方だけ変えると GPU/CPU 一致テストが落ちる
+static const int MatchCurvePoints = 7;
+static const int MatchBandCount = 16;
+static const float MatchMinSpan = 1e-5;  // 区間の幅がこれ未満なら傾き 0（ColorMatchCpu.MinSpan と同じ）
+
+float4 _MatchLCurve[7];        // (対象の L, お手本の L, 0, 0)。x は昇順
+float4 _MatchTargetBands[16];  // 対象の帯 (L, a, b, 0)。L は狭義の昇順
+float4 _MatchRefBands[16];     // お手本の帯 (L, a, b, 0)
+float _MatchK;                 // 色ムラの倍率
+float _MatchLightness;         // 明るさのずらし
+float _MatchHue;               // 色相のずらし（ラジアン）。代表色からの散らばりを回す角度
+float4 _MatchMove;             // (移す元 a, 移す元 b, 移す先 a, 移す先 b)。お手本の代表色 → 合わせた結果の代表色
+float _MatchShadow;            // 陰影の暗さ（支点より暗い側を (1 + 値) 倍）
+float _MatchHighlight;         // ハイライトの伸び（支点より明るい側を (1 + 値) 倍）
+float _MatchPivot;             // 陰影の暗さの支点（お手本の中央の明るさ）
+
+// 明るさの曲線（両端の外は端の区間の傾きで伸ばす）
+float MatchEvalCurve(float l)
+{
+    int i = 0;
+    [loop] while (i < MatchCurvePoints - 2 && l > _MatchLCurve[i + 1].x) i++;
+    float x0 = _MatchLCurve[i].x, y0 = _MatchLCurve[i].y;
+    float span = _MatchLCurve[i + 1].x - x0;
+    float slope = span > MatchMinSpan ? (_MatchLCurve[i + 1].y - y0) / span : 0.0;
+    return y0 + (l - x0) * slope;
+}
+
+// 帯（reference なら お手本、そうでなければ対象）の i 番目
+float4 MatchBand(bool reference, int i)
+{
+    return reference ? _MatchRefBands[i] : _MatchTargetBands[i];
+}
+
+// 帯の平均色 (a, b) を明るさ l で線形補間（両端の外は端の値）
+float2 MatchEvalBands(bool reference, float l)
+{
+    float4 first = MatchBand(reference, 0);
+    float4 last = MatchBand(reference, MatchBandCount - 1);
+    if (l <= first.x) return first.yz;
+    if (l >= last.x) return last.yz;
+    int i = 0;
+    [loop] while (i < MatchBandCount - 2 && l > MatchBand(reference, i + 1).x) i++;
+    float4 b0 = MatchBand(reference, i);
+    float4 b1 = MatchBand(reference, i + 1);
+    float span = b1.x - b0.x;
+    float t = span > MatchMinSpan ? (l - b0.x) / span : 0.0;
+    return lerp(b0.yz, b1.yz, t);
+}
+
+// 線形 RGB をお手本の色味へ寄せた線形 RGB（マスクを掛ける前の値）
+float3 MatchToReferenceLinear(float3 lin)
+{
+    float3 lab = LinearRGBToOklab(lin);
+    float l1 = MatchEvalCurve(lab.x);
+    float l2 = _MatchPivot + (l1 - _MatchPivot) * (1.0 + (l1 < _MatchPivot ? _MatchShadow : _MatchHighlight));
+    float l3 = SoftClip01(l2 + _MatchLightness, 0.05);
+
+    // 色はお手本の曲線を写した後の明るさ（ずらす前）で引く（明るさをずらしても色味は変えない）
+    float2 own = MatchEvalBands(false, lab.x);
+    float2 refColor = MatchEvalBands(true, l1);
+    float a = refColor.x + (lab.y - own.x) * _MatchK;
+    float b = refColor.y + (lab.z - own.y) * _MatchK;
+    // 色の集まりを、代表色が移す先に来るよう移し、代表色からの散らばりは色相のずらしの分だけ回す
+    float da = a - _MatchMove.x, db = b - _MatchMove.y;
+    float c = cos(_MatchHue), s = sin(_MatchHue);
+    float ra = _MatchMove.z + da * c - db * s;
+    float rb = _MatchMove.w + da * s + db * c;
+
+    return SRGBToLinear(OklchToSRGBGamutMapped(OklabToOklch(float3(l3, ra, rb))));
+}
+
+[numthreads(16, 16, 1)]
+void CSMatch(uint3 id : SV_DispatchThreadID)
+{
+    if ((int)id.x >= Width || (int)id.y >= Height) return;
+    float4 src = Src[id.xy];
+    int2 q = int2((float2(id.xy) + 0.5) * float2(MaskWidth, MaskHeight) / float2(Width, Height));
+    q = clamp(q, int2(0, 0), int2(MaskWidth - 1, MaskHeight - 1));
+    float w = saturate(Mask[q] * _Strength);
+    // マスク外は元の値をそのまま書く（式の途中の誤差や NaN を持ち込まない）
+    if (w <= 0.0)
+    {
+        Dst[id.xy] = src;
+        return;
+    }
+    float3 shifted = ApplyGamma(MatchToReferenceLinear(src.rgb), _Gamma);
+    Dst[id.xy] = float4(lerp(src.rgb, shifted, w), src.a);
 }

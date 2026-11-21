@@ -355,7 +355,7 @@ msgid "Scene:Panel:Mode"
 msgstr "影響範囲"
 
 msgid "Scene:Panel:SelectWholeTexture"
-msgstr "テクスチャの残りを選択"
+msgstr "＋残りのパーツも選ぶ"
 
 msgid "Scene:Panel:SelectWholeTextureTooltip"
 msgstr "まだ選んでいないパーツを全部足します。要らないパーツはCtrl＋クリックで外せます（Ctrl+Zで戻せます）"
@@ -730,7 +730,7 @@ msgid "Error:OverlayApplyFailed"
 msgstr "「{0}」に画像のなめらかな貼り付けを反映できませんでした（詳しくはConsoleを見てください）"
 
 msgid "Scene:Paint:Label"
-msgstr "なぞって調整"
+msgstr "範囲をなぞって選ぶ"
 
 msgid "Scene:Paint:Add"
 msgstr "足す"
@@ -767,3 +767,82 @@ msgstr "ブラシのはみ出し"
 
 msgid "Help:PaintEdgeOffset"
 msgstr "なぞって足した・消した所の境目を、＋で外へ（選ぶ範囲が広がる）、−で内へ（狭まる）ずらします（px）。毛束の色の境目がメッシュの辺とずれているときに使います。UVのすき間への広がりは「はみ出し幅」で決まります。"
+
+msgid "Scene:Match:ModeColor"
+msgstr "色を指定"
+
+msgid "Scene:Match:ModeMatch"
+msgstr "色合わせ"
+
+msgid "Scene:Match:Reference"
+msgstr "お手本"
+
+msgid "Scene:Match:PickTooltip"
+msgstr "押してからSceneでお手本の髪をクリックします"
+
+msgid "Scene:Match:PickHint"
+msgstr "Sceneでお手本にする髪をクリックしてください（Escでやめる）。アバターの外の髪は欄にドラッグ＆ドロップします。"
+
+msgid "Scene:Match:ChooseHint"
+msgstr "お手本にする髪を選んでください。左のボタンを押してSceneでクリックするか、欄に髪をドラッグ＆ドロップします。"
+
+msgid "Scene:Match:Slot"
+msgstr "マテリアル"
+
+msgid "Scene:Match:Missing"
+msgstr "お手本が見つかりません。前に測った色で合わせています。"
+
+msgid "Scene:Match:NoRenderer"
+msgstr "お手本の髪が見つかりません。"
+
+msgid "Scene:Match:NoTexture"
+msgstr "お手本のマテリアルにメインテクスチャがありません。"
+
+msgid "Scene:Match:SameTexture"
+msgstr "合わせる髪と同じテクスチャの髪はお手本にできません。"
+
+msgid "Scene:Match:ChmHair"
+msgstr "キメラヘアマスターで扱っている髪には、Tocoloの色合わせは使えません。"
+
+msgid "Scene:Match:Unreadable"
+msgstr "お手本の色を読めませんでした（メッシュのRead/Writeが無効など）。"
+
+msgid "Scene:Match:NoWholeAvatar"
+msgstr "色合わせの編集では「アバター全体」は使えません。"
+
+msgid "Scene:Match:Lightness"
+msgstr "明るさ"
+
+msgid "Scene:Match:Hue"
+msgstr "色相"
+
+msgid "Scene:Match:Chroma"
+msgstr "彩度"
+
+msgid "Scene:Match:Reset"
+msgstr "お手本どおりに戻す"
+
+
+msgid "Inspector:Edit:Match"
+msgstr "お手本"
+
+msgid "Inspector:Edit:MatchMissingTooltip"
+msgstr "お手本が見つかりません（削除された可能性があります）。前に測った色で合わせているので、お手本の色を変えても付いてきません"
+
+msgid "Scene:Match:Remeasure"
+msgstr "もう一度測る"
+
+msgid "Scene:Match:ReferenceColor"
+msgstr "お手本の色"
+
+msgid "Scene:Match:ResultColor"
+msgstr "合わせた色"
+
+msgid "Scene:Match:Highlight"
+msgstr "ハイライトの伸び"
+
+msgid "Scene:Match:MountainHint"
+msgstr "山・線・▲はつかんで動かせます"
+
+msgid "Help:MatchMountain"
+msgstr "横が明るさ（左が暗い）、高さがその明るさの部分の多さ、色が合わせた後の色です。山の本体（または中の▲）を左右にドラッグすると全体の明るさ、左の線（▲）で陰影の暗さ、右の線（▲）でハイライトの伸びが変わります。下のスライダーと同じ値です。薄い灰色の山は、ずらす前（お手本どおり）の形です。"

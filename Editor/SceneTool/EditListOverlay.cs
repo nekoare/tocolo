@@ -211,7 +211,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
 
             if (edit.hasTarget)
             {
-                var c = edit.targetColor;
+                var c = EditRowInfo.SwatchColor(edit);
                 c.a = 1f;
                 EditorGUI.DrawRect(swatchRect, c);
             }

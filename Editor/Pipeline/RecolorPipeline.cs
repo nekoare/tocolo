@@ -111,6 +111,11 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
         /// 選択マスクと部分は従来どおり持つ（重ね貼りの画像を作る DecalImageBuilder とハイライトが使う）
         /// </summary>
         public bool overlay;
+        /// <summary>
+        /// お手本に合わせる編集の写し方（対象テクスチャの統計 × 編集の控え）。お手本に合わせる編集で値が無ければ、
+        /// 控えが無い・統計が取れないので素通し。色を変える部分ごとではなく合成マスク（mask）に 1 回掛ける（どの部分も同じ写し方）
+        /// </summary>
+        public MatchParams? match;
 
         /// <summary>色を変える部分（parts が空なら (mask, stats) の 1 つ）</summary>
         internal IReadOnlyList<Part> ShiftParts =>
@@ -177,6 +182,17 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
         private static readonly int LayerWidthId = Shader.PropertyToID("LayerWidth");
         private static readonly int LayerHeightId = Shader.PropertyToID("LayerHeight");
         private static readonly int UseLayerId = Shader.PropertyToID("UseLayer");
+        private static int s_kernelMatch;
+        private static readonly int MatchLCurveId = Shader.PropertyToID("_MatchLCurve");
+        private static readonly int MatchTargetBandsId = Shader.PropertyToID("_MatchTargetBands");
+        private static readonly int MatchRefBandsId = Shader.PropertyToID("_MatchRefBands");
+        private static readonly int MatchKId = Shader.PropertyToID("_MatchK");
+        private static readonly int MatchLightnessId = Shader.PropertyToID("_MatchLightness");
+        private static readonly int MatchHueId = Shader.PropertyToID("_MatchHue");
+        private static readonly int MatchMoveId = Shader.PropertyToID("_MatchMove");
+        private static readonly int MatchShadowId = Shader.PropertyToID("_MatchShadow");
+        private static readonly int MatchHighlightId = Shader.PropertyToID("_MatchHighlight");
+        private static readonly int MatchPivotId = Shader.PropertyToID("_MatchPivot");
 
         private static ComputeShader Compute
         {
@@ -191,6 +207,7 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
                         s_kernelWeight = s_shader.FindKernel("CSWeight");
                         s_kernelComposite = s_shader.FindKernel("CSComposite");
                         s_kernelOverlayOpacity = s_shader.FindKernel("CSOverlayOpacity");
+                        s_kernelMatch = s_shader.FindKernel("CSMatch");
                     }
                 }
                 return s_shader;
@@ -251,7 +268,9 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
             var key = new MaskCache.Key(edit, sourceAsset, size, foldedHash, fromExport);
             if (MaskCache.TryGet(key, out var cachedMask, out var cachedParts))
             {
-                return WithDecalLayer(NewJob(edit, cachedMask, cachedParts, null), sourceAsset, size, fromExport, context, key);
+                return WithMatch(
+                    WithDecalLayer(NewJob(edit, cachedMask, cachedParts, null), sourceAsset, size, fromExport, context, key),
+                    sourceAsset, size, users);
             }
 
             // マスクの大きさは作業 RT と揃える
@@ -411,7 +430,7 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
                 // 所有権はキャッシュへ移った
                 mask = null;
                 seedMasks.Clear();
-                return WithDecalLayer(job, sourceAsset, size, fromExport, context, key);
+                return WithMatch(WithDecalLayer(job, sourceAsset, size, fromExport, context, key), sourceAsset, size, users);
             }
             finally
             {
@@ -482,6 +501,80 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
             var layer = DecalLayerCache.GetOrBuild(decalKey, Build, out var layerStats, out var layerBands);
             if (layer == null) return job;
             return NewJob(edit, mask, new List<EditJob.Part> { new EditJob.Part { mask = mask, stats = layerStats, bands = layerBands } }, layer);
+        }
+
+        /// <summary>
+        /// お手本に合わせる編集なら、対象テクスチャの統計（MatchTargetProfile）と編集の控え（matchProfileData）から写し方を付ける。
+        /// 画像入りの編集には付けない（画像を入れるとは組み合わせない）。控えが無い・読めない・統計が取れなければ付けない（素通し）
+        /// </summary>
+        private static EditJob WithMatch(
+            EditJob job, Texture2D sourceAsset, int size,
+            IReadOnlyList<(Mesh mesh, int submesh, Vector2 uvScale, Vector2 uvOffset)> users)
+        {
+            var edit = job?.edit;
+            if (edit == null || !edit.matchEnabled || edit.HasDecal) return job;
+            if (!MatchProfile.TryParse(edit.matchProfileData, out var reference)) return job;
+            var target = MatchTargetProfile(sourceAsset, size, users);
+            if (MatchParams.TryBuild(target, reference, edit, out var p)) job.match = p;
+            return job;
+        }
+
+        /// <summary>
+        /// お手本に合わせるの統計を読み戻す大きさ（長辺）。時間の大半は読み戻しと CPU の集計で、512 だと 1 回 70ms を超える。
+        /// 分位点 7 個と帯 16 本は 256 でも 512 とほぼ同じ値になる（実測: 分位点の差 0.003）
+        /// </summary>
+        internal const int MatchReadbackSize = 256;
+
+        private static readonly Dictionary<(int texture, Hash128 contents, int users, int size), MatchProfile> s_matchTargets =
+            new Dictionary<(int, Hash128, int, int), MatchProfile>();
+        private const int MaxMatchTargets = 32;
+
+        /// <summary>
+        /// テクスチャの「髪全体」の統計: users（そのテクスチャを使う全メッシュ）が UV 上で覆う所の、元テクスチャの色。
+        /// テクスチャ・中身・利用者・作業サイズごとに覚えておく（スライダーで変わらない）。作れなければ null
+        /// </summary>
+        internal static MatchProfile MatchTargetProfile(
+            Texture2D sourceAsset, int size, IReadOnlyList<(Mesh mesh, int submesh, Vector2 uvScale, Vector2 uvOffset)> users)
+        {
+            if (sourceAsset == null || users == null || users.Count == 0) return null;
+            var key = (sourceAsset.GetInstanceID(), sourceAsset.imageContentsHash, UsersHash(null, users), size);
+            if (s_matchTargets.TryGetValue(key, out var cached)) return cached;
+            var profile = MeasureCoverage(sourceAsset, sourceAsset, size, users);
+            if (profile == null) return null;
+            if (s_matchTargets.Count >= MaxMatchTargets) s_matchTargets.Clear();
+            s_matchTargets[key] = profile;
+            return profile;
+        }
+
+        /// <summary>
+        /// colorSource（線形にして読む。Run の結果 RT でもよい）のうち、texture を使う users が UV 上で覆う所の色の統計。
+        /// 被覆は colorSource と同じ大きさで texture について作る。読めなければ null
+        /// </summary>
+        internal static MatchProfile MeasureCoverage(
+            Texture colorSource, Texture2D texture, int size,
+            IReadOnlyList<(Mesh mesh, int submesh, Vector2 uvScale, Vector2 uvOffset)> users, int readbackSize = MatchReadbackSize)
+        {
+            if (colorSource == null || texture == null || users == null || users.Count == 0) return null;
+            RenderTexture work = colorSource as RenderTexture;
+            bool owned = false;
+            if (work == null)
+            {
+                work = colorSource is Texture2D asset && asset == texture
+                    ? CreateSourceWorkTexture(texture, size)
+                    : CreateBaseWorkTexture(colorSource, texture, size);
+                owned = true;
+            }
+            if (work == null) return null;
+            try
+            {
+                var coverage = CoverageMask.GetOrBuild(texture, users, work.width, work.height, out _);
+                if (coverage == null) return null;
+                return MatchProfile.FromOklab(SelectionStats.ReadbackOklab(work, coverage, readbackSize));
+            }
+            finally
+            {
+                if (owned) DestroyWorkTexture(work);
+            }
         }
 
         /// <summary>
@@ -624,6 +717,7 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
                         parts = parts,
                         decal = job.decal,
                         overlay = job.overlay,
+                        match = job.match,
                     });
                 }
             }
@@ -1231,7 +1325,22 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
                 positionMap = PositionMap.GetOrBuild(
                     input.root, input.renderers, input.sourceAsset, work.width, work.height, FillIterations(input.jobs));
             }
-            return ApplyJobs(work, input.jobs, positionMap);
+            // 土台（他のツールが先に加工した髪）の上には、お手本に合わせる編集を掛けない: 対象の統計は元テクスチャで取っているので、
+            // 土台で色が変わっていると写し方がずれる（髪ツールの髪は対象外にしている）
+            var jobs = input.baseTexture != null ? WithoutMatch(input.jobs) : input.jobs;
+            return ApplyJobs(work, jobs, positionMap);
+        }
+
+        private static IReadOnlyList<EditJob> WithoutMatch(IReadOnlyList<EditJob> jobs)
+        {
+            if (jobs == null) return null;
+            var result = new List<EditJob>(jobs.Count);
+            foreach (var job in jobs)
+            {
+                if (job?.edit != null && job.edit.matchEnabled && !job.edit.HasDecal) continue;
+                result.Add(job);
+            }
+            return result;
         }
 
         /// <summary>位置マップの膨張の回数: jobs の編集のはみ出し幅（padding）の最大値＋2（PositionMap.MaxFillIterations まで）</summary>
@@ -1329,6 +1438,13 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
                         {
                             spare = CreateWorkTexture(current.width, current.height, "ClickRecolor_Work", current, current.useMipMap);
                         }
+                        if (job.match.HasValue)
+                        {
+                            // どの部分も同じ写し方なので合成マスクに 1 回だけ掛ける（部分が重なっても二重に掛けない）
+                            Match(current, job.mask, spare, job.match.Value);
+                            (current, spare) = (spare, current);
+                            continue;
+                        }
                         // 部分（種ごとに色を揃えるなら種ごと）を順に、その部分の統計で変換する。
                         // 後の部分が前の部分を上書きしてよい（種ごとのマスクは通常重ならない）
                         foreach (var part in job.ShiftParts)
@@ -1388,6 +1504,8 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
             if (job == null || job.edit == null || !job.edit.enabled) return false;
             // 重ね貼りの編集はテクスチャを変えない（範囲の色も変えない約束）。層が無いのは意図どおりなので警告もしない
             if (job.overlay) return false;
+            // お手本に合わせる編集は、写し方（控えと対象の統計）が無ければ素通し（目標色の式に化けさせない）
+            if (job.edit.matchEnabled && !job.edit.HasDecal && !job.match.HasValue) return false;
             // 層を持つか（参照で見る。破棄済みの層は Unity の == で null に見えるが、下の解放済みの判定へ回す）
             bool hasLayer = !ReferenceEquals(job.decal, null);
             if (!hasLayer && (job.edit.HasDecal || !job.edit.hasTarget))
@@ -1550,6 +1668,38 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
             shader.SetVector(BoxSizeId, p.boxSize);
 
             shader.Dispatch(s_kernelOverlayOpacity, Groups(dst.width), Groups(dst.height), 1);
+        }
+
+        /// <summary>
+        /// お手本に合わせる（CSMatch）を 1 回走らせる: dst = src のマスクの内側をお手本の色味へ寄せたもの。
+        /// src と dst は別のテクスチャで、dst は enableRandomWrite の RT。mask は src と別サイズでもよい（正規化座標で対応させる）
+        /// </summary>
+        internal static void Match(Texture src, Texture mask, RenderTexture dst, in MatchParams p)
+        {
+            var shader = Compute;
+            if (shader == null || src == null || mask == null || dst == null) return;
+            if (p.lCurve == null || p.targetBands == null || p.referenceBands == null) return;
+
+            shader.SetTexture(s_kernelMatch, SrcId, src);
+            shader.SetTexture(s_kernelMatch, MaskId, mask);
+            shader.SetTexture(s_kernelMatch, DstId, dst);
+            shader.SetInt(WidthId, dst.width);
+            shader.SetInt(HeightId, dst.height);
+            shader.SetInt(MaskWidthId, mask.width);
+            shader.SetInt(MaskHeightId, mask.height);
+            shader.SetFloat(StrengthId, p.strength);
+            shader.SetFloat(GammaId, p.gamma);
+            shader.SetVectorArray(MatchLCurveId, p.lCurve);
+            shader.SetVectorArray(MatchTargetBandsId, p.targetBands);
+            shader.SetVectorArray(MatchRefBandsId, p.referenceBands);
+            shader.SetFloat(MatchKId, p.k);
+            shader.SetFloat(MatchLightnessId, p.lightnessShift);
+            shader.SetFloat(MatchHueId, p.hueShift);
+            shader.SetVector(MatchMoveId, new Vector4(p.from.x, p.from.y, p.to.x, p.to.y));
+            shader.SetFloat(MatchShadowId, p.shadow);
+            shader.SetFloat(MatchHighlightId, p.highlight);
+            shader.SetFloat(MatchPivotId, p.pivot);
+            shader.Dispatch(s_kernelMatch, Groups(dst.width), Groups(dst.height), 1);
         }
 
         private static int Groups(int size) => (size + ThreadGroupSize - 1) / ThreadGroupSize;

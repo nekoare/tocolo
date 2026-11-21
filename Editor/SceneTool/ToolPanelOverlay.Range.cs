@@ -117,7 +117,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         }
 
         /// <summary>
-        /// 影響範囲のボタンの真下・右端の「テクスチャの残りを選択」（影響範囲がパーツの編集のときだけ出す。箱の中・色のモードは範囲を箱・色で決めるので要らない）。
+        /// 影響範囲のボタンの真下・横いっぱいの［残りのパーツも選ぶ］（影響範囲がパーツの編集のときだけ出す。箱の中・色のモードは範囲を箱・色で決めるので要らない）。
         /// 押すと、編集（連結なら各メンバー）のテクスチャのまだ選んでいないパーツを全部、点として足し、各点の色を揃えるを OFF にする（RemainingParts）。
         /// 要らないパーツは Ctrl＋クリックで外せる
         /// </summary>
@@ -129,13 +129,12 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             bool enabled = IsRemainingPartsTarget(root);
             using (new EditorGUILayout.HorizontalScope())
             {
-                GUILayout.FlexibleSpace();
                 using (new EditorGUI.DisabledScope(!enabled))
                 {
                     var content = new GUIContent(Locales.Tr("Scene:Panel:SelectWholeTexture"), Locales.Tr("Scene:Panel:SelectWholeTextureTooltip"));
-                    if (GUILayout.Button(content, GUILayout.ExpandWidth(false)) && enabled)
+                    if (GUILayout.Button(content) && enabled)
                     {
-                        Undo.RecordObject(component, "Tocolo: テクスチャの残りを選択");
+                        Undo.RecordObject(component, "Tocolo: 残りのパーツも選ぶ");
                         EditGroups.ForEachInGroup(component, edit, e =>
                         {
                             if (e.wholeTexture)
@@ -240,11 +239,19 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         }
 
         /// <summary>範囲ブロックの「▸ 設定」の中に、既定から変えた物があるか（畳んだままでも効いていることに気付けるように見出しで知らせる）</summary>
-        private static bool RangeSettingsChanged(RecolorEdit edit)
+        private static bool RangeSettingsChanged(ClickRecolor component, RecolorEdit edit)
         {
             if (ToolSession.CrossTextureEnabled || ToolSession.SelectHiddenEnabled) return true;
             if (edit == null) return false;
             if (edit.padding != DefaultEdit.padding) return true;
+            // 「なぞって調整」は畳んだ中にあるので、なぞった跡があれば閉じていても気づけるようにする
+            if (RecolorSceneTool.CanPaint(edit))
+            {
+                if (edit.paintEdgeOffset != DefaultEdit.paintEdgeOffset) return true;
+                bool hasAdjust = false;
+                EditGroups.ForEachInGroup(component, edit, e => hasAdjust |= e.HasPaintAdjust);
+                if (hasAdjust) return true;
+            }
             if (edit.mode == SelectionMode.Box && edit.boxPerPartStats != DefaultEdit.boxPerPartStats) return true;
             return edit.mode == SelectionMode.Color && edit.cleanupRadius != DefaultEdit.cleanupRadius;
         }
@@ -286,7 +293,6 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             // モードはこのイベント内で変わらないので、部品の数は Layout と Repaint で揃う
             bool colorMode = edit.mode == SelectionMode.Color;
             bool boxMode = edit.mode == SelectionMode.Box;
-            bool paintable = RecolorSceneTool.CanPaint(edit);
             float threshold = edit.threshold;
             float feather = edit.feather;
             ColorScope scope = edit.scope;
@@ -321,6 +327,12 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                     Locales.Tr("Scene:Select:Scope:WholeAvatar"),
                 }, 2);
             }
+            // お手本に合わせる編集は「アバター全体」にしない: 連結は統計を連結でまとめる仕組みで、テクスチャごとの髪全体の統計と噛み合わない
+            if (edit.matchEnabled && scope == ColorScope.WholeAvatar && edit.scope != ColorScope.WholeAvatar)
+            {
+                scope = edit.scope;
+                ToolSession.ShowTransientNotice("Scene:Match:NoWholeAvatar");
+            }
             if (EditorGUI.EndChangeCheck())
             {
                 BeginDragIfGrabbing("Tocolo: 選択の設定を変更");
@@ -338,12 +350,11 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 });
                 EditorUtility.SetDirty(component);
             }
-            if (paintable) DrawPaintAdjust(component, edit);
             return edit;
         }
 
         /// <summary>
-        /// パーツモードの編集の「なぞって調整」: ［足す］［消す］（押すと道具を持ち、もう一度押すと置く）・ブラシの太さ・［なぞりを削除］。
+        /// パーツモードの編集の「なぞって調整」（範囲ブロックの「▸ 設定」の中）: ［足す］［消す］（押すと道具を持ち、もう一度押すと置く）・ブラシの太さ・［なぞりを削除］。
         /// 操作の案内は右下の操作の案内（HintOverlay）に出す。ここに道具を持っている間だけの行を足すと、Scene の Esc で道具を置いたときに
         /// Layout と次のイベントの間で行の数が変わり、IMGUI の並びが崩れる
         /// </summary>

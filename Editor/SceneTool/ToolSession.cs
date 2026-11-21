@@ -143,6 +143,8 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             }
             set
             {
+                // お手本選びは選んだ時点の編集に掛けるものなので、編集を切り替えたらやめる（別の編集を黙ってお手本に合わせるに変えない）
+                if ((value ?? "") != SessionState.GetString(KeyCurrentEdit, "")) MatchPickActive = false;
                 SessionState.SetString(KeyCurrentEdit, value ?? "");
                 PublishHighlight();
             }
@@ -213,7 +215,33 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 if (s_eyedropperActive == value) return;
                 s_eyedropperActive = value;
                 // スポイトと筆は同時に持たない（どちらも次のクリックの意味を変えるため）
-                if (value) s_brush = BrushMode.None;
+                if (value)
+                {
+                    s_brush = BrushMode.None;
+                    s_matchPickActive = false;
+                }
+                if (!value) Cursor.SetCursor(null, Vector2.zero, CursorMode.Auto);
+            }
+        }
+
+        private static bool s_matchPickActive;
+
+        /// <summary>
+        /// お手本を選んでいる最中か（ON の間、Scene の次のクリックで当たった Renderer とマテリアル枠を今の編集のお手本にする。選んだら OFF）。
+        /// ツール終了で消える。スポイト・筆とは同時に持たない（どれも次のクリックの意味を変えるため）
+        /// </summary>
+        public static bool MatchPickActive
+        {
+            get => s_matchPickActive;
+            set
+            {
+                if (s_matchPickActive == value) return;
+                s_matchPickActive = value;
+                if (value)
+                {
+                    s_brush = BrushMode.None;
+                    s_eyedropperActive = false;
+                }
                 if (!value) Cursor.SetCursor(null, Vector2.zero, CursorMode.Auto);
             }
         }
@@ -231,7 +259,11 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             {
                 if (s_brush == value) return;
                 s_brush = value;
-                if (value != BrushMode.None) EyedropperActive = false;
+                if (value != BrushMode.None)
+                {
+                    EyedropperActive = false;
+                    MatchPickActive = false;
+                }
             }
         }
 
@@ -381,6 +413,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             TexTransToolNotice = false;
             HoverPick = null;
             EyedropperActive = false;
+            MatchPickActive = false;
             Brush = BrushMode.None;
             BrushSizePreview = false;
             HideHighlight();

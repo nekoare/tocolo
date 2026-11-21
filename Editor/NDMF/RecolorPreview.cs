@@ -132,6 +132,11 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
         internal static readonly PublishedValue<HighlightState> Highlight =
             new PublishedValue<HighlightState>(default, "ClickRecolor/Highlight");
 
+        /// <summary>
+        /// お手本の測り直しの合図。ドラッグ中に後回しにした測り直しを、離したときにやらせる（MatchReference が値を進める）
+        /// </summary>
+        internal static readonly PublishedValue<int> MatchRemeasure = new PublishedValue<int>(0, "ClickRecolor/MatchRemeasure");
+
         // ── グループ ──
 
         /// <summary>GetTargetGroups から Instantiate へ渡すデータ。比較は参照（要素ごと）で行う</summary>
@@ -251,6 +256,14 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
                 var highlight = context.Observe(Highlight);
                 var plans = BuildPlans(data, context, highlight, out var order);
                 if (plans.Count == 0) return Task.FromResult<IRenderFilterNode>(new EmptyNode());
+                // お手本に合わせる編集の控えを、結果のキャッシュ鍵（ComputeTextureHash）を作る前に測り直しておく
+                if (_scope == RecolorScope.Main)
+                {
+                    context.Observe(MatchRemeasure);
+                    RefreshMatchReferences(data, plans, context);
+                }
+                // 髪用の入口（髪ツールの出力の上）にはお手本に合わせる編集を掛けない（Run が土台の上では捨てる）ので、統計を取る前に外す
+                else foreach (var plan in plans.Values) plan.edits.RemoveAll(e => e.matchEnabled && !e.HasDecal);
 
                 var pairs = new List<(Renderer original, Renderer proxy)>();
                 foreach (var (original, proxy) in proxyPairs)
@@ -607,6 +620,44 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
             return plans;
         }
 
+        /// <summary>
+        /// 計画に入っているお手本に合わせる編集のお手本を測り直し、控えを書き換える（MatchReference.Refresh）。
+        /// お手本の Renderer のマテリアル・メインテクスチャ・テクスチャの中身を観測する（アバターの外の物でも変われば作り直す）。
+        /// お手本の色を変える編集は同じアバターのコンポーネントにあり、その変化はコンポーネントの観測で拾える
+        /// </summary>
+        private static void RefreshMatchReferences(GroupData data, Dictionary<Texture2D, TexturePlan> plans, ComputeContext context)
+        {
+            if (data?.components == null) return;
+            foreach (var component in data.components)
+            {
+                if (component == null || component.edits == null) continue;
+                foreach (var edit in component.edits)
+                {
+                    if (edit == null || !edit.enabled || !edit.matchEnabled || edit.sourceTexture == null) continue;
+                    var renderer = edit.matchRenderer;
+                    // 計画に入っていない（控えが無く色未設定の）編集も、お手本があれば測り直す（指定したときに測れなかった編集が、後で直れば効くように）
+                    if (renderer == null) continue;
+                    int size = plans.TryGetValue(edit.sourceTexture, out var plan) ? plan.size : (int)component.previewResolution;
+                    var materials = context.Observe(renderer, r => r.sharedMaterials, SameMaterialArray);
+                    if (materials != null && edit.matchSlot >= 0 && edit.matchSlot < materials.Length && materials[edit.matchSlot] != null)
+                    {
+                        context.Observe(materials[edit.matchSlot], ShaderAndMainTexture);
+                    }
+                    var texture = MatchReference.ReferenceTexture(renderer, edit.matchSlot);
+                    if (texture != null) context.Observe(texture, t => t.imageContentsHash);
+                    try
+                    {
+                        MatchReference.Refresh(component, edit, size, deferWhileDragging: true);
+                    }
+                    catch (Exception ex)
+                    {
+                        // お手本を測れなくても他の編集のプレビューは止めない（この編集は前の控えのまま）
+                        WarnOnce(edit, "match", $"編集「{edit.name}」のお手本の色を測れませんでした: {ex.Message}");
+                    }
+                }
+            }
+        }
+
         /// <summary>全テクスチャの計画のうち、連結の統計を共有する編集（RecolorPipeline.SharesGroupStats。適用順）</summary>
         private static List<RecolorEdit> CollectGroupStatsMembers(Dictionary<Texture2D, TexturePlan> plans, List<Texture2D> order)
         {
@@ -898,6 +949,8 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
                     if (edit == null || (!edit.hasTarget && !edit.HasDecal)) continue;
                     if (overlayEdits != null && overlayEdits.Contains(edit)) continue;
                     h = EditHash.All(h, edit);
+                    // お手本の控えは EditHash に入れていない（プレビューが書き換えるため）ので、結果を決めるものとしてここで畳む
+                    if (edit.matchEnabled) h = h * 31 + (edit.matchProfileData != null ? edit.matchProfileData.GetHashCode() : 0);
                     if (groupMembers == null || !RecolorPipeline.SharesGroupStats(edit)) continue;
                     foreach (var member in groupMembers)
                     {

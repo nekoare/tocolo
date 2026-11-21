@@ -195,6 +195,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             // 選択範囲のハイライトを消す（ビルドには元々乗らないが、ツール外のプレビューにも出さない）
             ToolSession.HideHighlight();
             ToolSession.EyedropperActive = false;
+            ToolSession.MatchPickActive = false;
             // なぞりの途中で終了したら、そこまでなぞった分を保存して道具を置く
             FinishBrushStroke();
             ToolSession.Brush = BrushMode.None;
@@ -276,9 +277,10 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             if (e.type == EventType.KeyDown && e.keyCode == KeyCode.Escape)
             {
                 e.Use();
-                if (ToolSession.EyedropperActive)
+                if (ToolSession.EyedropperActive || ToolSession.MatchPickActive)
                 {
                     ToolSession.EyedropperActive = false;
+                    ToolSession.MatchPickActive = false;
                     sceneView.Repaint();
                     return;
                 }
@@ -370,6 +372,20 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             if (e.type == EventType.MouseMove)
             {
                 UpdateHover(root, sceneView, e.mousePosition);
+                return;
+            }
+
+            // お手本選び: 次のクリックで当たった Renderer とマテリアル枠を今の編集のお手本にする（編集は作らない）。外したら選び中のまま
+            if (ToolSession.MatchPickActive)
+            {
+                Cursor.SetCursor(CrosshairCursor, new Vector2(CrosshairSize * 0.5f, CrosshairSize * 0.5f), CursorMode.Auto);
+                EditorGUIUtility.AddCursorRect(new Rect(0f, 0f, sceneView.position.width, sceneView.position.height), MouseCursor.CustomCursor);
+                if (e.type == EventType.MouseDown && e.button == 0 && !e.alt)
+                {
+                    e.Use();
+                    PickMatchReference(root, e.mousePosition);
+                    sceneView.Repaint();
+                }
                 return;
             }
 
@@ -864,6 +880,30 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             if (edit == null) return;
             ToolPanelOverlay.ApplyEyedropperColor(component, edit, color.Value);
             ToolSession.EyedropperActive = false;
+        }
+
+        /// <summary>
+        /// お手本選び: mousePosition の下の Renderer とマテリアル枠を今の編集のお手本にし、選び中を終える。当たらなければ何もしない。
+        /// 当てるのはスポイトと同じく対象アバターの中だけ（アバターの外の髪は欄へのドラッグ＆ドロップで指定する）
+        /// </summary>
+        private void PickMatchReference(GameObject root, Vector2 mousePosition)
+        {
+            if (_picker == null) _picker = new ScenePicker(); // ドメインリロード直後の保険
+            CollectPickRenderers(root);
+            var ray = HandleUtility.GUIPointToWorldRay(mousePosition);
+            CollectVisibleRenderers(mousePosition, root, _visibleRenderers);
+            if (!TryPickVisible(_visibleRenderers, ray, out var hit) || hit.renderer == null) return;
+
+            var component = root.GetComponent<ClickRecolor>();
+            var edit = component != null ? component.FindEdit(ToolSession.CurrentEditId) : null;
+            // 色を指定の編集には掛けない（お手本選びは［お手本に合わせる］の欄からしか始めない）
+            if (edit == null || !edit.matchEnabled)
+            {
+                ToolSession.MatchPickActive = false;
+                return;
+            }
+            ToolPanelOverlay.ApplyMatchReference(component, edit, hit.renderer, hit.materialSlot);
+            ToolSession.MatchPickActive = false;
         }
 
         /// <summary>

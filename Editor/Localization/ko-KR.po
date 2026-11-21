@@ -355,7 +355,7 @@ msgid "Scene:Panel:Mode"
 msgstr "영향 범위"
 
 msgid "Scene:Panel:SelectWholeTexture"
-msgstr "텍스처의 나머지 선택"
+msgstr "+ 나머지 파츠도 선택"
 
 msgid "Scene:Panel:SelectWholeTextureTooltip"
 msgstr "아직 선택하지 않은 파츠를 모두 추가해요. 필요 없는 파츠는 Ctrl+클릭으로 뺄 수 있어요(Ctrl+Z로 되돌릴 수 있어요)"
@@ -730,7 +730,7 @@ msgid "Error:OverlayApplyFailed"
 msgstr "'{0}'에 이미지 매끄럽게 붙이기를 반영할 수 없었어요(자세한 내용은 Console을 확인해 주세요)"
 
 msgid "Scene:Paint:Label"
-msgstr "따라 그려서 조정"
+msgstr "범위를 따라 그려서 선택"
 
 msgid "Scene:Paint:Add"
 msgstr "추가"
@@ -767,3 +767,82 @@ msgstr "브러시 경계 확장"
 
 msgid "Help:PaintEdgeOffset"
 msgstr "따라 그려서 추가하거나 지운 곳의 경계를 +로 바깥쪽(선택 범위가 넓어짐), -로 안쪽(좁아짐)으로 옮깁니다(px). 머리카락의 색 경계가 메시의 변과 어긋날 때 사용합니다. UV 틈으로 퍼지는 정도는 「여백 확장」으로 정해집니다."
+
+msgid "Scene:Match:ModeColor"
+msgstr "색 지정"
+
+msgid "Scene:Match:ModeMatch"
+msgstr "견본에 맞추기"
+
+msgid "Scene:Match:Reference"
+msgstr "견본"
+
+msgid "Scene:Match:PickTooltip"
+msgstr "누른 뒤 Scene에서 견본 머리카락을 클릭해요"
+
+msgid "Scene:Match:PickHint"
+msgstr "Scene에서 견본으로 쓸 머리카락을 클릭해 주세요(Esc로 취소). 아바타 밖의 머리카락은 칸에 드래그 앤 드롭해요."
+
+msgid "Scene:Match:ChooseHint"
+msgstr "견본으로 쓸 머리카락을 골라 주세요. 왼쪽 버튼을 누르고 Scene에서 클릭하거나, 칸에 머리카락을 드래그 앤 드롭해요."
+
+msgid "Scene:Match:Slot"
+msgstr "머티리얼"
+
+msgid "Scene:Match:Missing"
+msgstr "견본을 찾을 수 없어요. 전에 측정한 색으로 맞추고 있어요."
+
+msgid "Scene:Match:NoRenderer"
+msgstr "견본 머리카락을 찾을 수 없어요."
+
+msgid "Scene:Match:NoTexture"
+msgstr "견본 머티리얼에 메인 텍스처가 없어요."
+
+msgid "Scene:Match:SameTexture"
+msgstr "맞출 머리카락과 같은 텍스처의 머리카락은 견본으로 쓸 수 없어요."
+
+msgid "Scene:Match:ChmHair"
+msgstr "키메라 헤어 마스터에서 다루는 머리카락은 견본에 맞추기를 지원하지 않아요."
+
+msgid "Scene:Match:Unreadable"
+msgstr "견본의 색을 읽을 수 없어요(메시의 Read/Write가 꺼져 있는 등)."
+
+msgid "Scene:Match:NoWholeAvatar"
+msgstr "견본에 맞추기에서는 \"아바타 전체\"를 쓸 수 없어요."
+
+msgid "Scene:Match:Lightness"
+msgstr "밝기"
+
+msgid "Scene:Match:Hue"
+msgstr "색상"
+
+msgid "Scene:Match:Chroma"
+msgstr "채도"
+
+msgid "Scene:Match:Reset"
+msgstr "견본대로 되돌리기"
+
+
+msgid "Inspector:Edit:Match"
+msgstr "견본"
+
+msgid "Inspector:Edit:MatchMissingTooltip"
+msgstr "견본을 찾을 수 없어요(삭제되었을 수 있어요). 전에 측정한 색으로 맞추고 있어서, 견본의 색을 바꿔도 따라가지 않아요"
+
+msgid "Scene:Match:Remeasure"
+msgstr "다시 측정하기"
+
+msgid "Scene:Match:ReferenceColor"
+msgstr "견본 색"
+
+msgid "Scene:Match:ResultColor"
+msgstr "맞춘 색"
+
+msgid "Scene:Match:Highlight"
+msgstr "하이라이트 늘이기"
+
+msgid "Scene:Match:MountainHint"
+msgstr "산·선·▲를 잡아서 움직일 수 있습니다"
+
+msgid "Help:MatchMountain"
+msgstr "가로가 밝기(왼쪽이 어두움), 높이가 그 밝기인 부분의 양, 색이 맞춘 후의 색입니다. 산 본체(또는 가운데 ▲)를 좌우로 드래그하면 전체 밝기, 왼쪽 선(▲)으로 음영 어둡기, 오른쪽 선(▲)으로 하이라이트 늘이기가 바뀝니다. 아래 슬라이더와 같은 값입니다. 옅은 회색 산은 옮기기 전(견본 그대로)의 모양입니다."
