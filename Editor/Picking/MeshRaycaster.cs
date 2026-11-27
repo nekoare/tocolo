@@ -64,6 +64,22 @@ namespace Nekoare.ClickRecolor.Editor.Picking
         }
 
         /// <summary>
+        /// メッシュに当てる前の粗い除外: renderer の境界の箱（ワールド AABB）にレイが当たらなければ false。
+        /// 箱の厚みが潰れている（どれかの軸がほぼ 0）なら除外しない: 揺れ物が消えないよう手で大きくした箱で 1 軸だけ 0 が入っていると、
+        /// 描画は頭の中心が映っていれば行われるのに、レイは板を横切らない角度で全部外れ、見えている髪に触れなくなる
+        /// </summary>
+        internal static bool BoundsMayHit(Renderer renderer, Ray worldRay)
+        {
+            var bounds = renderer.bounds;
+            var size = bounds.size;
+            if (Mathf.Min(size.x, Mathf.Min(size.y, size.z)) < DegenerateBoundsSize) return true;
+            return bounds.IntersectRay(worldRay);
+        }
+
+        /// <summary>境界の箱が潰れているとみなす厚み（m）。本当に平らな板のメッシュも当てはまるが、除外せずメッシュに当てるだけなので結果は変わらない</summary>
+        private const float DegenerateBoundsSize = 1e-4f;
+
+        /// <summary>
         /// ワールド空間のレイを renderer のメッシュに当てる。両面判定・最近傍の三角形を返す。
         /// </summary>
         public static bool Raycast(Ray worldRay, Renderer renderer, out RaycastHit hit)
@@ -74,9 +90,7 @@ namespace Nekoare.ClickRecolor.Editor.Picking
 
             try
             {
-                // 粗い除外: ワールド AABB
-                if (!renderer.bounds.IntersectRay(worldRay))
-                    return false;
+                if (!BoundsMayHit(renderer, worldRay)) return false;
 
                 return RaycastMesh(worldRay, mesh, localToWorld, renderer, out hit);
             }

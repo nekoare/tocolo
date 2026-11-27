@@ -360,6 +360,12 @@ msgstr "＋残りのパーツも選ぶ"
 msgid "Scene:Panel:SelectWholeTextureTooltip"
 msgstr "まだ選んでいないパーツを全部足します。要らないパーツはCtrl＋クリックで外せます（Ctrl+Zで戻せます）"
 
+msgid "Scene:Panel:SelectMeshRemaining"
+msgstr "＋メッシュ内だけ"
+
+msgid "Scene:Panel:SelectMeshRemainingTooltip"
+msgstr "選んでいるパーツと同じメッシュの中で、まだ選んでいない同じ画像のパーツを全部足します。要らないパーツはCtrl＋クリックで外せます（Ctrl+Zで戻せます）"
+
 msgid "Scene:Panel:Mode:Island"
 msgstr "パーツ"
 
@@ -383,6 +389,9 @@ msgstr "Ctrl＋クリックでパーツを選択"
 
 msgid "Scene:Panel:RectHint"
 msgstr "Ctrl＋ドラッグで範囲内のパーツをまとめて追加"
+
+msgid "Scene:Panel:RectRemoveHint"
+msgstr "Ctrl＋Shift＋ドラッグで範囲内のパーツをまとめて外す"
 
 msgid "Scene:Panel:RectHint:Select"
 msgstr "Ctrl＋ドラッグで範囲内のパーツをまとめて選択"
@@ -507,6 +516,27 @@ msgstr "グラデーション"
 msgid "Scene:Color:GradientInsideOnly"
 msgstr "箱の中だけ"
 
+msgid "Scene:Color:GradientShape:Box"
+msgstr "箱"
+
+msgid "Scene:Color:GradientShape:Tips"
+msgstr "毛先グラデ"
+
+msgid "Scene:Color:GradientTipPickShort"
+msgstr "ここ"
+
+msgid "Scene:Color:GradientTipPick"
+msgstr "押してからSceneの髪をクリックすると、その場所まで毛先の色が入る長さになります（なぞると追いかけます。%ではその房に合わせた割合になります）"
+
+msgid "Scene:Color:GradientTipUnit:Cm"
+msgstr "cm"
+
+msgid "Scene:Color:GradientTipUnit:Ratio"
+msgstr "%"
+
+msgid "Scene:Box:GradientTop"
+msgstr "てっぺん"
+
 msgid "Scene:Color:GradientResetTooltip"
 msgstr "色2と箱を、オンにした直後の状態に戻します"
 
@@ -521,6 +551,9 @@ msgstr "グラデーション"
 
 msgid "Scene:Box:Decal"
 msgstr "画像"
+
+msgid "Scene:Box:TopTooltip"
+msgstr "押すとてっぺんの点をSceneに出して動かせるようにします。押していないときは隠します。"
 
 msgid "Scene:Box:Tooltip"
 msgstr "押した箱をSceneに出して動かせるようにします。押していない箱は隠します。"
@@ -578,6 +611,9 @@ msgstr "色1"
 
 msgid "Scene:Color:EditTarget:End"
 msgstr "色2"
+
+msgid "Help:SwapGradientEnds"
+msgstr "色1と色2を入れ替えます。陰影の暗さ・ガンマ・不透明度と、途中の色の並びも一緒に逆になります。"
 
 msgid "Scene:Color:EditTarget:Mid"
 msgstr "途中の色"
@@ -668,6 +704,12 @@ msgstr "オンにするとSceneに箱が出ます。箱の下端から上端に�
 
 msgid "Help:GradientInsideOnly"
 msgstr "オンにすると、箱の上端より上と下端より下は色変えせず元の色のままになり、箱の高さの範囲だけがグラデーションになります。横方向は箱で切りません。オフでは上下の外側も端の色で続きます。"
+
+msgid "Help:GradientShape"
+msgstr "箱は、Sceneの箱の下から上へ色1→色2になります。毛先グラデは、房（つながった面のまとまり）ごとに、てっぺんから一番遠い所を毛先として、毛先が色1、毛先から指定の長さだけ離れた所が色2になります。てっぺんはSceneの点で動かせます。"
+
+msgid "Help:GradientTipLength"
+msgstr "毛先から色2になるまでの長さです。cmは面に沿った距離、%は房ごとの長さに対する割合です（短い房も長い房も同じ比率になります）。残りを元の色のままにしたいときは、色2の不透明度を0にしてください（毛先から元の色へなめらかに戻ります）。"
 
 msgid "Help:Padding"
 msgstr "パーツのまわりの、UVで使われていない部分まで色を広げる幅（ピクセル）です。つなぎ目に元の色の線が見えるときは上げてください。マイナスにすると逆に選んだ範囲の縁を削ります。"
@@ -768,6 +810,12 @@ msgstr "ドラッグでなぞって足す・消す"
 msgid "Scene:Paint:HintCtrl"
 msgstr "Ctrlを押している間は足す・消すを入れ替え"
 
+msgid "Scene:TipPick:Hint"
+msgstr "髪をクリック・なぞると、その場所まで毛先の色が入る長さになります"
+
+msgid "Scene:TipPick:HintEsc"
+msgstr "Escでやめる"
+
 msgid "Scene:Paint:HintEsc"
 msgstr "Escでブラシを置く（もう一度押すと終了）"
 
@@ -855,3 +903,36 @@ msgstr "山・線・▲はつかんで動かせます"
 
 msgid "Help:MatchMountain"
 msgstr "横が明るさ（左が暗い）、高さがその明るさの部分の多さ、色が合わせた後の色です。山の本体（または中の▲）を左右にドラッグすると全体の明るさ、左の線（▲）で陰影の暗さ、右の線（▲）でハイライトの伸びが変わります。下のスライダーと同じ値です。薄い灰色の山は、ずらす前（お手本どおり）の形です。"
+
+msgid "Scene:Overlay:UpdateNotice"
+msgstr "Tocolo: 更新のお知らせ"
+
+msgid "UpdateNotice:Available"
+msgstr "最新版{0}があります（今は{1}）。VCC/ALCOMで更新できます。"
+
+msgid "UpdateNotice:AvailablePro"
+msgstr "最新版{0}があります（今は{1}）。VCC/ALCOMでTocoloとTocolo Proを更新できます。"
+
+msgid "UpdateNotice:Major"
+msgstr "大きな変更を含む版です。更新する前にプロジェクトのバックアップをおすすめします。"
+
+msgid "UpdateNotice:Changelog"
+msgstr "更新履歴を見る"
+
+msgid "UpdateNotice:Skip"
+msgstr "この版はスキップ"
+
+msgid "UpdateNotice:Close"
+msgstr "閉じる"
+
+msgid "UpdateNotice:ConsentMessage"
+msgstr "最新版の更新があったときに、ここでお知らせできます。使う場合は、1日1回、公開中のバージョン一覧（index.json）を読みに行きます。アバター・プロジェクト・PCの情報は送りません。\nあとからメニューの「Tools > Tocolo > 更新を確認する」で切り替えられます。"
+
+msgid "UpdateNotice:ConsentAccept"
+msgstr "お知らせ機能を使う"
+
+msgid "UpdateNotice:ConsentDecline"
+msgstr "使わない"
+
+msgid "UpdateNotice:ConsentDetails"
+msgstr "通信の詳しい内容"

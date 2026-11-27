@@ -86,6 +86,41 @@ namespace Nekoare.ClickRecolor.Tests
         }
 
         [Test]
+        public void 境界の箱が1軸だけ潰れていても_見えている面に当たる()
+        {
+            var quad = MakeTexturedQuad();
+            // 揺れ物用に大きくした箱で X だけ 0 が入った形。レイ（x = 0.25 で Z 向き）は x = 5 の板を横切らない
+            quad.bounds = new Bounds(new Vector3(5f, 0f, 1f), new Vector3(0f, 20f, 20f));
+            var picker = new ScenePicker();
+
+            Assert.That(picker.TryPick(new Ray(new Vector3(0.25f, -0.25f, -1f), Vector3.forward), new[] { quad }, null, out var hit), Is.True);
+            Assert.That(hit.renderer, Is.SameAs(quad));
+            picker.Dispose();
+        }
+
+        [Test]
+        public void 境界の箱がずれていると外れるが_マウスの下に描かれていると確かめた物なら当たる()
+        {
+            var quad = MakeTexturedQuad();
+            quad.bounds = new Bounds(new Vector3(5f, 5f, 1f), Vector3.one);
+            var picker = new ScenePicker();
+            var ray = new Ray(new Vector3(0.25f, -0.25f, -1f), Vector3.forward);
+
+            Assert.That(picker.TryPick(ray, new[] { quad }, null, out _), Is.False, "全部の Renderer を見るとき（ホバーなど）は箱で除外する");
+            Assert.That(picker.TryPick(ray, new[] { quad }, null, out var hit, underCursor: true), Is.True);
+            Assert.That(hit.renderer, Is.SameAs(quad));
+            picker.Dispose();
+        }
+
+        private Renderer MakeTexturedQuad()
+        {
+            var quad = MakeQuad("q", 1f);
+            var tex = new Texture2D(4, 4); _cleanup.Add(tex);
+            quad.sharedMaterial.SetTexture("_MainTex", tex);
+            return quad;
+        }
+
+        [Test]
         public void テクスチャが無いマテリアルは対象にせず奥のテクスチャのある面を返す()
         {
             // FakeShadow など、前髪と同じ形を重ねて描くテクスチャ無しのマテリアルに前髪のクリックを取られないように

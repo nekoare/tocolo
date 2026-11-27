@@ -360,6 +360,12 @@ msgstr "+ 나머지 파츠도 선택"
 msgid "Scene:Panel:SelectWholeTextureTooltip"
 msgstr "아직 선택하지 않은 파츠를 모두 추가해요. 필요 없는 파츠는 Ctrl+클릭으로 뺄 수 있어요(Ctrl+Z로 되돌릴 수 있어요)"
 
+msgid "Scene:Panel:SelectMeshRemaining"
+msgstr "+ 메시 안만"
+
+msgid "Scene:Panel:SelectMeshRemainingTooltip"
+msgstr "선택한 파츠와 같은 메시 안에서, 아직 선택하지 않은 같은 이미지의 파츠를 모두 추가해요. 필요 없는 파츠는 Ctrl+클릭으로 뺄 수 있어요(Ctrl+Z로 되돌릴 수 있어요)"
+
 msgid "Scene:Panel:Mode:Island"
 msgstr "파츠"
 
@@ -383,6 +389,9 @@ msgstr "Ctrl+클릭으로 파츠 선택"
 
 msgid "Scene:Panel:RectHint"
 msgstr "Ctrl+드래그로 범위 내 파츠 일괄 추가"
+
+msgid "Scene:Panel:RectRemoveHint"
+msgstr "Ctrl+Shift+드래그로 범위 내 파츠 일괄 제외"
 
 msgid "Scene:Panel:RectHint:Select"
 msgstr "Ctrl+드래그로 범위 내 파츠 일괄 선택"
@@ -507,6 +516,27 @@ msgstr "그라데이션"
 msgid "Scene:Color:GradientInsideOnly"
 msgstr "박스 안에만"
 
+msgid "Scene:Color:GradientShape:Box"
+msgstr "박스"
+
+msgid "Scene:Color:GradientShape:Tips"
+msgstr "끝 그라데"
+
+msgid "Scene:Color:GradientTipPickShort"
+msgstr "여기"
+
+msgid "Scene:Color:GradientTipPick"
+msgstr "누른 뒤 Scene의 머리카락을 클릭하면 그 위치까지 끝의 색이 들어가는 길이가 돼요(드래그하면 따라가요. %에서는 그 가닥에 맞춘 비율이 돼요)"
+
+msgid "Scene:Color:GradientTipUnit:Cm"
+msgstr "cm"
+
+msgid "Scene:Color:GradientTipUnit:Ratio"
+msgstr "%"
+
+msgid "Scene:Box:GradientTop"
+msgstr "꼭대기"
+
 msgid "Scene:Color:GradientResetTooltip"
 msgstr "색 2와 박스를 켠 직후의 상태로 되돌려요"
 
@@ -521,6 +551,9 @@ msgstr "그라데이션"
 
 msgid "Scene:Box:Decal"
 msgstr "이미지"
+
+msgid "Scene:Box:TopTooltip"
+msgstr "누르면 꼭대기 점을 Scene에 표시해서 움직일 수 있어요. 누르지 않으면 숨겨요."
 
 msgid "Scene:Box:Tooltip"
 msgstr "누른 박스를 Scene에 표시해서 움직일 수 있게 해요. 누르지 않은 박스는 숨겨요."
@@ -578,6 +611,9 @@ msgstr "색 1"
 
 msgid "Scene:Color:EditTarget:End"
 msgstr "색 2"
+
+msgid "Help:SwapGradientEnds"
+msgstr "색1과 색2를 서로 바꿔요. 음영 어둡기, 감마, 불투명도와 중간 색의 순서도 함께 반대로 돼요."
 
 msgid "Scene:Color:EditTarget:Mid"
 msgstr "중간 색"
@@ -668,6 +704,12 @@ msgstr "켜면 Scene에 박스가 나타나요. 박스의 아래쪽 끝에서 �
 
 msgid "Help:GradientInsideOnly"
 msgstr "켜면 박스의 위쪽 끝보다 위와 아래쪽 끝보다 아래는 색을 바꾸지 않고 원래 색으로 남기며, 박스 높이 범위만 그라데이션이 돼요. 가로 방향은 박스로 자르지 않아요. 끄면 위아래 바깥쪽도 끝의 색으로 이어져요."
+
+msgid "Help:GradientShape"
+msgstr "박스는 Scene 박스의 아래에서 위로 색1→색2가 돼요. 끝 그라데는 가닥(이어진 면의 묶음)마다 꼭대기에서 가장 먼 곳을 끝으로 보고, 끝이 색1, 끝에서 지정한 길이만큼 떨어진 곳이 색2가 돼요. 꼭대기는 Scene의 점으로 옮길 수 있어요."
+
+msgid "Help:GradientTipLength"
+msgstr "끝에서 색2가 될 때까지의 길이예요. cm는 면을 따라 잰 거리, %는 가닥마다의 길이에 대한 비율이에요(짧은 가닥도 긴 가닥도 같은 비율이 돼요). 나머지를 원래 색으로 두고 싶으면 색2의 불투명도를 0으로 하세요(끝에서 원래 색으로 부드럽게 돌아가요)."
 
 msgid "Help:Padding"
 msgstr "파츠 주변의 UV에서 쓰이지 않는 부분까지 색을 넓히는 폭(픽셀)이에요. 이음매에 원래 색의 선이 보이면 올려 주세요. 마이너스로 하면 반대로 선택 범위의 가장자리를 깎아요."
@@ -768,6 +810,12 @@ msgstr "드래그해서 따라 그려 추가・지우기"
 msgid "Scene:Paint:HintCtrl"
 msgstr "Ctrl을 누르는 동안 추가・지우기 전환"
 
+msgid "Scene:TipPick:Hint"
+msgstr "머리카락을 클릭하거나 드래그하면 그 위치까지 끝의 색이 들어가는 길이가 돼요"
+
+msgid "Scene:TipPick:HintEsc"
+msgstr "Esc로 그만두기"
+
 msgid "Scene:Paint:HintEsc"
 msgstr "Esc로 브러시 내려놓기 (한 번 더 누르면 종료)"
 
@@ -855,3 +903,36 @@ msgstr "산·선·▲를 잡아서 움직일 수 있습니다"
 
 msgid "Help:MatchMountain"
 msgstr "가로가 밝기(왼쪽이 어두움), 높이가 그 밝기인 부분의 양, 색이 맞춘 후의 색입니다. 산 본체(또는 가운데 ▲)를 좌우로 드래그하면 전체 밝기, 왼쪽 선(▲)으로 음영 어둡기, 오른쪽 선(▲)으로 하이라이트 늘이기가 바뀝니다. 아래 슬라이더와 같은 값입니다. 옅은 회색 산은 옮기기 전(견본 그대로)의 모양입니다."
+
+msgid "Scene:Overlay:UpdateNotice"
+msgstr "Tocolo: 업데이트 알림"
+
+msgid "UpdateNotice:Available"
+msgstr "새 버전 {0}이(가) 있습니다(현재 {1}). VCC/ALCOM에서 업데이트할 수 있습니다."
+
+msgid "UpdateNotice:AvailablePro"
+msgstr "새 버전 {0}이(가) 있습니다(현재 {1}). VCC/ALCOM에서 Tocolo와 Tocolo Pro를 업데이트할 수 있습니다."
+
+msgid "UpdateNotice:Major"
+msgstr "큰 변경이 포함된 버전입니다. 업데이트하기 전에 프로젝트를 백업하는 것을 권장합니다."
+
+msgid "UpdateNotice:Changelog"
+msgstr "업데이트 내역 보기"
+
+msgid "UpdateNotice:Skip"
+msgstr "이 버전 건너뛰기"
+
+msgid "UpdateNotice:Close"
+msgstr "닫기"
+
+msgid "UpdateNotice:ConsentMessage"
+msgstr "새 버전이 나오면 여기에서 알려 드릴 수 있습니다. 사용하면 하루에 한 번 공개된 버전 목록(index.json)을 읽어 옵니다. 아바타·프로젝트·PC 정보는 보내지 않습니다.\n나중에 메뉴 \"Tools > Tocolo > 更新を確認する\"에서 변경할 수 있습니다."
+
+msgid "UpdateNotice:ConsentAccept"
+msgstr "알림 기능 사용"
+
+msgid "UpdateNotice:ConsentDecline"
+msgstr "사용 안 함"
+
+msgid "UpdateNotice:ConsentDetails"
+msgstr "통신 내용 자세히"

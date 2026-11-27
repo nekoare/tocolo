@@ -52,6 +52,19 @@ namespace Nekoare.ClickRecolor.Editor.Colors
         /// </summary>
         public Vector4[] midStops;
 
+        // ── 毛先から（compute の GradientShape / TipMap / TipLength / TipRatio）──
+        /// <summary>混ぜ具合の決め方。Tips なら position には毛先マップの画素（x = 毛先からの距離、y = 房の長さ、w &gt; 0 なら描かれた画素）を渡す</summary>
+        public GradientShape gradientShape;
+        /// <summary>毛先から色 2 になるまでの距離（m）。tipRatio &gt; 0 のときは使わない</summary>
+        public float tipLength;
+        /// <summary>0 より大きければ、毛先から色 2 になるまでの距離 = 房の長さ × tipRatio</summary>
+        public float tipRatio;
+        /// <summary>
+        /// 毛先マップ（TipMap。GPU だけが使う）。呼び出し側が編集の「てっぺん」で作って入れる。
+        /// 毛先からで null ならグラデーションは掛けない（色 1）
+        /// </summary>
+        public Texture tipMap;
+
         /// <summary>編集の色設定と、選択内の統計（元テクスチャ基準）から作る</summary>
         internal static ShiftParams FromEdit(RecolorEdit edit, in Stats stats)
         {
@@ -65,7 +78,8 @@ namespace Nekoare.ClickRecolor.Editor.Colors
                     ? Matrix4x4.TRS(edit.gradientBoxPosition, Quaternion.Normalize(edit.gradientBoxRotation), Vector3.one).inverse
                     : Matrix4x4.identity,
                 boxSize = edit.gradientBoxSize,
-                gradientInsideOnly = gradient && edit.gradientInsideOnly,
+                // 毛先からでは使わない: 長さの所で色 2 から元の色へ段差になるだけで、元の色に戻したいなら色 2 の強さ 0 でなめらかに戻せる
+                gradientInsideOnly = gradient && edit.gradientShape == GradientShape.Box && edit.gradientInsideOnly,
                 targetOklab2 = gradient
                     ? OklabConverter.LinearRGBToOklab(OklabConverter.SRGBToLinear(edit.gradientColor))
                     : Vector3.zero,
@@ -80,6 +94,9 @@ namespace Nekoare.ClickRecolor.Editor.Colors
                 strength = edit.strength,
                 strength2 = gradient ? edit.gradientStrength : edit.strength,
                 midStops = gradient ? SortedMidStops(edit.gradientMidStops) : null,
+                gradientShape = gradient ? edit.gradientShape : GradientShape.Box,
+                tipLength = edit.gradientTipLength,
+                tipRatio = edit.gradientTipUseRatio ? edit.gradientTipRatio : 0f,
                 lP05 = stats.lP05,
                 lP95 = stats.lP95,
                 hDominant = stats.hDominant,
@@ -136,7 +153,7 @@ namespace Nekoare.ClickRecolor.Editor.Colors
             ShiftLinear(srcLinear, mask, p, default);
 
         /// <summary>
-        /// ShiftLinear の位置つき版。position は位置マップの画素（xyz = 対象ルートのローカル位置、w &gt; 0 なら描かれた画素）。
+        /// ShiftLinear の位置つき版。position は位置マップの画素（xyz = 対象ルートのローカル位置、w &gt; 0 なら描かれた画素）。毛先からなら毛先マップの画素。
         /// グラデーション ON なら位置から t を求め、目標色・暗部の明るさ・強さを「新しい色」→「終了色」で混ぜてから変換する
         /// </summary>
         internal static Color ShiftLinear(Color srcLinear, float mask, in ShiftParams p, Vector4 position)
@@ -202,7 +219,16 @@ namespace Nekoare.ClickRecolor.Editor.Colors
         /// <summary>途中の色の区間の幅の下限（これ未満は幅 0 として割らない）。compute の MinStopSpan と同じ</summary>
         private const float MinStopSpan = 1e-6f;
 
-        /// <summary>「箱の中だけ」でグラデーション方向（y）の箱の外なら true（その画素は色変えしない）。横方向は切らない。描かれていない画素は箱の中扱い</summary>
+        /// <summary>毛先から色 2 になるまでの距離の下限（0 で割らない）。compute の MinTipSpan と同じ</summary>
+        private const float MinTipSpan = 1e-5f;
+
+        /// <summary>毛先から色 2 になるまでの距離（m）。tip は毛先マップの画素。compute の TipSpan と同じ</summary>
+        internal static float TipSpan(in ShiftParams p, Vector4 tip) =>
+            Mathf.Max(p.tipRatio > 0f ? p.tipRatio * tip.y : p.tipLength, MinTipSpan);
+
+        /// <summary>
+        /// 「箱の中だけ」でグラデーション方向（y）の箱の外なら true（その画素は色変えしない）。横方向は切らない。描かれていない画素は箱の中扱い。
+        /// </summary>
         internal static bool GradientOutsideBox(in ShiftParams p, Vector4 position)
         {
             if (!p.gradientInsideOnly || position.w <= 0f) return false;
@@ -210,9 +236,11 @@ namespace Nekoare.ClickRecolor.Editor.Colors
             return Mathf.Abs(local.y) > Mathf.Abs(p.boxSize.y) * 0.5f;
         }
 
+        /// <summary>混ぜ具合 t（0 = 色 1、1 = 色 2）。箱なら箱のローカル y、毛先からなら毛先で 0・毛先から TipSpan 離れた所で 1</summary>
         internal static float GradientT(in ShiftParams p, Vector4 position)
         {
             if (position.w <= 0f) return 0f;
+            if (p.gradientShape == GradientShape.Tips) return Mathf.Clamp01(position.x / TipSpan(p, position));
             Vector3 local = p.rootToBox.MultiplyPoint3x4(new Vector3(position.x, position.y, position.z));
             // 高さは符号付き（箱の上下反転でグラデーションも反転。compute と同じ）
             float height = p.boxSize.y;

@@ -126,8 +126,11 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 bool newSelection = ToolSession.HasSelectionBox(edit)
                     ? DrawBoxButton(selection, Locales.Tr("Scene:Panel:Mode:Box"), RecolorSceneTool.SelectionBoxColor)
                     : selection;
+                // 毛先グラデには箱が無く、てっぺんの点を出し入れするので、そのときは名前と説明を点のものにする
+                bool tips = edit.gradientShape == GradientShape.Tips;
                 bool newGradient = edit.gradientEnabled
-                    ? DrawBoxButton(gradient, Locales.Tr("Scene:Box:Gradient"), RecolorSceneTool.SelectionBoxHandleColor)
+                    ? DrawBoxButton(gradient, Locales.Tr(tips ? "Scene:Box:GradientTop" : "Scene:Box:Gradient"), RecolorSceneTool.SelectionBoxHandleColor,
+                        tips ? "Scene:Box:TopTooltip" : "Scene:Box:Tooltip")
                     : gradient;
                 bool newDecal = edit.decalEnabled
                     ? DrawBoxButton(decal, Locales.Tr("Scene:Box:Decal"), RecolorSceneTool.DecalBoxColor)
@@ -146,8 +149,8 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         }
 
         /// <summary>箱の色の印（左の四角）と、押した状態が残るボタン。押していない間は印を薄くする</summary>
-        private static bool DrawBoxButton(bool shown, string label, Color color) =>
-            DrawToggleRow(shown, label, Locales.Tr("Scene:Box:Tooltip"),
+        private static bool DrawBoxButton(bool shown, string label, Color color, string tooltipKey = "Scene:Box:Tooltip") =>
+            DrawToggleRow(shown, label, Locales.Tr(tooltipKey),
                 (mark, on) => EditorGUI.DrawRect(mark, on ? color : new Color(color.r, color.g, color.b, 0.3f)));
 
         /// <summary>左の印（drawMark が描く。押していない間は薄く描く約束）と、押した状態が残るボタン</summary>

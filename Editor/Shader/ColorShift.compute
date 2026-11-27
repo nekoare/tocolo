@@ -61,9 +61,45 @@ float _Strength2;         // 色 2（箱の上端 t = 1）の強さ。t で _Str
 float4 GradientMidStops[6];
 int GradientMidStopCount;
 
+// 毛先から（C# の ShiftParams.gradientShape / tipLength / tipRatio。TipMap は TipMap.cs が作る）
+Texture2D<float4> TipMap; // r = 毛先からの面に沿った距離（m）、g = 房の長さ（m）、a > 0 なら描かれた画素。Src と別サイズでもよい
+int TipWidth;
+int TipHeight;
+int GradientShape;        // 0 = 箱の Y で混ぜる、1 = 毛先からの距離で混ぜる（毛先 t = 1）
+float TipLength;          // 毛先から色 2 になるまでの距離（m）。TipRatio > 0 のときは使わない
+float TipRatio;           // 0 より大きければ、毛先から色 2 になるまでの距離 = 房の長さ × TipRatio
+
 static const float MinBoxHeight = 1e-5;      // 箱の高さの下限（0 で割らない）
 static const float MinGradientChroma = 1e-6; // 混ぜた目標色の彩度がこれ未満なら色相を 0 とみなす（atan2(0, 0) の NaN 除け）
 static const float MinStopSpan = 1e-6;       // 途中の色の区間の幅の下限（これ未満は幅 0 として割らない）
+static const float MinTipSpan = 1e-5;        // 毛先から色 2 になるまでの距離の下限（0 で割らない）
+
+// 画素 id の位置マップ・毛先マップの値（どちらも正規化座標で引く）
+float4 LoadPos(uint2 id)
+{
+    int2 pq = int2((float2(id) + 0.5) * float2(PosWidth, PosHeight) / float2(Width, Height));
+    pq = clamp(pq, int2(0, 0), int2(PosWidth - 1, PosHeight - 1));
+    return PosMap[pq];
+}
+
+float4 LoadTip(uint2 id)
+{
+    int2 tq = int2((float2(id) + 0.5) * float2(TipWidth, TipHeight) / float2(Width, Height));
+    tq = clamp(tq, int2(0, 0), int2(TipWidth - 1, TipHeight - 1));
+    return TipMap[tq];
+}
+
+// グラデーションの t を決める値（箱なら位置、毛先からなら毛先マップ）
+float4 LoadGradient(uint2 id)
+{
+    return GradientShape == 1 ? LoadTip(id) : LoadPos(id);
+}
+
+// 毛先から色 2 になるまでの距離（m）
+float TipSpan(float4 tip)
+{
+    return max(TipRatio > 0.0 ? TipRatio * tip.g : TipLength, MinTipSpan);
+}
 
 // 区間 [fromT, toT] の t の色。幅 0 の区間（同じ位置の 2 色・端と同じ位置の色）は割らずに後の色
 float3 LerpSegment(float3 fromLab, float fromT, float3 toLab, float toT, float t)
@@ -90,11 +126,12 @@ float3 GradientTargetOklab(float3 lab1, float t)
     return LerpSegment(fromLab, fromT, TargetOklab2, 1.0, t);
 }
 
-// グラデーションの混ぜ具合 t（0 = 新しい色、1 = 終了色）。箱のローカル y / 高さ + 0.5 を 0..1 に切り詰める。
-// 位置マップで描かれていない画素（a ≤ 0）は 0
+// グラデーションの混ぜ具合 t（0 = 新しい色、1 = 終了色）。箱なら箱のローカル y / 高さ + 0.5 を 0..1 に切り詰める。
+// 毛先からなら毛先で 0、毛先から TipSpan 離れた所で 1（箱と同じく、たいてい下になる毛先が色 1）。描かれていない画素（a ≤ 0）は 0
 float GradientT(float4 position)
 {
     if (position.a <= 0.0) return 0.0;
+    if (GradientShape == 1) return saturate(position.r / TipSpan(position));
     float3 local = mul(WorldToBox, float4(position.xyz, 1.0)).xyz;
     // 高さは符号付き: 箱を上下に反転（大きさの y が負）させたらグラデーションも反転する（実機 2026-09-27 の不具合修正）
     float height = BoxSize.y;
@@ -104,6 +141,7 @@ float GradientT(float4 position)
 
 // 「箱の中だけ」: グラデーション方向（y）で箱の外（上端より上・下端より下）なら、その画素は色変えしない（元の色のまま）。
 // 横方向（x, z）は箱で切らない（ユーザー要望 2026-09-25）。位置マップで描かれていない画素は箱の中扱い
+// 毛先からでは使わない（ShiftParams.FromEdit で切る）
 bool GradientOutsideBox(float4 position)
 {
     if (GradientInsideOnly == 0 || position.a <= 0.0) return false;
@@ -191,22 +229,17 @@ void CSShift(uint3 id : SV_DispatchThreadID)
     // グラデーションの混ぜ具合 t。OFF なら 0（色 1 の値だけを使う）。
     // 強さも t で混ぜるので、マスクの重み w より先に求める
     float t = 0.0;
-    float4 position = float4(0.0, 0.0, 0.0, 0.0);
-    if (UseGradient != 0 || FlattenBands > 0)
-    {
-        // 位置マップも正規化座標で引く
-        int2 pq = int2((float2(id.xy) + 0.5) * float2(PosWidth, PosHeight) / float2(Width, Height));
-        pq = clamp(pq, int2(0, 0), int2(PosWidth - 1, PosHeight - 1));
-        position = PosMap[pq];
-    }
+    // 位置は「元のグラデーションを打ち消す」の帯にも使う（毛先からのグラデーションでも位置マップで帯を決める）
+    float4 position = FlattenBands > 0 ? LoadPos(id.xy) : float4(0.0, 0.0, 0.0, 0.0);
     if (UseGradient != 0)
     {
-        if (GradientOutsideBox(position))
+        float4 g = LoadGradient(id.xy);
+        if (GradientOutsideBox(g))
         {
             Dst[id.xy] = src; // 箱の外は元の色のまま
             return;
         }
-        t = GradientT(position);
+        t = GradientT(g);
     }
     float strength = UseGradient != 0 ? lerp(_Strength, _Strength2, t) : _Strength;
     float darkEndRatio = UseGradient != 0 ? lerp(_DarkEndRatio, _DarkEndRatio2, t) : _DarkEndRatio;
@@ -257,9 +290,7 @@ void CSWeight(uint3 id : SV_DispatchThreadID)
     float t = 0.0;
     if (UseGradient != 0)
     {
-        int2 pq = int2((float2(id.xy) + 0.5) * float2(PosWidth, PosHeight) / float2(Width, Height));
-        pq = clamp(pq, int2(0, 0), int2(PosWidth - 1, PosHeight - 1));
-        float4 position = PosMap[pq];
+        float4 position = LoadGradient(id.xy);
         // 箱の外は色変えしない＝重み 0（積まない）。ただし画像入り（UseLayer）は画像を箱の外にも貼るので、重みも M × α × 不透明度で積む
         // （「箱の中だけ」は画像の色変えにしか効かない。CSComposite と同じ）
         if (UseLayer == 0 && GradientOutsideBox(position)) return;
@@ -292,9 +323,7 @@ void CSComposite(uint3 id : SV_DispatchThreadID)
     float t = 0.0;
     if (UseGradient != 0)
     {
-        int2 pq = int2((float2(id.xy) + 0.5) * float2(PosWidth, PosHeight) / float2(Width, Height));
-        pq = clamp(pq, int2(0, 0), int2(PosWidth - 1, PosHeight - 1));
-        t = GradientT(PosMap[pq]);
+        t = GradientT(LoadGradient(id.xy));
     }
     float strength = UseGradient != 0 ? lerp(_Strength, _Strength2, t) : _Strength;
     int2 q = int2((float2(id.xy) + 0.5) * float2(MaskWidth, MaskHeight) / float2(Width, Height));
@@ -317,9 +346,7 @@ void CSOverlayOpacity(uint3 id : SV_DispatchThreadID)
     float t = 0.0;
     if (UseGradient != 0)
     {
-        int2 pq = int2((float2(id.xy) + 0.5) * float2(PosWidth, PosHeight) / float2(Width, Height));
-        pq = clamp(pq, int2(0, 0), int2(PosWidth - 1, PosHeight - 1));
-        t = GradientT(PosMap[pq]);
+        t = GradientT(LoadGradient(id.xy));
     }
     float strength = UseGradient != 0 ? lerp(_Strength, _Strength2, t) : _Strength;
     Dst[id.xy] = float4(src.rgb, src.a * saturate(strength));

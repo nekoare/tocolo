@@ -819,7 +819,8 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
             // グラデーションの「箱の中だけ」が ON なら、箱の外は色が変わらないので縞も箱の中だけにする（ユーザー要望 2026-10-03）。
             // 判定は縞を描くシェーダーの中で、色変えと同じ式で行う
             SelectionHighlight.BoxClip? clip = null;
-            if (edit.gradientEnabled && edit.gradientInsideOnly && plan.root != null && renderers != null)
+            // 毛先からのグラデーションは箱で切らないので、縞は選択範囲全体に出す（毛先からの範囲で切る縞は作っていない）
+            if (edit.gradientEnabled && edit.gradientInsideOnly && edit.gradientShape == GradientShape.Box && plan.root != null && renderers != null)
             {
                 var positions = PositionMap.GetOrBuild(
                     plan.root, renderers, texture, result.width, result.height, RecolorPipeline.FillIterations(new[] { job }));
@@ -1040,6 +1041,7 @@ namespace Nekoare.ClickRecolor.Editor.NDMF
             IslandMaskCache.ClearCache();
             CoverageMask.ClearCache();
             PositionMap.ClearCache();
+            TipMap.ClearCache();
             UvChartDetector.ClearCache();
             UvTwinDetector.ClearCache();
             s_warned.Clear();

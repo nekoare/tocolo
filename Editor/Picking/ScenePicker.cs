@@ -75,7 +75,11 @@ namespace Nekoare.ClickRecolor.Editor.Picking
         public float LastSkippedTexturelessDistance { get; private set; } = float.PositiveInfinity;
 
         /// <param name="alphaSampler">ヒット位置のテクスチャ α を返す（null なら透明スキップをしない）</param>
-        public bool TryPick(Ray ray, IReadOnlyList<Renderer> renderers, Func<PickHit, float> alphaSampler, out PickHit result)
+        /// <param name="underCursor">
+        /// renderers が Unity の Scene ピックで「マウスの下に描かれている」と確かめた物なら true。境界の箱で除外しない
+        /// （箱が小さい・ずれていても描画はされるので、はみ出した毛先などが見えているのに触れなくなる。数は少ないので重くならない）
+        /// </param>
+        public bool TryPick(Ray ray, IReadOnlyList<Renderer> renderers, Func<PickHit, float> alphaSampler, out PickHit result, bool underCursor = false)
         {
             result = default;
             LastSkippedTextureless = false;
@@ -84,7 +88,7 @@ namespace Nekoare.ClickRecolor.Editor.Picking
             for (int i = 0; i < renderers.Count; i++)
             {
                 var renderer = renderers[i];
-                if (renderer == null || !renderer.bounds.IntersectRay(ray)) continue;
+                if (renderer == null || (!underCursor && !MeshRaycaster.BoundsMayHit(renderer, ray))) continue;
                 var entry = GetMeshData(renderer);
                 if (entry == null) continue;
                 MeshRaycaster.RaycastMeshAll(ray, GetArrays(entry), entry.localToWorld, renderer, _hits);

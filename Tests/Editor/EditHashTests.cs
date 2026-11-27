@@ -19,6 +19,7 @@ namespace Nekoare.ClickRecolor.Tests
             nameof(RecolorEdit.seedColor),
             nameof(RecolorEdit.confirmed),
             nameof(RecolorEdit.gradientInitialized),
+            nameof(RecolorEdit.gradientTipTopInitialized),
             nameof(RecolorEdit.decalInitialized),
             // お手本の控えはプレビューが書き換えるので、コンポーネントの観測に入れると同じ内容で 2 回作り直す。結果のキャッシュ鍵にだけ入れる
             nameof(RecolorEdit.matchProfileData),

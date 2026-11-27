@@ -150,6 +150,18 @@ namespace Nekoare.ClickRecolor
         public Vector3 gradientBoxSize = Vector3.one;
         /// <summary>true なら箱の外側（上下・横のどこでも）は t=0（新しい色のまま）。false なら箱の Y 方向だけで混ぜ、横の外側にも続く</summary>
         public bool gradientInsideOnly;
+        /// <summary>混ぜ具合の決め方（箱の Y 軸／毛先から）</summary>
+        public GradientShape gradientShape;
+        /// <summary>毛先から: true なら長さを房の長さの割合（gradientTipRatio）で、false なら距離（gradientTipLength）で決める</summary>
+        public bool gradientTipUseRatio;
+        /// <summary>毛先から: 色 2（毛先）から色 1 になるまでの面に沿った距離（m、対象ルートのローカルの長さ）</summary>
+        [Range(0.005f, 0.5f)] public float gradientTipLength = 0.05f;
+        /// <summary>毛先から: 色 2（毛先）から色 1 になるまでの長さの、房の長さに対する割合</summary>
+        [Range(0.01f, 1f)] public float gradientTipRatio = 0.3f;
+        /// <summary>毛先から: てっぺん（対象ルートのローカル座標）。房の中でここから一番遠い所を毛先とする</summary>
+        public Vector3 gradientTipTop;
+        /// <summary>てっぺんの初期値（選択範囲から決めた位置）を入れたか。「毛先から」に初めて切り替えたときに入れる</summary>
+        public bool gradientTipTopInitialized;
         /// <summary>
         /// グラデーションを一度 ON にして初期値（色 2・箱）を入れたか。OFF→ON では入れ直さず前の内容を使う（ユーザー要望 2026-10-05）。
         /// 初期値に戻すのはパネルの［リセット］（GradientBox.ResetSettings）

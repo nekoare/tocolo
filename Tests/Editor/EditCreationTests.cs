@@ -1274,6 +1274,43 @@ namespace Nekoare.ClickRecolor.Tests
         }
 
         [Test]
+        public void メッシュ内だけは同じ画像を使う別のメッシュのパーツを足さず_選んでいるメッシュの残りだけ足す()
+        {
+            var (component, renderer, texture) = MakeChartAvatar();
+            AddSameTextureRenderer(component, renderer);
+            var edit = RecolorSceneTool.CreateEditFromHit(component, MakeChartHit(renderer, texture, 0, ChartPx(20, 10)), null);
+
+            Assert.That(RemainingParts.Add(component, edit, seedMeshesOnly: true), Is.EqualTo(1), "選んでいるメッシュのチャート B だけ");
+            Assert.That(edit.extraSeeds.TrueForAll(s => s.renderer == renderer), Is.True, "別のメッシュには点を足さない");
+            Assert.That(RemainingParts.Add(component, edit), Is.EqualTo(2), "残りのパーツも選ぶなら、別のメッシュの 2 チャートも足す");
+        }
+
+        [Test]
+        public void メッシュ内だけで広げた後に別のメッシュの点を足してもう一度押すと_そのメッシュも広がる()
+        {
+            var (component, renderer, texture) = MakeChartAvatar();
+            var otherRenderer = AddSameTextureRenderer(component, renderer);
+            var edit = RecolorSceneTool.CreateEditFromHit(component, MakeChartHit(renderer, texture, 0, ChartPx(20, 10)), null);
+            RemainingParts.Add(component, edit, seedMeshesOnly: true);
+
+            // Ctrl＋クリックで別のメッシュのチャート A を足したのと同じ
+            edit.extraSeeds.Add(new RecolorSeed { renderer = otherRenderer, submesh = 0, triangle = 0, uv = ChartPx(20, 10) });
+
+            Assert.That(RemainingParts.Add(component, edit, seedMeshesOnly: true), Is.EqualTo(1), "足したメッシュのチャート B だけ（最初のメッシュは選び終えている）");
+            Assert.That(edit.extraSeeds.FindAll(s => s.renderer == otherRenderer).Count, Is.EqualTo(2));
+        }
+
+        private Renderer AddSameTextureRenderer(ClickRecolor component, Renderer renderer)
+        {
+            var other = new GameObject("Other");
+            other.transform.SetParent(component.transform);
+            other.AddComponent<MeshFilter>().sharedMesh = MakeTwoChartMesh();
+            var otherRenderer = other.AddComponent<MeshRenderer>();
+            otherRenderer.sharedMaterials = renderer.sharedMaterials;
+            return otherRenderer;
+        }
+
+        [Test]
         public void 古い全体の印はまたいで足したメンバーに写さず_Ctrlクリックでパーツの集まりに置き換えてから外す()
         {
             var (component, renderer, texture) = MakeChartAvatar();

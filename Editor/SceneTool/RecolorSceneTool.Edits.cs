@@ -230,44 +230,13 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             RemainingParts.ConvertLegacyWholeTexture(component, edit);
             if (edit.extraSeeds == null) edit.extraSeeds = new List<RecolorSeed>();
 
-            // 島モードは主種の島もクリックで外せる
-            if (edit.mode == SelectionMode.Island
-                && IsSameIsland(edit.seedRenderer, edit.seedSubmesh, edit.seedTriangle, hit.renderer, hit.subMeshIndex, hit.triangleIndex))
+            var removed = TryRemoveSeed(component, edit, hit.renderer, hit.subMeshIndex, hit.triangleIndex, out var rest);
+            if (removed != SeedToggleResult.None)
             {
-                if (edit.extraSeeds.Count == 0)
-                {
-                    if (EditGroups.IsGrouped(edit))
-                    {
-                        // 島の連結のメンバーの最後の種 = そのメンバーだけ削除（連結の残りは残す）
-                        var rest = EditGroups.RemoveMember(component, edit);
-                        EditorUtility.SetDirty(component);
-                        ToolSession.CurrentEditId = rest?.id;
-                        return rest != null ? SeedToggleResult.MemberRemoved : SeedToggleResult.EditRemoved;
-                    }
-                    // 最後の種を外す = 編集を削除
-                    EditGroups.RemoveGroup(component, edit);
-                    EditorUtility.SetDirty(component);
-                    ToolSession.CurrentEditId = null;
-                    return SeedToggleResult.EditRemoved;
-                }
-                var head = edit.extraSeeds[0];
-                edit.extraSeeds.RemoveAt(0);
-                edit.seedRenderer = head.renderer;
-                edit.seedSubmesh = head.submesh;
-                edit.seedTriangle = head.triangle;
-                edit.seedUv = head.uv;
                 EditorUtility.SetDirty(component);
-                return SeedToggleResult.Removed;
-            }
-
-            for (int i = 0; i < edit.extraSeeds.Count; i++)
-            {
-                var seed = edit.extraSeeds[i];
-                if (seed == null) continue;
-                if (!IsSameIsland(seed.renderer, seed.submesh, seed.triangle, hit.renderer, hit.subMeshIndex, hit.triangleIndex)) continue;
-                edit.extraSeeds.RemoveAt(i);
-                EditorUtility.SetDirty(component);
-                return SeedToggleResult.Removed;
+                if (removed == SeedToggleResult.MemberRemoved) ToolSession.CurrentEditId = rest?.id;
+                else if (removed == SeedToggleResult.EditRemoved) ToolSession.CurrentEditId = null;
+                return removed;
             }
 
             edit.extraSeeds.Add(new RecolorSeed
@@ -280,6 +249,113 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             });
             EditorUtility.SetDirty(component);
             return SeedToggleResult.Added;
+        }
+
+        /// <summary>
+        /// edit の種のうち (renderer, submesh, triangle) と同じ島を 1 つ外す（Undo 記録・SetDirty・CurrentEditId は呼ぶ側）。
+        /// 島モードなら主種も外せる（追加の種の先頭を主種に繰り上げる）。色モードの主種は外さない。
+        /// 最後の種を外すと、連結のメンバーならそのメンバーだけ削除（MemberRemoved。rest は連結の残り）、単独なら編集を削除（EditRemoved）。
+        /// 同じ島が種に無ければ None
+        /// </summary>
+        private static SeedToggleResult TryRemoveSeed(ClickRecolor component, RecolorEdit edit, Renderer renderer, int submesh, int triangle,
+            out RecolorEdit rest)
+        {
+            rest = null;
+            if (edit.mode == SelectionMode.Island && IsSameIsland(edit.seedRenderer, edit.seedSubmesh, edit.seedTriangle, renderer, submesh, triangle))
+            {
+                if (edit.extraSeeds == null || edit.extraSeeds.Count == 0)
+                {
+                    if (EditGroups.IsGrouped(edit))
+                    {
+                        rest = EditGroups.RemoveMember(component, edit);
+                        return rest != null ? SeedToggleResult.MemberRemoved : SeedToggleResult.EditRemoved;
+                    }
+                    EditGroups.RemoveGroup(component, edit);
+                    return SeedToggleResult.EditRemoved;
+                }
+                var head = edit.extraSeeds[0];
+                edit.extraSeeds.RemoveAt(0);
+                edit.seedRenderer = head.renderer;
+                edit.seedSubmesh = head.submesh;
+                edit.seedTriangle = head.triangle;
+                edit.seedUv = head.uv;
+                return SeedToggleResult.Removed;
+            }
+            if (edit.extraSeeds == null) return SeedToggleResult.None;
+            for (int i = 0; i < edit.extraSeeds.Count; i++)
+            {
+                var seed = edit.extraSeeds[i];
+                if (seed == null || !IsSameIsland(seed.renderer, seed.submesh, seed.triangle, renderer, submesh, triangle)) continue;
+                edit.extraSeeds.RemoveAt(i);
+                return SeedToggleResult.Removed;
+            }
+            return SeedToggleResult.None;
+        }
+
+        /// <summary>
+        /// Ctrl＋Shift＋ドラッグ: 矩形で集めた島 islands を、編集 edit の連結（テクスチャごとのメンバー）の種から外す。足しはしない。
+        /// 断る条件は ApplyRectSeeds と同じ（色モード・「アバター全体」の連結）。種が 0 になったメンバー・編集は Ctrl＋クリックと同じく削除する。
+        /// 「マテリアルをまたいで選ぶ」は見ない: 外すだけなので、連結済みの別テクスチャのメンバーから外しても意図に反しない。
+        /// CurrentEditId が削除されたら連結の残りに移す。Undo 記録は外す島があるときに 1 回
+        /// </summary>
+        internal static RectSeedResult RemoveRectSeeds(ClickRecolor component, RecolorEdit edit, IReadOnlyList<RectIsland> islands)
+        {
+            var result = new RectSeedResult();
+            if (component == null || edit == null || islands == null) return result;
+            if (edit.mode != SelectionMode.Island)
+            {
+                ToolSession.ShowTransientNotice("Scene:Panel:RectColorModeNotice");
+                result.rejected = true;
+                return result;
+            }
+            if (EditGroups.IsWholeAvatarGroup(edit))
+            {
+                ToolSession.ShowTransientNotice("Scene:Panel:CtrlGroupNotice");
+                result.rejected = true;
+                return result;
+            }
+            ConvertLegacyWholeTextureInGroup(component, edit);
+
+            // 削除で連結が組み替わっても追えるよう、先にメンバーを控えておく
+            var members = new List<RecolorEdit>(EditGroups.Members(component, edit));
+            RecolorEdit MemberFor(Texture2D texture) => members.Find(m => m != null && m.sourceTexture == texture);
+
+            bool any = false;
+            foreach (var island in islands)
+            {
+                var target = MemberFor(island.texture);
+                if (target != null && ContainsIsland(target, new List<RecolorSeed>(), island)) { any = true; break; }
+            }
+            if (!any) return result;
+
+            Undo.RecordObject(component, "Tocolo: 範囲内の島を外す");
+            foreach (var island in islands)
+            {
+                var target = MemberFor(island.texture);
+                if (target == null) continue;
+                var removed = TryRemoveSeed(component, target, island.renderer, island.submesh, island.triangle, out _);
+                if (removed == SeedToggleResult.None) continue;
+                result.removed++;
+                if (removed == SeedToggleResult.MemberRemoved)
+                {
+                    members.Remove(target);
+                    result.membersRemoved++;
+                }
+                else if (removed == SeedToggleResult.EditRemoved)
+                {
+                    members.Clear();
+                    result.editRemoved = true;
+                    break;
+                }
+            }
+            EditorUtility.SetDirty(component);
+            if (result.editRemoved) ToolSession.CurrentEditId = null;
+            else if (result.membersRemoved > 0)
+            {
+                if (!members.Exists(m => m.id == ToolSession.CurrentEditId)) ToolSession.CurrentEditId = members.Count > 0 ? members[0].id : null;
+                ToolSession.PublishHighlight();
+            }
+            return result;
         }
 
         /// <summary>

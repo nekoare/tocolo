@@ -14,23 +14,30 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         /// <summary>
         /// edit のテクスチャを使うパーツ（除外リストの Renderer を除く）のうち、主種・追加の種と同じパーツでないものを 1 パーツ 1 種で足す。
         /// パーツはメッシュ・サブメッシュ・チャートで同一視する（同じメッシュを使う別の Renderer は足さない）。足した数を返す。
+        /// seedMeshesOnly なら、edit の点（主種・追加の種）が乗っている Renderer の中だけを見る（［＋メッシュ内だけ］）。
+        /// 連結のメンバーごとに呼べば、メンバーごとに自分の点のメッシュの中だけ広がる。
         /// Undo.RecordObject・SetDirty は呼び出し側
         /// </summary>
-        internal static int Add(ClickRecolor component, RecolorEdit edit)
+        internal static int Add(ClickRecolor component, RecolorEdit edit, bool seedMeshesOnly = false)
         {
             if (component == null || edit == null || edit.sourceTexture == null) return 0;
             if (edit.extraSeeds == null) edit.extraSeeds = new List<RecolorSeed>();
 
             var known = new HashSet<(int mesh, int submesh, int chart)>();
+            var seedRenderers = new HashSet<Renderer>();
             AddKnown(known, edit.seedRenderer, edit.seedSubmesh, edit.seedTriangle);
+            if (edit.seedRenderer != null) seedRenderers.Add(edit.seedRenderer);
             foreach (var seed in edit.extraSeeds)
             {
-                if (seed != null) AddKnown(known, seed.renderer, seed.submesh, seed.triangle);
+                if (seed == null) continue;
+                AddKnown(known, seed.renderer, seed.submesh, seed.triangle);
+                if (seed.renderer != null) seedRenderers.Add(seed.renderer);
             }
 
             int added = 0;
             foreach (var renderer in RecolorSceneTool.CollectPreviewRenderers(component.gameObject))
             {
+                if (seedMeshesOnly && !seedRenderers.Contains(renderer)) continue;
                 if (component.excludedRenderers != null && component.excludedRenderers.Contains(renderer)) continue;
                 var mesh = RendererMeshAccess.GetSharedMesh(renderer);
                 if (mesh == null || !mesh.isReadable) continue;

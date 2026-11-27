@@ -200,21 +200,104 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             GUILayout.Space(GradientIndent);
             using (new EditorGUILayout.VerticalScope())
             {
+            // 混ぜ方［箱｜毛先グラデ］を先に、その設定（長さ・箱の中だけ）を続けて置き、色の見本はその下。
+            // 押したイベントの中で部品の数が変わらないよう、押す前の値で長さの行を出すか決める
+            bool tips = edit.gradientShape == GradientShape.Tips;
+            int shape = WithHelp("Help:GradientShape", () => GUILayout.Toolbar(tips ? 1 : 0, new[]
+            {
+                Locales.Tr("Scene:Color:GradientShape:Box"),
+                Locales.Tr("Scene:Color:GradientShape:Tips"),
+            }));
+            if (shape != (tips ? 1 : 0))
+            {
+                GradientBox.SetShape(component, edit, shape == 1 ? GradientShape.Tips : GradientShape.Box);
+                SceneView.RepaintAll();
+            }
+            if (tips) DrawTipLength(component, edit);
+
+            // 箱の中だけグラデーションにするか（外側は元の色のまま）。毛先からでは効かないので出さない（値は残し、箱に戻すと効く）
+            if (!tips)
+            {
+                bool insideOnly = WithHelp("Help:GradientInsideOnly",
+                    () => EditorGUILayout.ToggleLeft(Locales.Tr("Scene:Color:GradientInsideOnly"), edit.gradientInsideOnly));
+                if (insideOnly != edit.gradientInsideOnly)
+                {
+                    Undo.RecordObject(component, "Tocolo: 箱の中だけを変更");
+                    EditGroups.ForEachInGroup(component, edit, e => e.gradientInsideOnly = insideOnly);
+                    EditorUtility.SetDirty(component);
+                }
+            }
+
             // 色 1 → 色 2 の見本と▲、色 1・色 2 の切り替え（ホイール・スライダー・最近の色をどの色に効かせるか）。
             // 帯は字下げと枠の余白を越えて、枠線（1px）の内側いっぱいに広げる
             DrawGradientRow(component, edit, GradientIndent + BlockPadding - 1f, BlockPadding - 1f);
+            }
+            }
+        }
 
-            // 箱の中だけグラデーションにするか（外側は「新しい色」のまま）
-            bool insideOnly = WithHelp("Help:GradientInsideOnly",
-                () => EditorGUILayout.ToggleLeft(Locales.Tr("Scene:Color:GradientInsideOnly"), edit.gradientInsideOnly));
-            if (insideOnly != edit.gradientInsideOnly)
+        private const float TipPickButtonWidth = 24f;
+        private static GUIContent s_tipPickContent;
+
+        /// <summary>
+        /// 長さを Scene で選ぶボタンの中身（エディタ組み込みの画鋲のアイコン。無ければ文字）。
+        /// 色のスポイトと同じ絵にすると、同じパネルで働きの違うボタンを押し間違えるので、場所を指す絵にする
+        /// </summary>
+        private static GUIContent TipPickContent
+        {
+            get
             {
-                Undo.RecordObject(component, "Tocolo: 箱の中だけを変更");
-                EditGroups.ForEachInGroup(component, edit, e => e.gradientInsideOnly = insideOnly);
-                EditorUtility.SetDirty(component);
+                if (s_tipPickContent == null)
+                {
+                    var icon = EditorGUIUtility.Load("icons/SceneTemplate/pinned.png") as Texture2D;
+                    s_tipPickContent = icon != null
+                        ? new GUIContent(icon, Locales.Tr("Scene:Color:GradientTipPick"))
+                        : new GUIContent(Locales.Tr("Scene:Color:GradientTipPickShort"), Locales.Tr("Scene:Color:GradientTipPick"));
+                }
+                return s_tipPickContent;
             }
+        }
+
+        /// <summary>
+        /// 毛先からの長さ: スライダー（cm なら面に沿った距離、% なら房の長さに対する割合）と［cm｜%］の切り替え。
+        /// 値は RecolorEdit にメートル・割合（0..1）で持つ。連結なら連結の全編集に効かせる
+        /// </summary>
+        private static void DrawTipLength(ClickRecolor component, RecolorEdit edit)
+        {
+            bool ratio = edit.gradientTipUseRatio;
+            float length = edit.gradientTipLength;
+            float tipRatio = edit.gradientTipRatio;
+            bool newRatio;
+            // 見出しは置かない（［cm｜%］が単位なので何の値か分かる。見出しを付けるとパネルの幅でスライダーが潰れて消える）
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                if (ratio) tipRatio = EditorGUILayout.Slider(tipRatio * 100f, 1f, 100f) / 100f;
+                else length = EditorGUILayout.Slider(length * 100f, 0.5f, 50f) / 100f;
+                // Scene の髪をクリック・なぞって長さを決める（スポイトと同じ「押してから Scene をクリック」）
+                bool picking = GUILayout.Toggle(ToolSession.TipPickActive, TipPickContent, EditorStyles.miniButton,
+                    GUILayout.Width(TipPickButtonWidth), GUILayout.Height(EditorGUIUtility.singleLineHeight));
+                if (picking != ToolSession.TipPickActive)
+                {
+                    ToolSession.TipPickActive = picking;
+                    SceneView.RepaintAll();
+                }
+                newRatio = GUILayout.Toolbar(ratio ? 1 : 0, new[]
+                {
+                    Locales.Tr("Scene:Color:GradientTipUnit:Cm"),
+                    Locales.Tr("Scene:Color:GradientTipUnit:Ratio"),
+                }, GUILayout.Width(56f)) == 1;
+                HelpMark.Draw("Help:GradientTipLength");
             }
-            }
+            HelpMark.DrawBoxIfOpen("Help:GradientTipLength");
+            if (newRatio == ratio && Mathf.Approximately(length, edit.gradientTipLength) && Mathf.Approximately(tipRatio, edit.gradientTipRatio)) return;
+            BeginDragIfGrabbing("Tocolo: 毛先からの長さを変更");
+            Undo.RecordObject(component, "Tocolo: 毛先からの長さを変更");
+            EditGroups.ForEachInGroup(component, edit, e =>
+            {
+                e.gradientTipUseRatio = newRatio;
+                e.gradientTipLength = length;
+                e.gradientTipRatio = tipRatio;
+            });
+            EditorUtility.SetDirty(component);
         }
     }
 }

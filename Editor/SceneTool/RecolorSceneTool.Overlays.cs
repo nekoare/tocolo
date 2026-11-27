@@ -5,6 +5,7 @@ using Nekoare.ClickRecolor.Editor.Masks;
 using Nekoare.ClickRecolor.Editor.NDMF;
 using Nekoare.ClickRecolor.Editor.Picking;
 using Nekoare.ClickRecolor.Editor.Pipeline;
+using Nekoare.ClickRecolor.Editor.UpdateCheck;
 using UnityEditor;
 using UnityEditor.EditorTools;
 using UnityEditor.Overlays;
@@ -35,6 +36,8 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 // 除外リスト・編集一覧はボタンで開くので、ツールの終了時に閉じるだけ（小窓「表示切替」は SyncDisplayed が開く）
                 if (!displayed) PanelSideOverlay.CloseAll(view);
                 if (!displayed && view.TryGetOverlay(BoxToggleOverlay.Id, out Overlay boxes)) boxes.displayed = false;
+                // 更新のお知らせは出す物があるときだけ KeepNoticeAboveHint が開く
+                if (!displayed && view.TryGetOverlay(UpdateNoticeOverlay.Id, out Overlay notice)) notice.displayed = false;
             }
         }
 
@@ -112,6 +115,81 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             catch (System.Exception e)
             {
                 Debug.LogWarning($"[Tocolo] 操作案内の位置を設定できませんでした: {e.Message}");
+            }
+        }
+
+        private const string NoticePosXKey = "ClickRecolor.UpdateNoticePos.x";
+        private const string NoticePosYKey = "ClickRecolor.UpdateNoticePos.y";
+        /// <summary>「操作」の小窓との縦の間隔</summary>
+        private const float NoticeGap = 6f;
+        /// <summary>お知らせの中身が未測定のときの推定の高さ（説明 4 行＋ボタン 2 行）</summary>
+        private const float NoticeEstimatedContentHeight = 110f;
+        /// <summary>SceneView ごとの、前回お知らせを置いたときの Scene の大きさ・お知らせの高さ・「操作」の y（置き直しの検知用）</summary>
+        private static readonly Dictionary<int, Vector4> s_noticePlacedKey = new Dictionary<int, Vector4>();
+        /// <summary>
+        /// SceneView ごとの、見切れ防止・既定位置でこちらが最後に設定したお知らせの位置（ユーザーの移動と区別するため）。
+        /// 全 Scene で 1 つにすると、大きさの違う Scene を 2 つ開いたとき互いの位置を「動かされた」と取り違え、毎回保存し合う
+        /// </summary>
+        private static readonly Dictionary<int, Vector2> s_lastAppliedNoticePos = new Dictionary<int, Vector2>();
+
+        private static float NoticeHeight =>
+            (UpdateNoticeOverlay.LastContentHeight > 0f ? UpdateNoticeOverlay.LastContentHeight : NoticeEstimatedContentHeight) + OverlayFrameHeight;
+
+        /// <summary>
+        /// 更新のお知らせの出し入れと位置合わせ（Layout ごと）。「操作」の小窓と同じく、動かされたら覚え、
+        /// Scene の大きさ・中身の高さ・「操作」の位置が変わったら置き直す
+        /// </summary>
+        private static void KeepNoticeAboveHint(SceneView view)
+        {
+            int id = view.GetInstanceID();
+            // 隠れている間は置いた記録を捨てる（次に出たとき、その時点の Scene に合わせて置き直す）
+            if (!UpdateNoticeOverlay.SyncDisplayed(view)) { s_noticePlacedKey.Remove(id); s_lastAppliedNoticePos.Remove(id); return; }
+            if (!view.TryGetOverlay(UpdateNoticeOverlay.Id, out Overlay notice)) return;
+            SaveNoticePositionIfMoved(id, notice);
+            float hintTop = view.TryGetOverlay(HintOverlay.Id, out Overlay hint) && hint.displayed && hint.floating
+                ? hint.floatingPosition.y
+                : view.position.height;
+            var key = new Vector4(view.position.width, view.position.height, NoticeHeight, hintTop);
+            if (s_noticePlacedKey.TryGetValue(id, out var last) && last == key) return;
+            s_noticePlacedKey[id] = key;
+            PlaceNoticeAboveHint(view, notice, hintTop);
+        }
+
+        // その Scene でまだこちらが置いていない間（出した直後・レイアウトの復元直後）は判定しない。復元された位置を「動かされた」と保存してしまうため
+        private static void SaveNoticePositionIfMoved(int viewId, Overlay notice)
+        {
+            if (!notice.floating || !s_lastAppliedNoticePos.TryGetValue(viewId, out var applied)) return;
+            var pos = notice.floatingPosition;
+            if ((pos - applied).sqrMagnitude < 0.25f) return;
+            EditorPrefs.SetFloat(NoticePosXKey, pos.x);
+            EditorPrefs.SetFloat(NoticePosYKey, pos.y);
+            s_lastAppliedNoticePos[viewId] = pos;
+        }
+
+        /// <summary>
+        /// 覚えた位置があれば Scene に収まるよう詰めて使い、無ければ右下の「操作」のすぐ上に置く。
+        /// 下・右に見切れず、上はツールバーに重ならない範囲に収める
+        /// </summary>
+        private static void PlaceNoticeAboveHint(SceneView view, Overlay notice, float hintTop)
+        {
+            try
+            {
+                notice.Undock();
+                float height = NoticeHeight;
+                float width = OverlayScaler.ActualWidth(notice,
+                    UpdateNoticeOverlay.LastContentWidth > 0f ? UpdateNoticeOverlay.LastContentWidth : UpdateNoticeOverlay.Width);
+                float maxX = Mathf.Max(0f, view.position.width - width - 12f);
+                float maxY = Mathf.Max(ToolPanelOverlay.TopMargin, view.position.height - height - 12f);
+                var pos = EditorPrefs.HasKey(NoticePosXKey)
+                    ? new Vector2(EditorPrefs.GetFloat(NoticePosXKey), EditorPrefs.GetFloat(NoticePosYKey))
+                    : new Vector2(maxX, hintTop - height - NoticeGap);
+                pos = new Vector2(Mathf.Clamp(pos.x, 0f, maxX), Mathf.Clamp(pos.y, ToolPanelOverlay.TopMargin, maxY));
+                notice.floatingPosition = pos;
+                s_lastAppliedNoticePos[view.GetInstanceID()] = pos;
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogWarning($"[Tocolo] 更新のお知らせの位置を設定できませんでした: {e.Message}");
             }
         }
 

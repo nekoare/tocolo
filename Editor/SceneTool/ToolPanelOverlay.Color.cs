@@ -483,12 +483,26 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
 
             // 色 1・色 2 は▲のほかに切り替えでも選べる（途中の色を選んでいるあいだはどちらも押されていない表示）
             int current = target.IsStart ? 0 : target.IsEnd ? 1 : -1;
-            int selected = GUILayout.Toolbar(current, new[]
+            using (new EditorGUILayout.HorizontalScope())
             {
-                Locales.Tr("Scene:Color:EditTarget:Start"),
-                Locales.Tr("Scene:Color:EditTarget:End"),
-            });
-            if (selected != current && selected >= 0) SelectEditingTarget(selected == 1 ? GradientTarget.End : GradientTarget.Start);
+                int selected = GUILayout.Toolbar(current, new[]
+                {
+                    Locales.Tr("Scene:Color:EditTarget:Start"),
+                    Locales.Tr("Scene:Color:EditTarget:End"),
+                });
+                if (selected != current && selected >= 0) SelectEditingTarget(selected == 1 ? GradientTarget.End : GradientTarget.Start);
+                // 記号は日本語フォントに必ずある ⇔ にする（⇄ や ♲ はフォントに無く豆腐になる環境がある）。何をするかはツールチップで伝える
+                if (GUILayout.Button(new GUIContent("⇔", Locales.Tr("Help:SwapGradientEnds")),
+                        GUILayout.ExpandWidth(false)))
+                {
+                    GradientBox.SwapEnds(component, edit);
+                    // 途中の色は並びが逆になるので、選んでいた色を選んだままにする
+                    if (target.MidIndex >= 0 && edit.gradientMidStops != null)
+                    {
+                        SelectEditingTarget(GradientTarget.Mid(edit.gradientMidStops.Count - 1 - target.MidIndex));
+                    }
+                }
+            }
         }
 
         /// <summary>位置 position に途中の色を足して選ぶ（色はその位置の今の色＝足しただけでは見た目が変わらない）。連結なら連結の全編集に足す</summary>

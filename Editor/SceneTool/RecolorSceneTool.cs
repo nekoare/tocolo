@@ -54,6 +54,12 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         public int membersCreated;
         /// <summary>色モード・「アバター全体」の連結なので何もしなかった</summary>
         public bool rejected;
+        /// <summary>外した島の数（Ctrl＋Shift＋ドラッグ）</summary>
+        public int removed;
+        /// <summary>種が 0 になって削除した連結のメンバーの数</summary>
+        public int membersRemoved;
+        /// <summary>種が 0 になって編集ごと削除した</summary>
+        public bool editRemoved;
     }
 
     [EditorTool("Tocolo")]
@@ -69,6 +75,9 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
 
         private static readonly Color RectFillColor = new Color(1f, 0.7f, 0.1f, 0.15f);
         private static readonly Color RectBorderColor = new Color(1f, 0.7f, 0.1f, 0.9f);
+        /// <summary>Ctrl＋Shift＋ドラッグ（範囲内のパーツを外す）の矩形の色。足す矩形と見分けられるよう赤系にする</summary>
+        private static readonly Color RectRemoveFillColor = new Color(1f, 0.25f, 0.2f, 0.15f);
+        private static readonly Color RectRemoveBorderColor = new Color(1f, 0.25f, 0.2f, 0.9f);
 
         /// <summary>Ctrl＋押下からこれ以上（GUI のポイント）動かしたら矩形選択にする。未満ならクリック</summary>
         private const float RectDragThreshold = 4f;
@@ -93,6 +102,8 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         private static int s_lastLoggedForeignControl;
         private bool _rectActive;
         private bool _ctrlPressShift;
+        /// <summary>矩形が「外す」（Shift を押している）か。ドラッグ中・キーの上げ下げで追い、離したときの Shift で最終的に決める</summary>
+        private bool _rectRemove;
         private Vector2 _rectStart;
         private Vector2 _rectEnd;
 
@@ -167,6 +178,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         {
             _picker = new ScenePicker();
             ToolPanelOverlay.ResetAutoSelect(); // 自動選択は有効化ごとに 1 回だけ
+            UpdateCheck.UpdateNoticeOverlay.Dismissed = false; // ［閉じる］は次にツールを始めるまで
             // 終了時に消したハイライトを戻す（ドメインリロード後はハイライト状態が既定に戻っているので入れ直す）
             ToolSession.PublishHighlight();
             // 対象（ルート）は Activate() が ToolSession に入れている。
@@ -196,6 +208,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             ToolSession.HideHighlight();
             ToolSession.EyedropperActive = false;
             ToolSession.MatchPickActive = false;
+            EndTipPick();
             // なぞりの途中で終了したら、そこまでなぞった分を保存して道具を置く
             FinishBrushStroke();
             ToolSession.Brush = BrushMode.None;
@@ -234,13 +247,15 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             if (s_capturedControl == 0) return;
             string reason = null;
             if (GUIUtility.hotControl != s_capturedControl) reason = "ほかで放された";
-            else if (!_ctrlPressPending && !_imagePressPending && !_brushStroke) reason = "押下中の印が無いのに掴んだまま";
+            else if (!_ctrlPressPending && !_imagePressPending && !_brushStroke && _tipPickUndoGroup < 0) reason = "押下中の印が無いのに掴んだまま";
             else if (e.type == EventType.MouseDown) reason = "離しを取りこぼしたまま次の押下";
             if (reason == null) return;
             // ほかで放されたのは異常ではない（ツールの切り替え等）ので記録しない
             if (GUIUtility.hotControl == s_capturedControl) Debug.Log($"[Tocolo][調査] 掴んだままのマウスを放しました（{reason}）"); // 診断用（2026-10-06。Scene のクリックが効かなくなる件の再発・報告の切り分けに残す。原因が確定したら消す）
             // なぞりの途中なら、そこまでなぞった分は保存する
             FinishBrushStroke();
+            // 長さ選びの途中なら、そこまでを 1 回の Undo にまとめて終える（押したままの扱いが残ると、次のクリックが長さ選びに吸われない・終わらない）
+            if (_tipPickUndoGroup >= 0) EndTipPick();
             EndPress();
         }
 
@@ -251,6 +266,8 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             var e = Event.current;
             // 小窓「箱を表示」はグラデーションか画像が ON の編集を選んでいる間だけ出す（Prefab 編集中は出さない）
             if (e.type == EventType.Layout) BoxToggleOverlay.SyncDisplayed(sceneView);
+            // 更新のお知らせ（同意の確認か新しい版）は出す物があるときだけ、「操作」の小窓の上に出す
+            if (e.type == EventType.Layout) KeepNoticeAboveHint(sceneView);
             // control ID の並びを全イベントで一定にするため、分岐より前に取る（印付きにして、他の部品の数で番号がずれないようにする）
             int controlId = GUIUtility.GetControlID(s_controlHint, FocusType.Passive);
             // 掴んだまま残ったマウスを放す（Scene の左右クリックが効かなくなるのを防ぐ）
@@ -277,10 +294,11 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             if (e.type == EventType.KeyDown && e.keyCode == KeyCode.Escape)
             {
                 e.Use();
-                if (ToolSession.EyedropperActive || ToolSession.MatchPickActive)
+                if (ToolSession.EyedropperActive || ToolSession.MatchPickActive || ToolSession.TipPickActive)
                 {
                     ToolSession.EyedropperActive = false;
                     ToolSession.MatchPickActive = false;
+                    EndTipPick();
                     sceneView.Repaint();
                     return;
                 }
@@ -369,6 +387,9 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             // なぞって調整の道具を持っている間は、左ドラッグをなぞりにする（クリック・ホバー・矩形選択より先）
             if (HandleBrush(e, sceneView, root, controlId)) return;
 
+            // 毛先からの長さを選んでいる間は、左クリック・ドラッグで長さを決める（お手本選び・スポイトと同じく、クリックの意味を変える）
+            if (HandleTipPick(e, sceneView, root, controlId)) return;
+
             if (e.type == EventType.MouseMove)
             {
                 UpdateHover(root, sceneView, e.mousePosition);
@@ -414,6 +435,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                     _ctrlPressPending = true;
                     _rectActive = false;
                     _ctrlPressShift = e.shift;
+                    _rectRemove = e.shift;
                     _rectStart = e.mousePosition;
                     _rectEnd = e.mousePosition;
                     GUIUtility.hotControl = controlId;
@@ -483,9 +505,16 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 // 押したときに掴んだ番号で受ける（万一番号がずれても離しを取りこぼさない）
                 int pressId = s_capturedControl != 0 ? s_capturedControl : controlId;
                 var type = e.GetTypeForControl(pressId);
+                // Shift はドラッグの途中でも押し直せる（矩形の色で今どちらかを見せる）。キーだけの上げ下げでも色を変える
+                if ((type == EventType.KeyDown || type == EventType.KeyUp) && e.shift != _rectRemove)
+                {
+                    _rectRemove = e.shift;
+                    if (_rectActive) sceneView.Repaint();
+                }
                 if (type == EventType.MouseDrag && GUIUtility.hotControl == pressId)
                 {
                     e.Use();
+                    _rectRemove = e.shift;
                     _rectEnd = e.mousePosition;
                     // 矩形選択は UV アイランドモード専用（色モードでは矩形を出さず、離したときに Ctrl＋クリック扱い）
                     if (!_rectActive && ToolSession.Mode == SelectionMode.Island && (_rectEnd - _rectStart).magnitude >= RectDragThreshold) _rectActive = true;
@@ -498,7 +527,8 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                     if (GUIUtility.hotControl == pressId) e.Use();
                     bool rect = _rectActive;
                     EndPress();
-                    if (rect) SelectIslandsInRect(root, sceneView, RectFromPoints(_rectStart, e.mousePosition), _rectStart);
+                    if (rect && e.shift) RemoveIslandsInRect(root, sceneView, RectFromPoints(_rectStart, e.mousePosition));
+                    else if (rect) SelectIslandsInRect(root, sceneView, RectFromPoints(_rectStart, e.mousePosition), _rectStart);
                     else Pick(root, _rectStart, forceNew: _ctrlPressShift, toggleSeed: true);
                     sceneView.Repaint();
                     return;
@@ -510,7 +540,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 if (ToolSession.HoverPick.HasValue) DrawHoverMarker(ToolSession.HoverPick.Value);
                 if (ToolSession.LastPick.HasValue) DrawPickMarker(ToolSession.LastPick.Value);
                 if (ToolSession.BrushSizePreview) DrawBrushSizePreview(sceneView);
-                if (_ctrlPressPending && _rectActive) DrawSelectionRect(RectFromPoints(_rectStart, _rectEnd));
+                if (_ctrlPressPending && _rectActive) DrawSelectionRect(RectFromPoints(_rectStart, _rectEnd), _rectRemove);
             }
         }
 
@@ -571,16 +601,35 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             return Rect.MinMaxRect(Mathf.Min(a.x, b.x), Mathf.Min(a.y, b.y), Mathf.Max(a.x, b.x), Mathf.Max(a.y, b.y));
         }
 
-        /// <summary>Ctrl＋ドラッグ中の矩形（半透明の塗り＋1 ポイントの枠）</summary>
-        private static void DrawSelectionRect(Rect rect)
+        /// <summary>Ctrl＋ドラッグ中の矩形（半透明の塗り＋1 ポイントの枠）。remove なら外す矩形の色</summary>
+        private static void DrawSelectionRect(Rect rect, bool remove)
         {
+            var border = remove ? RectRemoveBorderColor : RectBorderColor;
             Handles.BeginGUI();
-            EditorGUI.DrawRect(rect, RectFillColor);
-            EditorGUI.DrawRect(new Rect(rect.xMin, rect.yMin, rect.width, 1f), RectBorderColor);
-            EditorGUI.DrawRect(new Rect(rect.xMin, rect.yMax - 1f, rect.width, 1f), RectBorderColor);
-            EditorGUI.DrawRect(new Rect(rect.xMin, rect.yMin, 1f, rect.height), RectBorderColor);
-            EditorGUI.DrawRect(new Rect(rect.xMax - 1f, rect.yMin, 1f, rect.height), RectBorderColor);
+            EditorGUI.DrawRect(rect, remove ? RectRemoveFillColor : RectFillColor);
+            EditorGUI.DrawRect(new Rect(rect.xMin, rect.yMin, rect.width, 1f), border);
+            EditorGUI.DrawRect(new Rect(rect.xMin, rect.yMax - 1f, rect.width, 1f), border);
+            EditorGUI.DrawRect(new Rect(rect.xMin, rect.yMin, 1f, rect.height), border);
+            EditorGUI.DrawRect(new Rect(rect.xMax - 1f, rect.yMin, 1f, rect.height), border);
             Handles.EndGUI();
+        }
+
+        /// <summary>
+        /// Ctrl＋Shift＋ドラッグの矩形 guiRect の中に見えている島を、現在の編集（の連結）の種から外す（RemoveRectSeeds）。
+        /// 現在の編集が無ければ何もしない。島の拾い方は SelectIslandsInRect と同じ
+        /// </summary>
+        private void RemoveIslandsInRect(GameObject root, SceneView sceneView, Rect guiRect)
+        {
+            var component = root.GetComponent<ClickRecolor>();
+            var edit = component != null ? component.FindEdit(ToolSession.CurrentEditId) : null;
+            if (edit == null) return;
+            if (_picker == null) _picker = new ScenePicker(); // ドメインリロード直後の保険
+            CollectPickRenderers(root);
+            var islands = ToolSession.SelectHiddenEnabled
+                ? IslandRectPicker.PickThrough(sceneView.camera, guiRect, _renderers, _picker)
+                : IslandRectPicker.Pick(sceneView.camera, guiRect, _renderers, _picker);
+            if (islands.Count == 0) return;
+            RemoveRectSeeds(component, edit, islands);
         }
 
         /// <summary>
@@ -987,7 +1036,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             _pickBlockedByTextureless = false;
             if (visible != null && visible.Count > 0)
             {
-                if (_picker.TryPick(ray, visible, null, out hit))
+                if (_picker.TryPick(ray, visible, null, out hit, underCursor: true))
                 {
                     if (_picker.LastSkippedTextureless
                         && _picker.LastSkippedTexturelessDistance < hit.distance - CoincidentTolerance(hit.distance))

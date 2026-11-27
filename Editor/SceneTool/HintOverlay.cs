@@ -41,9 +41,12 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         private static float s_naturalHeight;
         /// <summary>なぞりの案内を出しているか（直近の Layout で決めたもの）</summary>
         private static bool s_brushShown;
+        /// <summary>毛先グラデの長さを Scene で選んでいる間か（Layout のときに決める。s_brushShown と同じ理由）</summary>
+        private static bool s_tipPickShown;
 
         public override void OnGUI()
         {
+            ToolSession.DropPickToolsOnEscape(Event.current);
             // 中身は基準幅で描き、リサイズの幅に応じて GUI.matrix で拡大する（比率を保つ。ToolPanelOverlay と同じ）
             var scope = OverlayScaler.Begin(this, Width, s_naturalHeight > 0f ? s_naturalHeight : 100f);
             var rect = EditorGUILayout.BeginVertical(GUILayout.Width(Width));
@@ -86,6 +89,17 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                     if (GUILayout.Button(Locales.Tr("Scene:Panel:EscHint"), GUILayout.Height(26))) RecolorSceneTool.Deactivate();
                     return;
                 }
+                // 毛先グラデの長さを選んでいる間はクリックの意味が変わるので、その操作だけを案内する
+                if (Event.current.type == EventType.Layout) s_tipPickShown = ToolSession.TipPickActive;
+                if (s_tipPickShown)
+                {
+                    GUILayout.Label(Locales.Tr("Scene:TipPick:Hint"), EditorStyles.miniLabel);
+                    EditorGUILayout.Space(EditorGUIUtility.singleLineHeight * 0.8f);
+                    GUILayout.Label(Locales.Tr("Scene:TipPick:HintEsc"), EditorStyles.miniLabel);
+                    EditorGUILayout.Space(4);
+                    if (GUILayout.Button(Locales.Tr("Scene:Panel:EscHint"), GUILayout.Height(26))) RecolorSceneTool.Deactivate();
+                    return;
+                }
                 // 編集済みの範囲の再クリックはその編集を選ぶので、新しく作る方法を案内する
                 GUILayout.Label(Locales.Tr("Scene:Panel:ShiftHint"), EditorStyles.miniLabel);
                 // 「箱の中」は範囲を箱で決めるので、Ctrl＋クリック・矩形でパーツを足せない（RecolorSceneTool.ResolveSeedToggle が断る）
@@ -100,6 +114,8 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 if (mode == SelectionMode.Island)
                 {
                     GUILayout.Label(Locales.Tr(hasEdit ? "Scene:Panel:RectHint" : "Scene:Panel:RectHint:Select"), EditorStyles.miniLabel);
+                    // 外す先の編集が無いときは出さない
+                    if (hasEdit) GUILayout.Label(Locales.Tr("Scene:Panel:RectRemoveHint"), EditorStyles.miniLabel);
                 }
                 // 画像入りの編集を選んでいる間は、画像をつかんで動かせることを案内する
                 if (hasEdit && edit.HasDecal) GUILayout.Label(Locales.Tr("Scene:Panel:DecalDragHint"), EditorStyles.miniLabel);

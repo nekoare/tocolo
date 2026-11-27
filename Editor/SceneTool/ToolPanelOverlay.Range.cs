@@ -117,7 +117,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         }
 
         /// <summary>
-        /// 影響範囲のボタンの真下・横いっぱいの［残りのパーツも選ぶ］（影響範囲がパーツの編集のときだけ出す。箱の中・色のモードは範囲を箱・色で決めるので要らない）。
+        /// 影響範囲のボタンの真下・横並びの［残りのパーツも選ぶ］［メッシュ内だけ］（影響範囲がパーツの編集のときだけ出す。箱の中・色のモードは範囲を箱・色で決めるので要らない）。
         /// 押すと、編集（連結なら各メンバー）のテクスチャのまだ選んでいないパーツを全部、点として足し、各点の色を揃えるを OFF にする（RemainingParts）。
         /// 要らないパーツは Ctrl＋クリックで外せる
         /// </summary>
@@ -127,30 +127,39 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             var edit = component != null ? component.FindEdit(ToolSession.CurrentEditId) : null;
             // 出すかは押す前の状態で決めているので、このイベントで影響範囲を変えたときは押せなくするだけ
             bool enabled = IsRemainingPartsTarget(root);
-            using (new EditorGUILayout.HorizontalScope())
+            using (new EditorGUI.DisabledScope(!enabled))
             {
-                using (new EditorGUI.DisabledScope(!enabled))
-                {
-                    var content = new GUIContent(Locales.Tr("Scene:Panel:SelectWholeTexture"), Locales.Tr("Scene:Panel:SelectWholeTextureTooltip"));
-                    if (GUILayout.Button(content) && enabled)
-                    {
-                        Undo.RecordObject(component, "Tocolo: 残りのパーツも選ぶ");
-                        EditGroups.ForEachInGroup(component, edit, e =>
-                        {
-                            if (e.wholeTexture)
-                            {
-                                RemainingParts.ConvertLegacyWholeTexture(component, e);
-                                return;
-                            }
-                            RemainingParts.Add(component, e);
-                            // 全体で 1 つの明るさの分布にする（パーツごとに揃えると、テクスチャ全体を選んだときと見た目が変わる）
-                            e.perSeedStats = false;
-                        });
-                        EditorUtility.SetDirty(component);
-                        SceneView.RepaintAll();
-                    }
-                }
+                // 2 つを同じ幅にする（GUILayout に任せると文字の長さで幅が変わる）
+                var row = GUILayoutUtility.GetRect(GUIContent.none, GUI.skin.button, GUILayout.ExpandWidth(true));
+                const float gap = 2f;
+                float half = Mathf.Floor((row.width - gap) * 0.5f);
+                var left = new Rect(row.x, row.y, half, row.height);
+                var right = new Rect(row.x + half + gap, row.y, row.width - half - gap, row.height);
+                var whole = new GUIContent(Locales.Tr("Scene:Panel:SelectWholeTexture"), Locales.Tr("Scene:Panel:SelectWholeTextureTooltip"));
+                var mesh = new GUIContent(Locales.Tr("Scene:Panel:SelectMeshRemaining"), Locales.Tr("Scene:Panel:SelectMeshRemainingTooltip"));
+                if (GUI.Button(left, whole) && enabled) AddRemainingParts(component, edit, false);
+                if (GUI.Button(right, mesh) && enabled) AddRemainingParts(component, edit, true);
             }
+        }
+
+        /// <summary>連結のメンバーごとに残りのパーツを足す（seedMeshesOnly ならメンバーごとに自分の点が乗っているメッシュの中だけ）</summary>
+        private static void AddRemainingParts(ClickRecolor component, RecolorEdit edit, bool seedMeshesOnly)
+        {
+            Undo.RecordObject(component, seedMeshesOnly ? "Tocolo: メッシュ内の残りのパーツも選ぶ" : "Tocolo: 残りのパーツも選ぶ");
+            EditGroups.ForEachInGroup(component, edit, e =>
+            {
+                // 古い「全体」の印はテクスチャ全体の意味なので、メッシュ内だけでもまずパーツの集まりに置き換える（範囲は狭めない）
+                if (e.wholeTexture)
+                {
+                    RemainingParts.ConvertLegacyWholeTexture(component, e);
+                    return;
+                }
+                RemainingParts.Add(component, e, seedMeshesOnly);
+                // 全体で 1 つの明るさの分布にする（パーツごとに揃えると、テクスチャ全体を選んだときと見た目が変わる）
+                e.perSeedStats = false;
+            });
+            EditorUtility.SetDirty(component);
+            SceneView.RepaintAll();
         }
 
         /// <summary>

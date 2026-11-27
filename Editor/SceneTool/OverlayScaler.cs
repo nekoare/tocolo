@@ -111,6 +111,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
         {
             EditorPrefs.DeleteKey(ScaleKeyPrefix + ToolPanelOverlay.Id);
             EditorPrefs.DeleteKey(ScaleKeyPrefix + HintOverlay.Id);
+            EditorPrefs.DeleteKey(ScaleKeyPrefix + UpdateCheck.UpdateNoticeOverlay.Id);
             SceneView.RepaintAll();
         }
 

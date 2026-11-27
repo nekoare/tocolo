@@ -379,6 +379,59 @@ namespace Nekoare.ClickRecolor.Tests
             }
         }
 
+        private static RectIsland Island(Renderer renderer, int triangle, Texture2D texture)
+        {
+            var uv = new Vector2(0.25f, 0.25f);
+            return new RectIsland { renderer = renderer, submesh = 0, triangle = triangle, chartId = -1, uv0 = uv, uv = uv, texture = texture };
+        }
+
+        [Test]
+        public void 矩形で外すと別のテクスチャのメンバーの島も外れ_種が0になったメンバーは消える()
+        {
+            var (component, edit, member, _, bodyB, _, texB) = MakeSeedGroup();
+            var bodyB2 = AddBody(component.gameObject, "BodyB2", texB);
+            RecolorSceneTool.ResolveSeedToggle(component, edit, MakeHit(bodyB2, texB));
+            Assert.That(member.extraSeeds.Count, Is.EqualTo(1), "前提: Bのメンバーは島2つ");
+
+            var result = RecolorSceneTool.RemoveRectSeeds(component, edit, new List<RectIsland> { Island(bodyB, 0, texB), Island(bodyB2, 0, texB) });
+
+            Assert.That(result.removed, Is.EqualTo(2));
+            Assert.That(result.membersRemoved, Is.EqualTo(1));
+            Assert.That(result.editRemoved, Is.False);
+            Assert.That(component.edits.Count, Is.EqualTo(1));
+            Assert.That(component.edits[0], Is.SameAs(edit));
+            // 選んでいたメンバーが消えたので、連結の残りを選ぶ
+            Assert.That(ToolSession.CurrentEditId, Is.EqualTo(edit.id));
+        }
+
+        [Test]
+        public void 矩形で外すとき入っていない島は足さずに無視する()
+        {
+            var (component, edit, member, _, _, _, texB) = MakeSeedGroup();
+            var bodyB2 = AddBody(component.gameObject, "BodyB2", texB);
+
+            var result = RecolorSceneTool.RemoveRectSeeds(component, edit, new List<RectIsland> { Island(bodyB2, 0, texB) });
+
+            Assert.That(result.removed, Is.EqualTo(0));
+            Assert.That(component.edits.Count, Is.EqualTo(2));
+            Assert.That(member.extraSeeds, Is.Empty);
+        }
+
+        [Test]
+        public void 矩形で最後の島を外すと編集ごと消える()
+        {
+            ToolSession.Preset = RangePreset.Island;
+            var (component, bodyA, _, texA, _) = MakeAvatar();
+            var edit = RecolorSceneTool.CreateEditFromHit(component, MakeHit(bodyA, texA), Color.red);
+
+            var result = RecolorSceneTool.RemoveRectSeeds(component, edit, new List<RectIsland> { Island(bodyA, 1, texA) });
+
+            Assert.That(result.removed, Is.EqualTo(1));
+            Assert.That(result.editRemoved, Is.True);
+            Assert.That(component.edits, Is.Empty);
+            Assert.That(ToolSession.CurrentEditId, Is.Null.Or.Empty);
+        }
+
         [Test]
         public void 矩形で2つのテクスチャの島が一度に入る()
         {

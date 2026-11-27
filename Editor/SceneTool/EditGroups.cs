@@ -310,6 +310,12 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             member.gradientBoxRotation = anchor.gradientBoxRotation;
             member.gradientBoxSize = anchor.gradientBoxSize;
             member.gradientInsideOnly = anchor.gradientInsideOnly;
+            member.gradientShape = anchor.gradientShape;
+            member.gradientTipUseRatio = anchor.gradientTipUseRatio;
+            member.gradientTipLength = anchor.gradientTipLength;
+            member.gradientTipRatio = anchor.gradientTipRatio;
+            member.gradientTipTop = anchor.gradientTipTop;
+            member.gradientTipTopInitialized = anchor.gradientTipTopInitialized;
             member.gradientInitialized = anchor.gradientInitialized;
             member.boxPosition = anchor.boxPosition;
             member.boxRotation = anchor.boxRotation;

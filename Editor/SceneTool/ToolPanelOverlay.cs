@@ -74,6 +74,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
 
         public override void OnGUI()
         {
+            ToolSession.DropPickToolsOnEscape(Event.current);
             if (containerWindow != null) s_viewHeight = containerWindow.position.height;
             float scale = OverlayScaler.CurrentScale(this, PanelWidth + ScrollBarWidth);
             // つまみのドラッグ中はスクロールの有無を切り替えない（切り替えの瞬間にレイアウトが変わって引っかかる）。離した後に反映する

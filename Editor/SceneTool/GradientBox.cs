@@ -273,18 +273,142 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             EditorUtility.SetDirty(component);
         }
 
-        /// <summary>パネルの［リセット］: 初めて ON にしたときと同じ初期値（色 2・箱）に戻す（Undo 記録つき。連結なら連結の全編集）</summary>
+        /// <summary>
+        /// パネルの［リセット］: 初めて ON にしたときと同じ初期値（色 2・箱）に戻す（Undo 記録つき。連結なら連結の全編集）。
+        /// てっぺんも選択範囲から決め直す（混ぜ方と毛先からの長さはそのまま）
+        /// </summary>
         internal static void ResetSettings(ClickRecolor component, RecolorEdit edit)
         {
             if (component == null || edit == null) return;
             Undo.RecordObject(component, "Tocolo: グラデーションをリセット");
-            var box = DefaultFor(component, edit);
+            var points = new List<Vector3>();
+            var box = DefaultFor(component, edit, points);
+            var top = TopFrom(component, box, points);
             EditGroups.ForEachInGroup(component, edit, e =>
             {
                 e.gradientInitialized = true;
                 Initialize(e, box);
+                e.gradientTipTop = top;
+                e.gradientTipTopInitialized = true;
             });
             EditorUtility.SetDirty(component);
+        }
+
+        /// <summary>
+        /// 混ぜ方（箱／毛先から）を切り替える（Undo 記録つき。連結なら連結の全編集）。
+        /// 初めて「毛先から」にしたときだけ、てっぺんを選択範囲から決める（DefaultTop）
+        /// </summary>
+        internal static void SetShape(ClickRecolor component, RecolorEdit edit, GradientShape shape)
+        {
+            if (component == null || edit == null || edit.gradientShape == shape) return;
+            Undo.RecordObject(component, "Tocolo: グラデーションの混ぜ方を切り替え");
+            bool initializeTop = shape == GradientShape.Tips && !edit.gradientTipTopInitialized;
+            var top = initializeTop ? DefaultTop(component, edit) : default;
+            EditGroups.ForEachInGroup(component, edit, e =>
+            {
+                e.gradientShape = shape;
+                if (!initializeTop) return;
+                e.gradientTipTop = top;
+                e.gradientTipTopInitialized = true;
+            });
+            EditorUtility.SetDirty(component);
+        }
+
+        /// <summary>
+        /// Scene でクリックした場所まで毛先の色が入るように長さを決める（Undo 記録つき。連結なら連結の全編集）。
+        /// distance はその場所の毛先からの距離、length はその房の長さ（m）。cm 指定なら距離そのもの、% 指定なら距離 ÷ 房の長さ。
+        /// どちらもスライダーの範囲に収める
+        /// </summary>
+        internal static void ApplyTipPick(ClickRecolor component, RecolorEdit edit, float distance, float length)
+        {
+            if (component == null || edit == null) return;
+            bool ratio = edit.gradientTipUseRatio;
+            float value = TipPickValue(ratio, distance, length);
+            Undo.RecordObject(component, "Tocolo: 毛先からの長さを変更");
+            EditGroups.ForEachInGroup(component, edit, e =>
+            {
+                if (ratio) e.gradientTipRatio = value;
+                else e.gradientTipLength = value;
+            });
+            EditorUtility.SetDirty(component);
+        }
+
+        /// <summary>長さの最小・最大（RecolorEdit の Range と同じ）</summary>
+        internal const float TipLengthMin = 0.005f, TipLengthMax = 0.5f, TipRatioMin = 0.01f, TipRatioMax = 1f;
+
+        /// <summary>クリックした場所の値から決まる長さ（ratio なら割合、そうでなければ m）。房の長さが 0 なら割合は最大</summary>
+        internal static float TipPickValue(bool ratio, float distance, float length)
+        {
+            if (!ratio) return Mathf.Clamp(distance, TipLengthMin, TipLengthMax);
+            return length > 0f ? Mathf.Clamp(distance / length, TipRatioMin, TipRatioMax) : TipRatioMax;
+        }
+
+        /// <summary>
+        /// 色 1 と色 2 を入れ替える（Undo 記録つき。連結なら連結の全編集）。色だけでなく暗部の明るさ・ガンマ・強さも入れ替え、
+        /// 途中の色は位置を 1 − 位置にして並びを逆にする（グラデーション全体が上下反転した見た目になる）
+        /// </summary>
+        internal static void SwapEnds(ClickRecolor component, RecolorEdit edit)
+        {
+            if (component == null || edit == null) return;
+            Undo.RecordObject(component, "Tocolo: 色1と色2を入れ替え");
+            EditGroups.ForEachInGroup(component, edit, SwapEnds);
+            EditorUtility.SetDirty(component);
+        }
+
+        /// <summary>
+        /// 途中の色の並びも逆にするのは、同じ位置に 2 つ置いた段差（足した順に下→上）を入れ替え後も上下反転させるため。
+        /// 位置だけ反転すると、段差の 2 色は下と上が入れ替わらずに残る
+        /// </summary>
+        internal static void SwapEnds(RecolorEdit e)
+        {
+            (e.targetColor, e.gradientColor) = (e.gradientColor, e.targetColor);
+            (e.darkEndRatio, e.gradientDarkEndRatio) = (e.gradientDarkEndRatio, e.darkEndRatio);
+            (e.gamma, e.gradientGamma) = (e.gradientGamma, e.gamma);
+            (e.strength, e.gradientStrength) = (e.gradientStrength, e.strength);
+            if (e.gradientMidStops == null) return;
+            e.gradientMidStops.Reverse();
+            for (int i = 0; i < e.gradientMidStops.Count; i++)
+            {
+                var stop = e.gradientMidStops[i];
+                stop.position = 1f - Mathf.Clamp01(stop.position);
+                e.gradientMidStops[i] = stop;
+            }
+        }
+
+        /// <summary>
+        /// てっぺんの既定（対象ルートのローカル）: 高さは選択範囲に写る表面の一番上、前後左右は Humanoid なら Head ボーン、そうでなければ選択範囲の中心。
+        /// 頭の中心を基準にすると、頭を包むお椀形の後ろ髪はどこも中心からほぼ同じ距離になり全体が毛先扱いになる。
+        /// 頭の上に置けば裾が一番遠くなる（Milfy の髪で確認）。毛先を選ぶためだけに使うので、多少ずれても結果はほとんど変わらない
+        /// </summary>
+        internal static Vector3 DefaultTop(ClickRecolor component, RecolorEdit edit)
+        {
+            if (component == null) return Vector3.zero;
+            var points = new List<Vector3>();
+            var box = DefaultFor(component, edit, points);
+            return TopFrom(component, box, points);
+        }
+
+        private static Vector3 TopFrom(
+            ClickRecolor component, (Vector3 position, Quaternion rotation, Vector3 size, Vector3 centroid) box, List<Vector3> points)
+        {
+            // 選択範囲の点が取れなければ箱（Renderer の bounds）の上端
+            float topY = box.position.y + Mathf.Abs(box.size.y) * 0.5f;
+            if (points.Count > 0)
+            {
+                topY = float.NegativeInfinity;
+                foreach (var p in points) topY = Mathf.Max(topY, p.y);
+            }
+            var center = box.centroid;
+            var head = HeadBone(component);
+            if (head != null) center = component.transform.InverseTransformPoint(head.position);
+            return new Vector3(center.x, topY, center.z);
+        }
+
+        private static Transform HeadBone(ClickRecolor component)
+        {
+            var animator = component.GetComponentInParent<Animator>();
+            if (animator == null) animator = component.GetComponentInChildren<Animator>();
+            return animator != null && animator.isHuman ? animator.GetBoneTransform(HumanBodyBones.Head) : null;
         }
 
         private static void Initialize(RecolorEdit e, (Vector3 position, Quaternion rotation, Vector3 size, Vector3 centroid) box)

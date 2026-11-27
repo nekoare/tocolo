@@ -173,6 +173,12 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
         private static int s_kernelWeight;
         private static readonly int PosWidthId = Shader.PropertyToID("PosWidth");
         private static readonly int PosHeightId = Shader.PropertyToID("PosHeight");
+        private static readonly int TipMapId = Shader.PropertyToID("TipMap");
+        private static readonly int TipWidthId = Shader.PropertyToID("TipWidth");
+        private static readonly int TipHeightId = Shader.PropertyToID("TipHeight");
+        private static readonly int GradientShapeId = Shader.PropertyToID("GradientShape");
+        private static readonly int TipLengthId = Shader.PropertyToID("TipLength");
+        private static readonly int TipRatioId = Shader.PropertyToID("TipRatio");
         private static readonly int UseGradientId = Shader.PropertyToID("UseGradient");
         private static readonly int WorldToBoxId = Shader.PropertyToID("WorldToBox");
         private static readonly int BoxSizeId = Shader.PropertyToID("BoxSize");
@@ -1332,7 +1338,29 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
             // 土台（他のツールが先に加工した髪）の上には、お手本に合わせる編集を掛けない: 対象の統計は元テクスチャで取っているので、
             // 土台で色が変わっていると写し方がずれる（髪ツールの髪は対象外にしている）
             var jobs = input.baseTexture != null ? WithoutMatch(input.jobs) : input.jobs;
-            return ApplyJobs(work, jobs, positionMap);
+            return ApplyJobs(work, jobs, positionMap, TipMapResolver(input, work.width, work.height));
+        }
+
+        /// <summary>
+        /// 編集 → その編集のてっぺんで作った毛先マップ（TipMap。キャッシュ所有）を返す関数。位置マップと同じ Renderer・大きさ・膨張回数で作る。
+        /// 文脈（root・renderers）が無ければ null（毛先からのグラデーションは掛けない）
+        /// </summary>
+        internal static System.Func<RecolorEdit, Texture> TipMapResolver(PipelineInput input, int width, int height)
+        {
+            if (input == null || input.root == null || input.renderers == null) return null;
+            int fill = FillIterations(input.jobs);
+            return edit => TipMap.GetOrBuild(input.root, input.renderers, input.sourceAsset, width, height, fill, edit.gradientTipTop);
+        }
+
+        /// <summary>
+        /// 編集の色の設定から ShiftParams を作り、毛先からのグラデーションなら毛先マップを入れる。
+        /// 毛先マップはキャッシュの上限で後から破棄されうるので、使う直前（Dispatch の前）に呼ぶこと
+        /// </summary>
+        private static ShiftParams ParamsFor(RecolorEdit edit, in Stats stats, System.Func<RecolorEdit, Texture> tipMapOf)
+        {
+            var p = ShiftParams.FromEdit(edit, stats);
+            if (p.useGradient && p.gradientShape == GradientShape.Tips && tipMapOf != null) p.tipMap = tipMapOf(edit);
+            return p;
         }
 
         private static IReadOnlyList<EditJob> WithoutMatch(IReadOnlyList<EditJob> jobs)
@@ -1413,7 +1441,8 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
 
         private static bool IsBakedDecal(EditJob job) => job?.edit != null && job.edit.HasDecal && !job.overlay;
 
-        internal static RenderTexture ApplyJobs(RenderTexture work, IReadOnlyList<EditJob> jobs, Texture positionMap = null)
+        internal static RenderTexture ApplyJobs(
+            RenderTexture work, IReadOnlyList<EditJob> jobs, Texture positionMap = null, System.Func<RecolorEdit, Texture> tipMapOf = null)
         {
             if (work == null) return null;
             RenderTexture current = work;
@@ -1453,7 +1482,7 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
                         // 後の部分が前の部分を上書きしてよい（種ごとのマスクは通常重ならない）
                         foreach (var part in job.ShiftParts)
                         {
-                            var p = ShiftParams.FromEdit(job.edit, part.stats);
+                            var p = ParamsFor(job.edit, part.stats, tipMapOf);
                             if (job.edit.flattenBase)
                             {
                                 p.bands = part.bands;
@@ -1581,10 +1610,8 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
             shader.SetFloat(HDominantId, p.hDominant);
             shader.SetFloat(ShadingStretchId, p.shadingStretch);
 
-            // 位置マップはグラデーションを使わないときも何か束縛しておく（未設定のテクスチャがあると Dispatch がエラーになる）
-            bool gradient = p.useGradient && positionMap != null;
+            bool gradient = BindGradient(shader, s_kernelShift, p, positionMap);
             bool flatten = p.bands != null && p.bands.values != null && positionMap != null;
-            var pos = gradient || flatten ? positionMap : Texture2D.blackTexture;
             shader.SetInt(FlattenBandsId, flatten ? BandStats.Count : 0);
             if (flatten)
             {
@@ -1594,12 +1621,6 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
                 shader.SetFloat(FlattenMaxId, p.bands.max);
                 shader.SetVectorArray(FlattenStatsId, p.bands.values);
             }
-            shader.SetTexture(s_kernelShift, PosMapId, pos);
-            shader.SetInt(PosWidthId, pos.width);
-            shader.SetInt(PosHeightId, pos.height);
-            shader.SetInt(UseGradientId, gradient ? 1 : 0);
-            shader.SetMatrix(WorldToBoxId, p.rootToBox);
-            shader.SetVector(BoxSizeId, p.boxSize);
             shader.SetInt(GradientInsideOnlyId, gradient && p.gradientInsideOnly ? 1 : 0);
             shader.SetVector(TargetOklab2Id, p.targetOklab2);
             int midCount = p.midStops != null ? Mathf.Min(p.midStops.Length, s_midStops.Length) : 0;
@@ -1636,15 +1657,7 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
             shader.SetFloat(StrengthId, p.strength);
             shader.SetFloat(Strength2Id, p.strength2);
 
-            // 位置マップはグラデーションを使わないときも何か束縛しておく（Shift と同じ）
-            bool gradient = p.useGradient && positionMap != null;
-            var pos = gradient ? positionMap : Texture2D.blackTexture;
-            shader.SetTexture(s_kernelComposite, PosMapId, pos);
-            shader.SetInt(PosWidthId, pos.width);
-            shader.SetInt(PosHeightId, pos.height);
-            shader.SetInt(UseGradientId, gradient ? 1 : 0);
-            shader.SetMatrix(WorldToBoxId, p.rootToBox);
-            shader.SetVector(BoxSizeId, p.boxSize);
+            BindGradient(shader, s_kernelComposite, p, positionMap);
 
             shader.Dispatch(s_kernelComposite, Groups(dst.width), Groups(dst.height), 1);
         }
@@ -1666,15 +1679,7 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
             shader.SetFloat(StrengthId, p.strength);
             shader.SetFloat(Strength2Id, p.strength2);
 
-            // 位置マップはグラデーションを使わないときも何か束縛しておく（Shift と同じ）
-            bool gradient = p.useGradient && positionMap != null;
-            var pos = gradient ? positionMap : Texture2D.blackTexture;
-            shader.SetTexture(s_kernelOverlayOpacity, PosMapId, pos);
-            shader.SetInt(PosWidthId, pos.width);
-            shader.SetInt(PosHeightId, pos.height);
-            shader.SetInt(UseGradientId, gradient ? 1 : 0);
-            shader.SetMatrix(WorldToBoxId, p.rootToBox);
-            shader.SetVector(BoxSizeId, p.boxSize);
+            BindGradient(shader, s_kernelOverlayOpacity, p, positionMap);
 
             shader.Dispatch(s_kernelOverlayOpacity, Groups(dst.width), Groups(dst.height), 1);
         }
@@ -1714,11 +1719,39 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
         private static int Groups(int size) => (size + ThreadGroupSize - 1) / ThreadGroupSize;
 
         /// <summary>
+        /// kernel にグラデーションの値（位置マップ・毛先マップ・箱・毛先からの長さ）を束縛し、グラデーションを掛けるかを返す。
+        /// 箱は positionMap、毛先からは p.tipMap が要り、無ければ掛けない（t = 0 ＝色 1）。
+        /// 位置マップは「元のグラデーションを打ち消す」にも使うので、毛先からでもあれば束縛する。
+        /// 使わないテクスチャにも何か束縛しておく（未設定のテクスチャがあると Dispatch がエラーになる）
+        /// </summary>
+        private static bool BindGradient(ComputeShader shader, int kernel, in ShiftParams p, Texture positionMap)
+        {
+            bool tips = p.gradientShape == GradientShape.Tips;
+            bool gradient = p.useGradient && (tips ? p.tipMap != null : positionMap != null);
+            var pos = positionMap != null ? positionMap : Texture2D.blackTexture;
+            var tip = tips && p.tipMap != null ? p.tipMap : Texture2D.blackTexture;
+            shader.SetTexture(kernel, PosMapId, pos);
+            shader.SetInt(PosWidthId, pos.width);
+            shader.SetInt(PosHeightId, pos.height);
+            shader.SetTexture(kernel, TipMapId, tip);
+            shader.SetInt(TipWidthId, tip.width);
+            shader.SetInt(TipHeightId, tip.height);
+            shader.SetInt(UseGradientId, gradient ? 1 : 0);
+            shader.SetInt(GradientShapeId, tips ? 1 : 0);
+            shader.SetFloat(TipLengthId, p.tipLength);
+            shader.SetFloat(TipRatioId, p.tipRatio);
+            shader.SetMatrix(WorldToBoxId, p.rootToBox);
+            shader.SetVector(BoxSizeId, p.boxSize);
+            return gradient;
+        }
+
+        /// <summary>
         /// マスクだけ書き出し用: jobs の各部分が実際に効く重み（マスク × 不透明度。グラデーションは位置で色 1・色 2 の不透明度を補間、
         /// 「箱の中だけ」の外は 0）を、accumulate（R8・enableRandomWrite。呼び出し側が 0 で用意）へ max で積む。
-        /// positionMap は Run と同じ位置マップ（null ならグラデーションは t = 0 ＝色 1 の不透明度）。GPU が使えなければ false
+        /// positionMap は Run と同じ位置マップ（null ならグラデーションは t = 0 ＝色 1 の不透明度）。tipMapOf は毛先マップ（TipMapResolver。null なら毛先からのグラデーションは t = 0）。GPU が使えなければ false
         /// </summary>
-        internal static bool AccumulateWeights(RenderTexture accumulate, IReadOnlyList<EditJob> jobs, Texture positionMap = null)
+        internal static bool AccumulateWeights(
+            RenderTexture accumulate, IReadOnlyList<EditJob> jobs, Texture positionMap = null, System.Func<RecolorEdit, Texture> tipMapOf = null)
         {
             var shader = Compute;
             if (shader == null || accumulate == null || jobs == null) return false;
@@ -1728,7 +1761,7 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
                 foreach (var part in job.ShiftParts)
                 {
                     if (part.mask == null) continue;
-                    var p = ShiftParams.FromEdit(job.edit, part.stats);
+                    var p = ParamsFor(job.edit, part.stats, tipMapOf);
                     shader.SetTexture(s_kernelWeight, MaskId, part.mask);
                     shader.SetTexture(s_kernelWeight, WeightOutId, accumulate);
                     shader.SetInt(WidthId, accumulate.width);
@@ -1737,14 +1770,7 @@ namespace Nekoare.ClickRecolor.Editor.Pipeline
                     shader.SetInt(MaskHeightId, part.mask.height);
                     shader.SetFloat(StrengthId, p.strength);
                     shader.SetFloat(Strength2Id, p.strength2);
-                    bool gradient = p.useGradient && positionMap != null;
-                    var pos = gradient ? positionMap : Texture2D.blackTexture;
-                    shader.SetTexture(s_kernelWeight, PosMapId, pos);
-                    shader.SetInt(PosWidthId, pos.width);
-                    shader.SetInt(PosHeightId, pos.height);
-                    shader.SetInt(UseGradientId, gradient ? 1 : 0);
-                    shader.SetMatrix(WorldToBoxId, p.rootToBox);
-                    shader.SetVector(BoxSizeId, p.boxSize);
+                    bool gradient = BindGradient(shader, s_kernelWeight, p, positionMap);
                     shader.SetInt(GradientInsideOnlyId, gradient && p.gradientInsideOnly ? 1 : 0);
                     // 画像入りなら画像の α も重みに掛ける（透明な所は効かない）。使わないときも Layer は何か束縛しておく
                     // IsActive 通過後なので Unity の == で十分

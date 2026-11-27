@@ -219,6 +219,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 {
                     s_brush = BrushMode.None;
                     s_matchPickActive = false;
+                    s_tipPickActive = false;
                 }
                 if (!value) Cursor.SetCursor(null, Vector2.zero, CursorMode.Auto);
             }
@@ -241,9 +242,50 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 {
                     s_brush = BrushMode.None;
                     s_eyedropperActive = false;
+                    s_tipPickActive = false;
                 }
                 if (!value) Cursor.SetCursor(null, Vector2.zero, CursorMode.Auto);
             }
+        }
+
+        private static bool s_tipPickActive;
+
+        /// <summary>
+        /// 毛先からの長さを Scene で選んでいる最中か（ON の間、Scene の髪をクリック・なぞると、その場所まで毛先の色が入る長さにする。離したら OFF）。
+        /// ツール終了・Esc で消える。スポイト・お手本選び・筆とは同時に持たない（どれも次のクリックの意味を変えるため）
+        /// </summary>
+        public static bool TipPickActive
+        {
+            get => s_tipPickActive;
+            set
+            {
+                if (s_tipPickActive == value) return;
+                s_tipPickActive = value;
+                if (value)
+                {
+                    s_brush = BrushMode.None;
+                    s_eyedropperActive = false;
+                    s_matchPickActive = false;
+                }
+                if (!value) Cursor.SetCursor(null, Vector2.zero, CursorMode.Auto);
+            }
+        }
+
+        /// <summary>
+        /// オーバーレイ（パネル・案内）が受けた Esc で、次のクリックの意味を変える道具（スポイト・お手本選び・長さ選び・なぞる道具）を置く。置いたら true。
+        /// オーバーレイのボタンを押すとキー入力の受け先がオーバーレイに移り、Scene を一度クリックするまで Esc が Scene 側（RecolorSceneTool）に届かないので、ここでも受ける
+        /// </summary>
+        internal static bool DropPickToolsOnEscape(Event e)
+        {
+            if (e.type != EventType.KeyDown || e.keyCode != KeyCode.Escape) return false;
+            if (!s_eyedropperActive && !s_matchPickActive && !s_tipPickActive && s_brush == BrushMode.None) return false;
+            e.Use();
+            EyedropperActive = false;
+            MatchPickActive = false;
+            TipPickActive = false;
+            Brush = BrushMode.None;
+            SceneView.RepaintAll();
+            return true;
         }
 
         private static BrushMode s_brush;
@@ -263,6 +305,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 {
                     EyedropperActive = false;
                     MatchPickActive = false;
+                    TipPickActive = false;
                 }
             }
         }
@@ -414,6 +457,7 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             HoverPick = null;
             EyedropperActive = false;
             MatchPickActive = false;
+            TipPickActive = false;
             Brush = BrushMode.None;
             BrushSizePreview = false;
             HideHighlight();

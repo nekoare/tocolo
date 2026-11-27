@@ -757,6 +757,99 @@ namespace Nekoare.ClickRecolor.Tests
         /// <summary>色相（ラジアン）の差の大きさ（0..π）</summary>
         private static float HueDistance(float a, float b) => Mathf.Abs(OklabConverter.WrapHueRadians(a - b));
 
+        /// <summary>
+        /// 毛先マップ（x = 毛先からの距離、y = 房の長さ、w = 描いた印）: 行 y ごとに毛先からの距離 = 0.02 × y（m）、房の長さ 0.2。
+        /// 左端の列だけ描かれていない画素
+        /// </summary>
+        private (Texture2D map, Vector4[] tips) MakeTipMap()
+        {
+            var tips = new Vector4[Size * Size];
+            var pixels = new Color[Size * Size];
+            for (int y = 0; y < Size; y++)
+            {
+                for (int x = 0; x < Size; x++)
+                {
+                    var tip = new Vector4(0.02f * y, 0.2f, 0f, x == 0 ? 0f : 1f);
+                    tips[y * Size + x] = tip;
+                    pixels[y * Size + x] = new Color(tip.x, tip.y, tip.z, tip.w);
+                }
+            }
+            var map = new Texture2D(Size, Size, TextureFormat.RGBAFloat, false, true)
+            {
+                filterMode = FilterMode.Point,
+                wrapMode = TextureWrapMode.Clamp,
+            };
+            map.SetPixels(pixels);
+            map.Apply(false);
+            _cleanup.Add(map);
+            return (map, tips);
+        }
+
+        [Test]
+        public void 毛先からのグラデーションは毛先が目標1で離れるほど目標2に近づき_cm指定も割合指定も_GPU_と_CPU_が一致する()
+        {
+            var src = new Color[Size * Size];
+            for (int i = 0; i < src.Length; i++) src[i] = new Color(0.2f, 0.2f, 0.2f, 1f);
+            var mask = new byte[Size * Size];
+            for (int i = 0; i < mask.Length; i++) mask[i] = 255;
+            var (tipMap, tips) = MakeTipMap();
+
+            var start = new Color(0.9f, 0.1f, 0.15f);
+            var end = new Color(0.1f, 0.2f, 0.9f);
+            var p = Params(start, 0.25f, 0.85f);
+            p.hueRetain = 0f;
+            p.useGradient = true;
+            p.gradientShape = GradientShape.Tips;
+            p.tipMap = tipMap;
+            p.tipLength = 0.1f;
+            p.targetOklab2 = OklabConverter.LinearRGBToOklab(OklabConverter.SRGBToLinear(end));
+
+            float startHue = OklabConverter.SRGBToOklch(start).z;
+            float endHue = OklabConverter.SRGBToOklch(end).z;
+
+            // cm 指定（10cm）: 毛先（行 0）は目標 1、10cm 以上離れた行（行 5〜）は目標 2
+            var gpu = RunGpu(MakeSource(src), MakeMask(mask), p);
+            AssertTipParity(src, tips, gpu, p, "cm");
+            Assert.That(HueDistance(HueAt(gpu, 4, 0), startHue), Is.LessThan(0.05f), "毛先は目標1");
+            Assert.That(HueDistance(HueAt(gpu, 4, 6), endHue), Is.LessThan(0.05f), "10cm より離れたら目標2");
+            Assert.That(HueDistance(HueAt(gpu, 0, 0), startHue), Is.LessThan(0.05f), "描かれていない画素は目標1");
+
+            // 割合指定（房の長さ 0.2 の 30% = 6cm）: 行 3（6cm）から先は目標 2
+            p.tipRatio = 0.3f;
+            var ratio = RunGpu(MakeSource(src), MakeMask(mask), p);
+            AssertTipParity(src, tips, ratio, p, "割合");
+            Assert.That(HueDistance(HueAt(ratio, 4, 3), endHue), Is.LessThan(0.05f), "房の長さの30%より離れたら目標2");
+            Assert.That(HueDistance(HueAt(ratio, 4, 1), endHue), Is.GreaterThan(0.05f), "30%より近い所は目標2ではない");
+        }
+
+        [Test]
+        public void 箱の中だけは毛先からでは効かず_箱に戻すと効く()
+        {
+            var edit = new RecolorEdit { gradientEnabled = true, gradientInsideOnly = true, gradientShape = GradientShape.Tips };
+            Assert.That(ShiftParams.FromEdit(edit, default).gradientInsideOnly, Is.False, "毛先から");
+            edit.gradientShape = GradientShape.Box;
+            Assert.That(ShiftParams.FromEdit(edit, default).gradientInsideOnly, Is.True, "箱");
+        }
+
+        private static float HueAt(Color[] pixels, int x, int y)
+        {
+            var c = pixels[y * Size + x];
+            return OklabConverter.OklabToOklch(OklabConverter.LinearRGBToOklab(new Vector3(c.r, c.g, c.b))).z;
+        }
+
+        private static void AssertTipParity(Color[] src, Vector4[] tips, Color[] gpu, in ShiftParams p, string label)
+        {
+            for (int i = 0; i < src.Length; i++)
+            {
+                Color cpu = ColorShiftCpu.ShiftLinear(src[i], 1f, p, tips[i]);
+                Color cpuSrgb = OklabConverter.LinearToSRGB(new Vector3(cpu.r, cpu.g, cpu.b));
+                Color gpuSrgb = OklabConverter.LinearToSRGB(new Vector3(gpu[i].r, gpu[i].g, gpu[i].b));
+                Assert.That(gpuSrgb.r, Is.EqualTo(cpuSrgb.r).Within(SrgbTolerance), $"{label} 画素{i}のR");
+                Assert.That(gpuSrgb.g, Is.EqualTo(cpuSrgb.g).Within(SrgbTolerance), $"{label} 画素{i}のG");
+                Assert.That(gpuSrgb.b, Is.EqualTo(cpuSrgb.b).Within(SrgbTolerance), $"{label} 画素{i}のB");
+            }
+        }
+
         /// <summary>作業 RT に src を写して ApplyJobs を通し、結果を読み戻す</summary>
         private Color[] ApplyTo(Texture2D src, EditJob job)
         {

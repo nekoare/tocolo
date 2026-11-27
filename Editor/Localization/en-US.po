@@ -355,10 +355,16 @@ msgid "Scene:Panel:Mode"
 msgstr "Affected area"
 
 msgid "Scene:Panel:SelectWholeTexture"
-msgstr "+ Also select remaining parts"
+msgstr "+ Remaining parts"
 
 msgid "Scene:Panel:SelectWholeTextureTooltip"
 msgstr "Adds every part of this texture that is not selected yet. Ctrl+click a part to remove it (undo with Ctrl+Z)"
+
+msgid "Scene:Panel:SelectMeshRemaining"
+msgstr "+ This mesh only"
+
+msgid "Scene:Panel:SelectMeshRemainingTooltip"
+msgstr "Adds every part of this texture that is not selected yet, but only on the meshes your selected parts are on. Ctrl+click a part to remove it (undo with Ctrl+Z)"
 
 msgid "Scene:Panel:Mode:Island"
 msgstr "Part"
@@ -383,6 +389,9 @@ msgstr "Ctrl+click: select a part"
 
 msgid "Scene:Panel:RectHint"
 msgstr "Ctrl+drag: add all parts in the box"
+
+msgid "Scene:Panel:RectRemoveHint"
+msgstr "Ctrl+Shift+drag: remove all parts in the box"
 
 msgid "Scene:Panel:RectHint:Select"
 msgstr "Ctrl+drag: select all parts in the box"
@@ -507,6 +516,27 @@ msgstr "Gradient"
 msgid "Scene:Color:GradientInsideOnly"
 msgstr "Inside box only"
 
+msgid "Scene:Color:GradientShape:Box"
+msgstr "Box"
+
+msgid "Scene:Color:GradientShape:Tips"
+msgstr "Tip gradient"
+
+msgid "Scene:Color:GradientTipPickShort"
+msgstr "Pick"
+
+msgid "Scene:Color:GradientTipPick"
+msgstr "Click the hair in the Scene after pressing this to set the length so the tip color reaches that point (drag to follow; in % mode the ratio fits that strand)"
+
+msgid "Scene:Color:GradientTipUnit:Cm"
+msgstr "cm"
+
+msgid "Scene:Color:GradientTipUnit:Ratio"
+msgstr "%"
+
+msgid "Scene:Box:GradientTop"
+msgstr "Top"
+
 msgid "Scene:Color:GradientResetTooltip"
 msgstr "Returns color 2 and the box to how they were right after turning this on"
 
@@ -521,6 +551,9 @@ msgstr "Gradient"
 
 msgid "Scene:Box:Decal"
 msgstr "Image"
+
+msgid "Scene:Box:TopTooltip"
+msgstr "When pressed, the top point is shown in the Scene so you can move it. Hidden when not pressed."
 
 msgid "Scene:Box:Tooltip"
 msgstr "Shows the pressed boxes in the Scene so you can move them. Boxes that aren't pressed are hidden."
@@ -578,6 +611,9 @@ msgstr "Color 1"
 
 msgid "Scene:Color:EditTarget:End"
 msgstr "Color 2"
+
+msgid "Help:SwapGradientEnds"
+msgstr "Swap color 1 and color 2. Shadow darkness, gamma, opacity and the order of the middle colors are reversed too."
 
 msgid "Scene:Color:EditTarget:Mid"
 msgstr "Middle color"
@@ -668,6 +704,12 @@ msgstr "When on, a box appears in the Scene. The color changes from Color 1 at t
 
 msgid "Help:GradientInsideOnly"
 msgstr "When on, everything above the top and below the bottom of the box is left as the original color, and only the box height becomes a gradient. Sideways the box does not cut anything. When off, the colors continue beyond both ends."
+
+msgid "Help:GradientShape"
+msgstr "Box: the colors go from color 1 at the bottom of the box to color 2 at the top. Tip gradient: in each strand (a connected piece of the mesh), the point farthest from the top point is the tip; the tip gets color 1, and the color reaches color 2 at the set length from the tip. Move the top point in the Scene."
+
+msgid "Help:GradientTipLength"
+msgstr "How far from the tip the color reaches color 2. cm is the distance along the surface; % is a fraction of each strand's length (short and long strands get the same proportion). To keep the rest of the hair in its original color, set the opacity of color 2 to 0 (the tip color fades smoothly back to the original)."
 
 msgid "Help:Padding"
 msgstr "How far (in pixels) the color spreads into unused texture space around the part. Raise it if a line of the original color shows along seams. Negative values shrink the selection edge instead."
@@ -768,6 +810,12 @@ msgstr "Drag to trace and add or remove"
 msgid "Scene:Paint:HintCtrl"
 msgstr "Hold Ctrl to swap add and remove"
 
+msgid "Scene:TipPick:Hint"
+msgstr "Click or drag on the hair to set the length so the tip color reaches that point"
+
+msgid "Scene:TipPick:HintEsc"
+msgstr "Esc to cancel"
+
 msgid "Scene:Paint:HintEsc"
 msgstr "Esc to put the brush down (press again to exit)"
 
@@ -855,3 +903,36 @@ msgstr "You can drag the hill, lines, and ▲"
 
 msgid "Help:MatchMountain"
 msgstr "The horizontal axis is lightness (dark on the left), the height is how much of the texture has that lightness, and the color is the result after matching. Drag the hill (or the middle ▲) sideways to change the overall lightness, the left line (▲) to change the shadow darkness, and the right line (▲) to change the highlight stretch. These are the same values as the sliders below. The faint gray hill is the shape before shifting (as in the sample)."
+
+msgid "Scene:Overlay:UpdateNotice"
+msgstr "Tocolo: Update notice"
+
+msgid "UpdateNotice:Available"
+msgstr "A new version {0} is available (you have {1}). You can update it in VCC/ALCOM."
+
+msgid "UpdateNotice:AvailablePro"
+msgstr "A new version {0} is available (you have {1}). You can update Tocolo and Tocolo Pro in VCC/ALCOM."
+
+msgid "UpdateNotice:Major"
+msgstr "This version contains major changes. We recommend backing up your project before updating."
+
+msgid "UpdateNotice:Changelog"
+msgstr "View changelog"
+
+msgid "UpdateNotice:Skip"
+msgstr "Skip this version"
+
+msgid "UpdateNotice:Close"
+msgstr "Close"
+
+msgid "UpdateNotice:ConsentMessage"
+msgstr "Tocolo can let you know here when a new version is released. If you turn it on, it reads the public version list (index.json) once a day. No information about your avatar, project, or PC is sent.\nYou can change this later from the menu \"Tools > Tocolo > 更新を確認する\"."
+
+msgid "UpdateNotice:ConsentAccept"
+msgstr "Turn on notifications"
+
+msgid "UpdateNotice:ConsentDecline"
+msgstr "No thanks"
+
+msgid "UpdateNotice:ConsentDetails"
+msgstr "What is sent"

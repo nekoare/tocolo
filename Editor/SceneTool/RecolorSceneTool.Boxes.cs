@@ -33,6 +33,12 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
             // 小窓「箱を表示」で選んでいなければ箱・つまみ・ギズモ・札を出さない（既定は画像も ON なら出さない。ToolSession.ShowsGradientBox）
             if (!ToolSession.ShowsGradientBox(edit)) return;
 
+            if (edit.gradientShape == GradientShape.Tips)
+            {
+                DrawGradientTop(component, edit);
+                return;
+            }
+
             var e = Event.current;
             using (new Handles.DrawingScope(component.transform.localToWorldMatrix))
             {
@@ -60,6 +66,37 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                 {
                     DrawBoxShape(position, rotation, size, edit.targetColor, edit.gradientColor, edit.gradientInsideOnly);
                     DrawMidStopOutlines(position, rotation, size, edit.gradientMidStops);
+                }
+            }
+        }
+
+        /// <summary>
+        /// 毛先からのグラデーションの「てっぺん」（対象ルートのローカル）: 点と札、移動のギズモを出す。
+        /// ドラッグは箱と同じく Undo 1 回にまとめ、連結なら連結の全編集に同じ位置を入れる
+        /// </summary>
+        private static void DrawGradientTop(ClickRecolor component, RecolorEdit edit)
+        {
+            using (new Handles.DrawingScope(component.transform.localToWorldMatrix))
+            {
+                Vector3 top = edit.gradientTipTop;
+                EditorGUI.BeginChangeCheck();
+                top = Handles.PositionHandle(top, Quaternion.identity);
+                if (EditorGUI.EndChangeCheck())
+                {
+                    if (GUIUtility.hotControl != 0 && !s_boxDrag.IsActive) s_boxDrag.Begin("Tocolo: てっぺんを動かす");
+                    Undo.RecordObject(component, "Tocolo: てっぺんを動かす");
+                    EditGroups.ForEachInGroup(component, edit, m => m.gradientTipTop = top);
+                    EditorUtility.SetDirty(component);
+                }
+
+                if (Event.current.type == EventType.Repaint)
+                {
+                    float size = HandleUtility.GetHandleSize(top) * 0.12f;
+                    using (new Handles.DrawingScope(edit.gradientColor))
+                    {
+                        Handles.SphereHandleCap(0, top, Quaternion.identity, size, EventType.Repaint);
+                    }
+                    DrawFaceLabel(top, edit.gradientColor, Locales.Tr("Scene:Box:GradientTop"));
                 }
             }
         }
