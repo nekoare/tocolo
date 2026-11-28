@@ -936,3 +936,120 @@ msgstr "사용 안 함"
 
 msgid "UpdateNotice:ConsentDetails"
 msgstr "통신 내용 자세히"
+
+msgid "Inspector:Copy:Export"
+msgstr "프로필 만들기"
+
+msgid "Inspector:Copy:ExportTooltip"
+msgstr "선택한 편집을 프로필(하나의 파일)로 묶습니다. 다른 아바타의 Scene 편집 패널에 드롭하면 불러올 수 있습니다"
+
+msgid "Copy:Window:Title"
+msgstr "Tocolo: 프로필 만들기"
+
+msgid "Copy:Window:Lead"
+msgstr "프로필에 넣을 편집을 선택하세요. 만들어진 파일을 다른 아바타의 Scene 편집 패널에 드롭하면 같은 머리카락·의상에 같은 색 변경이 들어갑니다(색 바리에이션 의상에도 들어갑니다)."
+
+msgid "Copy:Window:ImageNote"
+msgstr "[이미지 넣기]의 이미지도 파일에 포함됩니다. 다른 사람에게 줄 때는 이미지의 권리에 주의하세요(머리카락이나 의상의 텍스처 자체는 포함되지 않습니다)."
+
+msgid "Copy:Window:SelectAll"
+msgstr "모두 선택"
+
+msgid "Copy:Window:SelectNone"
+msgstr "모두 해제"
+
+msgid "Copy:Window:Export"
+msgstr "만들기…"
+
+msgid "Copy:Window:NoRows"
+msgstr "프로필에 넣을 수 있는 편집이 없습니다(색을 정한 편집만 넣을 수 있습니다)"
+
+msgid "Copy:Window:Group"
+msgstr "{0}(아바타 전체)"
+
+msgid "Copy:Window:IslandGroup"
+msgstr "{0}({1}개 연결)"
+
+msgid "Copy:Window:SaveTitle"
+msgstr "프로필 저장 위치"
+
+msgid "Copy:Window:Done"
+msgstr "{0}개의 편집을 프로필 \"{1}\"에 저장했습니다"
+
+msgid "Scene:Panel:CopyDropHint"
+msgstr "여기에 드롭하면 프로필을 불러옵니다"
+
+msgid "Copy:Import:Title"
+msgstr "Tocolo: 프로필 불러오기"
+
+msgid "Copy:Import:Ask"
+msgstr "\"{0}\"에는 이미 편집이 있습니다.\n\n덮어쓰기: 불러오는 편집과 같은 텍스처의 편집만 바꿉니다(다른 편집은 남습니다)\n추가: 지금 편집 뒤에 추가합니다"
+
+msgid "Copy:Import:Overwrite"
+msgstr "덮어쓰기"
+
+msgid "Copy:Import:Add"
+msgstr "추가"
+
+msgid "Copy:Import:Cancel"
+msgstr "취소"
+
+msgid "Copy:Import:Unreadable"
+msgstr "이 파일은 불러올 수 없습니다(Tocolo의 프로필이 아니거나, 새 버전의 Tocolo로 만든 파일입니다)"
+
+msgid "Copy:Import:NoComponent"
+msgstr "이 아바타에는 Tocolo를 붙일 수 없습니다(Project 안의 Prefab 등)"
+
+msgid "Copy:Import:Result"
+msgstr "{0}개의 편집을 불러왔습니다."
+
+msgid "Copy:Import:Failed"
+msgstr "옮기지 못한 편집:"
+
+msgid "Copy:Import:Partial"
+msgstr "일부 위치(Ctrl+클릭으로 추가한 곳)를 옮기지 못한 편집:"
+
+msgid "Copy:Import:Regrouped"
+msgstr "\"아바타 전체\" 범위를 옮긴 곳에서 다시 선택한 편집(텍스처별 조정은 원래대로 돌아갔을 수 있습니다):"
+
+msgid "Copy:Import:MissingImage"
+msgstr "이미지를 만들지 못한 편집:"
+
+msgid "Copy:Import:Reason:MeshNotFound"
+msgstr "같은 메시를 찾지 못함"
+
+msgid "Copy:Import:Reason:Ambiguous"
+msgstr "같은 메시가 여러 개라 대상을 정할 수 없음"
+
+msgid "Copy:Import:Reason:TriangleOutOfRange"
+msgstr "메시의 면 수가 다름"
+
+msgid "Copy:Import:Reason:TextureNotFound"
+msgstr "머티리얼에 텍스처가 없음"
+
+msgid "Copy:Import:Ok"
+msgstr "확인"
+
+msgid "Copy:Import:Line"
+msgstr "・{0}"
+
+msgid "Copy:Import:FailedLine"
+msgstr "・{0}({1})"
+
+msgid "Copy:Window:MissingImage"
+msgstr "이미지를 넣지 못한 편집(불러오면 이미지가 없습니다):"
+
+msgid "Inspector:Profile:Header"
+msgstr "프로필"
+
+msgid "Inspector:Profile:Hint"
+msgstr "다른 아바타로 옮길 때는 만들어진 파일을 Scene 편집 패널에 드롭합니다"
+
+msgid "Copy:Window:AvatarTexture"
+msgstr "아바타 텍스처"
+
+msgid "Copy:Window:AvatarTextureTooltip"
+msgstr "[이미지 넣기]에 이 아바타의 머티리얼이 사용하는 텍스처를 쓰고 있습니다"
+
+msgid "Copy:Window:AvatarTextureWarning"
+msgstr "다음 편집은 [이미지 넣기]에 아바타의 텍스처를 쓰고 있습니다. 이 프로필을 다른 사람에게 주면 그 텍스처를 배포하게 됩니다(자신의 프로젝트끼리 옮기는 것은 문제없습니다):"

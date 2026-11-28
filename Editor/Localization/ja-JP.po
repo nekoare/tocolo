@@ -936,3 +936,120 @@ msgstr "使わない"
 
 msgid "UpdateNotice:ConsentDetails"
 msgstr "通信の詳しい内容"
+
+msgid "Inspector:Copy:Export"
+msgstr "プロファイル作成"
+
+msgid "Inspector:Copy:ExportTooltip"
+msgstr "選んだ編集をプロファイル（1つのファイル）にまとめます。別のアバターのScene編集のパネルにドロップすると読み込めます"
+
+msgid "Copy:Window:Title"
+msgstr "Tocolo: プロファイル作成"
+
+msgid "Copy:Window:Lead"
+msgstr "プロファイルに入れる編集を選んでください。できたファイルを別のアバターのScene編集のパネルにドロップすると、同じ髪・衣装に同じ色変えが入ります（色違いの衣装にも入ります）。"
+
+msgid "Copy:Window:ImageNote"
+msgstr "［画像を入れる］の画像もファイルに入ります。人に渡すときは画像の権利に気をつけてください（髪や衣装のテクスチャ自体は入りません）。"
+
+msgid "Copy:Window:SelectAll"
+msgstr "すべて選ぶ"
+
+msgid "Copy:Window:SelectNone"
+msgstr "すべて外す"
+
+msgid "Copy:Window:Export"
+msgstr "作成…"
+
+msgid "Copy:Window:NoRows"
+msgstr "プロファイルに入れられる編集がありません（色を決めた編集だけ入れられます）"
+
+msgid "Copy:Window:Group"
+msgstr "{0}（アバター全体）"
+
+msgid "Copy:Window:IslandGroup"
+msgstr "{0}（{1}件の連結）"
+
+msgid "Copy:Window:SaveTitle"
+msgstr "プロファイルの保存先"
+
+msgid "Copy:Window:Done"
+msgstr "{0}件の編集をプロファイル「{1}」に保存しました"
+
+msgid "Scene:Panel:CopyDropHint"
+msgstr "ここにドロップするとプロファイルを読み込みます"
+
+msgid "Copy:Import:Title"
+msgstr "Tocolo: プロファイルを読み込む"
+
+msgid "Copy:Import:Ask"
+msgstr "「{0}」にはすでに編集があります。\n\n上書き: 読み込む編集と同じテクスチャの編集だけを置き換えます（ほかの編集は残ります）\n足す: 今の編集の後ろに足します"
+
+msgid "Copy:Import:Overwrite"
+msgstr "上書き"
+
+msgid "Copy:Import:Add"
+msgstr "足す"
+
+msgid "Copy:Import:Cancel"
+msgstr "キャンセル"
+
+msgid "Copy:Import:Unreadable"
+msgstr "このファイルは読み込めません（Tocoloのプロファイルではないか、新しい版のTocoloで作ったファイルです）"
+
+msgid "Copy:Import:NoComponent"
+msgstr "このアバターにはTocoloを付けられません（Projectの中のPrefabなど）"
+
+msgid "Copy:Import:Result"
+msgstr "{0}件の編集を読み込みました。"
+
+msgid "Copy:Import:Failed"
+msgstr "移せなかった編集:"
+
+msgid "Copy:Import:Partial"
+msgstr "一部の場所（Ctrl＋クリックで足した所）を移せなかった編集:"
+
+msgid "Copy:Import:Regrouped"
+msgstr "「アバター全体」の範囲を移す先で選び直した編集（髪ごとの調整は元に戻っていることがあります）:"
+
+msgid "Copy:Import:MissingImage"
+msgstr "画像を作れなかった編集:"
+
+msgid "Copy:Import:Reason:MeshNotFound"
+msgstr "同じメッシュが見つからない"
+
+msgid "Copy:Import:Reason:Ambiguous"
+msgstr "同じメッシュが複数あり付け先が決まらない"
+
+msgid "Copy:Import:Reason:TriangleOutOfRange"
+msgstr "メッシュの面の数が違う"
+
+msgid "Copy:Import:Reason:TextureNotFound"
+msgstr "マテリアルにテクスチャが無い"
+
+msgid "Copy:Import:Ok"
+msgstr "OK"
+
+msgid "Copy:Import:Line"
+msgstr "・{0}"
+
+msgid "Copy:Import:FailedLine"
+msgstr "・{0}（{1}）"
+
+msgid "Copy:Window:MissingImage"
+msgstr "画像を入れられなかった編集（読み込むと画像なしになります）:"
+
+msgid "Inspector:Profile:Header"
+msgstr "プロファイル"
+
+msgid "Inspector:Profile:Hint"
+msgstr "別のアバターに移すときは、できたファイルをScene編集のパネルにドロップします"
+
+msgid "Copy:Window:AvatarTexture"
+msgstr "アバターのテクスチャ"
+
+msgid "Copy:Window:AvatarTextureTooltip"
+msgstr "［画像を入れる］に、このアバターのマテリアルで使っているテクスチャを使っています"
+
+msgid "Copy:Window:AvatarTextureWarning"
+msgstr "次の編集は、［画像を入れる］にアバターのテクスチャを使っています。このプロファイルを人に渡すと、そのテクスチャを配ることになります（自分のプロジェクトどうしで移すだけなら問題ありません）:"

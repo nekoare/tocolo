@@ -936,3 +936,120 @@ msgstr "No thanks"
 
 msgid "UpdateNotice:ConsentDetails"
 msgstr "What is sent"
+
+msgid "Inspector:Copy:Export"
+msgstr "Create profile"
+
+msgid "Inspector:Copy:ExportTooltip"
+msgstr "Bundles the selected edits into a profile (one file). Drop it on the Scene edit panel of another avatar to load it."
+
+msgid "Copy:Window:Title"
+msgstr "Tocolo: Create profile"
+
+msgid "Copy:Window:Lead"
+msgstr "Choose the edits to put in the profile. Drop the file on the Scene edit panel of another avatar to apply the same recolor to the same hair or outfit (color variants too)."
+
+msgid "Copy:Window:ImageNote"
+msgstr "Images added with [Add image] are included in the file. Mind the rights of those images when sharing it (the hair/outfit textures themselves are not included)."
+
+msgid "Copy:Window:SelectAll"
+msgstr "Select all"
+
+msgid "Copy:Window:SelectNone"
+msgstr "Select none"
+
+msgid "Copy:Window:Export"
+msgstr "Create…"
+
+msgid "Copy:Window:NoRows"
+msgstr "There are no edits to put in a profile (only edits with a decided color can be included)."
+
+msgid "Copy:Window:Group"
+msgstr "{0} (whole avatar)"
+
+msgid "Copy:Window:IslandGroup"
+msgstr "{0} ({1} linked)"
+
+msgid "Copy:Window:SaveTitle"
+msgstr "Save profile"
+
+msgid "Copy:Window:Done"
+msgstr "Saved {0} edit(s) to the profile \"{1}\"."
+
+msgid "Scene:Panel:CopyDropHint"
+msgstr "Drop here to load the profile"
+
+msgid "Copy:Import:Title"
+msgstr "Tocolo: Load profile"
+
+msgid "Copy:Import:Ask"
+msgstr "\"{0}\" already has edits.\n\nOverwrite: replaces only the edits on the same textures as the loaded edits (other edits stay)\nAdd: adds after the current edits"
+
+msgid "Copy:Import:Overwrite"
+msgstr "Overwrite"
+
+msgid "Copy:Import:Add"
+msgstr "Add"
+
+msgid "Copy:Import:Cancel"
+msgstr "Cancel"
+
+msgid "Copy:Import:Unreadable"
+msgstr "This file cannot be loaded (it is not a Tocolo profile, or it was made by a newer Tocolo)."
+
+msgid "Copy:Import:NoComponent"
+msgstr "Tocolo cannot be added to this avatar (e.g. a Prefab in the Project)."
+
+msgid "Copy:Import:Result"
+msgstr "Loaded {0} edit(s)."
+
+msgid "Copy:Import:Failed"
+msgstr "Edits that could not be moved:"
+
+msgid "Copy:Import:Partial"
+msgstr "Edits with some spots (added with Ctrl+click) not moved:"
+
+msgid "Copy:Import:Regrouped"
+msgstr "Edits whose \"whole avatar\" range was re-selected on this avatar (per-texture adjustments may be reset):"
+
+msgid "Copy:Import:MissingImage"
+msgstr "Edits whose image could not be created:"
+
+msgid "Copy:Import:Reason:MeshNotFound"
+msgstr "same mesh not found"
+
+msgid "Copy:Import:Reason:Ambiguous"
+msgstr "several same meshes, target is ambiguous"
+
+msgid "Copy:Import:Reason:TriangleOutOfRange"
+msgstr "the mesh has a different number of faces"
+
+msgid "Copy:Import:Reason:TextureNotFound"
+msgstr "the material has no texture"
+
+msgid "Copy:Import:Ok"
+msgstr "OK"
+
+msgid "Copy:Import:Line"
+msgstr "- {0}"
+
+msgid "Copy:Import:FailedLine"
+msgstr "- {0} ({1})"
+
+msgid "Copy:Window:MissingImage"
+msgstr "Edits whose image could not be included (they will have no image when loaded):"
+
+msgid "Inspector:Profile:Header"
+msgstr "Profile"
+
+msgid "Inspector:Profile:Hint"
+msgstr "To move it to another avatar, drop the file on the Scene edit panel."
+
+msgid "Copy:Window:AvatarTexture"
+msgstr "Avatar texture"
+
+msgid "Copy:Window:AvatarTextureTooltip"
+msgstr "[Add image] uses a texture that this avatar's materials use."
+
+msgid "Copy:Window:AvatarTextureWarning"
+msgstr "These edits use an avatar texture for [Add image]. Giving this profile to someone else distributes that texture (moving it between your own projects is fine):"

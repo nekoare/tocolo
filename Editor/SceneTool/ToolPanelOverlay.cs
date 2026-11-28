@@ -117,6 +117,8 @@ namespace Nekoare.ClickRecolor.Editor.SceneTool
                     QueueAutoSelectIfSingleAvatar();
                     return;
                 }
+                // 設定ファイルのドロップ。下の欄（お手本の ObjectField など）より先に受ける
+                Copy.CopyDropHandler.Handle(root);
 
                 // 対象の表示と「対象アバターを切り替える」（切り替え先の候補が 2 つ以上あるときだけ）。「範囲」ブロックの上
                 if (CountTargetCandidates() > 1)

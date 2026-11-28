@@ -84,27 +84,8 @@ namespace Nekoare.ClickRecolor.Editor.Inspector
             }
 
             _usedTextures = Picking.MaterialTextureResolver.CollectMainTextures(component.gameObject);
-            _editList.DoLayoutList();
-            using (new EditorGUILayout.HorizontalScope())
-            {
-                GUILayout.FlexibleSpace();
-                // クリックしたパーツが見つからない編集をまとめて消す（あるときだけ押せる。ユーザー要望 2026-09-29）
-                int missing = component.edits.FindAll(Pipeline.RecolorPipeline.IsSeedMissing).Count;
-                using (new EditorGUI.DisabledScope(missing == 0))
-                {
-                    string label = missing > 0
-                        ? Locales.Tr("Inspector:Edit:DeleteMissingCount", missing)
-                        : Locales.Tr("Inspector:Edit:DeleteMissing");
-                    if (GUILayout.Button(new GUIContent(label, Locales.Tr("Inspector:Edit:MissingTooltip")), GUILayout.ExpandWidth(false)))
-                    {
-                        _deleteMissingRequested = true;
-                    }
-                }
-                using (new EditorGUI.DisabledScope(component.edits.Count == 0))
-                {
-                    if (GUILayout.Button(Locales.Tr("Inspector:Edit:DeleteAll"), GUILayout.ExpandWidth(false))) _deleteAllRequested = true;
-                }
-            }
+            if (EditListExpanded) DrawEditListWithButtons(component);
+            else DrawCollapsedEditListHeader();
             string unreadable = FindUnreadableRendererNames(component);
             if (unreadable != null)
             {
@@ -118,6 +99,8 @@ namespace Nekoare.ClickRecolor.Editor.Inspector
                     GUIUtility.ExitGUI();
                 }
             }
+
+            DrawProfileSection(component);
 
             // 書き出し欄は有料版が差し込む。無ければ案内だけ出す
             var drawExportSection = InspectorExtensions.DrawExportSection;
@@ -228,7 +211,88 @@ namespace Nekoare.ClickRecolor.Editor.Inspector
             HelpMark.DrawBoxIfOpen(helpKey);
         }
 
-        /// <summary>見出し: 左に「編集一覧」、右に色を決めた編集の件数</summary>
+        /// <summary>編集一覧を開いているか。PC 単位で覚える（アバターごとに開け閉めし直さなくていいように）</summary>
+        private const string EditListExpandedKey = "ClickRecolor.Inspector.EditListExpanded";
+
+        private static bool EditListExpanded
+        {
+            get => EditorPrefs.GetBool(EditListExpandedKey, true);
+            set => EditorPrefs.SetBool(EditListExpandedKey, value);
+        }
+
+        private void DrawEditListWithButtons(ClickRecolor component)
+        {
+            _editList.DoLayoutList();
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                GUILayout.FlexibleSpace();
+                // クリックしたパーツが見つからない編集をまとめて消す（あるときだけ押せる）
+                int missing = component.edits.FindAll(Pipeline.RecolorPipeline.IsSeedMissing).Count;
+                using (new EditorGUI.DisabledScope(missing == 0))
+                {
+                    string label = missing > 0
+                        ? Locales.Tr("Inspector:Edit:DeleteMissingCount", missing)
+                        : Locales.Tr("Inspector:Edit:DeleteMissing");
+                    if (GUILayout.Button(new GUIContent(label, Locales.Tr("Inspector:Edit:MissingTooltip")), GUILayout.ExpandWidth(false)))
+                    {
+                        _deleteMissingRequested = true;
+                    }
+                }
+                using (new EditorGUI.DisabledScope(component.edits.Count == 0))
+                {
+                    if (GUILayout.Button(Locales.Tr("Inspector:Edit:DeleteAll"), GUILayout.ExpandWidth(false))) _deleteAllRequested = true;
+                }
+            }
+        }
+
+        /// <summary>
+        /// 閉じているときは見出しだけを、開いているときの見出しと同じ見た目で描く。
+        /// ReorderableList.defaultBehaviours で描かないのは、一覧を一度も描いていないと null のため（閉じたまま Unity を開き直したとき）
+        /// </summary>
+        private void DrawCollapsedEditListHeader()
+        {
+            var rect = GUILayoutUtility.GetRect(0f, _editList.headerHeight, GUILayout.ExpandWidth(true));
+            if (Event.current.type == EventType.Repaint) HeaderStyle.Draw(rect, false, false, false, false);
+            rect.xMin += 6f;
+            rect.xMax -= 6f;
+            rect.height -= 2f;
+            rect.y += 1f;
+            DrawEditListHeader(rect);
+            EditorGUILayout.Space(4);
+        }
+
+        private static GUIStyle _headerStyle;
+        private static GUIStyle HeaderStyle => _headerStyle ?? (_headerStyle = new GUIStyle("RL Header"));
+
+        /// <summary>
+        /// プロファイル（別のアバターへ移すファイル）の欄。読み込みは Scene 編集のパネルへのドロップで、
+        /// Inspector からは見えないので、やり方を 1 行で添える
+        /// </summary>
+        private static void DrawProfileSection(ClickRecolor component)
+        {
+            EditorGUILayout.Space(6);
+            EditorGUILayout.LabelField(Locales.Tr("Inspector:Profile:Header"), EditorStyles.boldLabel);
+            bool cannotEdit = EditorUtility.IsPersistent(component) || EditorApplication.isPlayingOrWillChangePlaymode;
+            using (new EditorGUI.DisabledScope(cannotEdit || Copy.CopyExporter.ListRows(component).Count == 0))
+            {
+                var content = new GUIContent(Locales.Tr("Inspector:Copy:Export"), EditorGUIUtility.IconContent("SaveAs").image, Locales.Tr("Inspector:Copy:ExportTooltip"));
+                var previous = GUI.backgroundColor;
+                // backgroundColor はボタンの灰色に掛け算されるので、1 以下だと必ず元より暗くなり押された見た目になる。
+                // 1 を超える値で明るくしつつ青を強める
+                GUI.backgroundColor = new Color(0.85f, 1.15f, 1.5f);
+                bool pressed;
+                try { pressed = GUILayout.Button(content, GUILayout.Height(24)); }
+                finally { GUI.backgroundColor = previous; }
+                if (pressed)
+                {
+                    EditorApplication.delayCall += () => Copy.CopyExportWindow.Open(component);
+                }
+            }
+            EditorGUILayout.LabelField(Locales.Tr("Inspector:Profile:Hint"), EditorStyles.wordWrappedMiniLabel);
+            EditorGUILayout.Space(6);
+        }
+
+        /// <summary>見出し: 左に「編集一覧」（押すと開け閉め）、右に色を決めた編集の件数</summary>
         private void DrawEditListHeader(Rect rect)
         {
             var component = (ClickRecolor)target;
@@ -236,7 +300,11 @@ namespace Nekoare.ClickRecolor.Editor.Inspector
             // 「アバター全体」の連結は 1 件と数える（先頭の編集だけ）
             int decided = 0;
             foreach (var e in component.edits) if (e != null && e.IsKept && EditGroups.IsHead(component, e)) decided++;
-            EditorGUI.LabelField(rect, Locales.Tr("Inspector:Edits"));
+            // 矢印の分だけ右へずらす（ずらさないと矢印が見出しの枠からはみ出す）
+            var foldRect = new Rect(rect.x + 10f, rect.y, rect.width - 10f, rect.height);
+            bool expanded = EditListExpanded;
+            bool next = EditorGUI.Foldout(foldRect, expanded, Locales.Tr("Inspector:Edits"), true);
+            if (next != expanded) EditListExpanded = next;
             var countStyle = new GUIStyle(EditorStyles.miniLabel) { alignment = TextAnchor.MiddleRight };
             EditorGUI.LabelField(rect, Locales.Tr("Inspector:EditCount", decided), countStyle);
         }
